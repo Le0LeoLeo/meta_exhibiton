@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="glassBase" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e6f4ff" />
+      <stop offset="50%" stop-color="#dbeafe" />
+      <stop offset="100%" stop-color="#f0f9ff" />
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#93c5fd" stroke-opacity="0.25" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="256" height="256" fill="url(#glassBase)" />
+  <rect width="256" height="256" fill="url(#grid)" opacity="0.7"/>
+  <rect width="256" height="256" fill="#ffffff" opacity="0.08"/>
+</svg>
