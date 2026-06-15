@@ -96,6 +96,9 @@ export type WallMaterialSettings = Pick<
 
 export type AppMode = "edit" | "view" | "floor-plan";
 
+export type PerformanceMode = "auto" | "quality" | "balanced" | "performance";
+export type LegacyPerformanceMode = PerformanceMode | "low";
+
 export type FloorPlanElementType = "room" | "wall";
 
 export interface FloorPlanElement {
