@@ -5,12 +5,17 @@ import {
   ExhibitItem,
   RoomSize,
   AppMode,
+  PerformanceMode,
   WallFace,
   WallAnchor,
   FloorPlanElement,
   FloorPlanElementType,
   WallMaterialSettings,
 } from "../types";
+import {
+  normalizeStoredPerformanceMode,
+  type EffectivePerformanceMode,
+} from "../performance/adaptivePerformance";
 import { defaultGalleryScene } from "./defaultGalleryScene";
 
 interface SceneSnapshot {
@@ -207,6 +212,10 @@ interface AppState {
   floorPlanIsTransforming: boolean;
   undoStack: SceneSnapshot[];
   redoStack: SceneSnapshot[];
+  performanceMode: PerformanceMode;
+  effectivePerformanceMode: EffectivePerformanceMode;
+  setPerformanceMode: (mode: PerformanceMode) => void;
+  setEffectivePerformanceMode: (mode: EffectivePerformanceMode) => void;
   setMode: (mode: AppMode) => void;
   setRoomSize: (size: Partial<RoomSize>) => void;
   addItem: (type: ExhibitItem["type"], options?: { position?: [number, number, number], rotation?: [number, number, number] }) => void;
@@ -271,6 +280,11 @@ export const useMetaverseStudioStore = create<AppState>()(
       floorPlanIsTransforming: false,
       undoStack: [],
       redoStack: [],
+      performanceMode: "auto",
+      effectivePerformanceMode: "balanced",
+      setPerformanceMode: (mode) => set({ performanceMode: mode }),
+      setEffectivePerformanceMode: (mode) =>
+        set({ effectivePerformanceMode: mode }),
       setMode: (mode) =>
         set({
           mode,
@@ -1043,7 +1057,7 @@ export const useMetaverseStudioStore = create<AppState>()(
     }),
     {
       name: "metaverse-exhibition-storage",
-      version: 5,
+      version: 7,
       migrate: (persistedState: any, version) => {
         if (!persistedState || typeof persistedState !== "object") return persistedState;
 
@@ -1068,6 +1082,9 @@ export const useMetaverseStudioStore = create<AppState>()(
             floorMetalness: 0.18,
             ...(persistedState.roomSize || {}),
           },
+          performanceMode: normalizeStoredPerformanceMode(
+            persistedState.performanceMode,
+          ),
         };
 
         if (version < 2) {
@@ -1117,6 +1134,7 @@ export const useMetaverseStudioStore = create<AppState>()(
         items: sanitizeItemsForPersist(state.items),
         floorPlanElements: state.floorPlanElements,
         wallMaterialOverrides: sanitizeWallOverridesForPersist(state.wallMaterialOverrides),
+        performanceMode: state.performanceMode,
         undoStack: (state.undoStack ?? []).map((snapshot) => ({
           ...snapshot,
           roomSize: sanitizeRoomSizeForPersist(snapshot.roomSize),
