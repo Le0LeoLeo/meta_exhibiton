@@ -11,6 +11,7 @@ import {
   emitSceneOp,
   emitSceneFocus,
 } from "../../network/socketClient";
+import { useRenderPerformanceProfile } from "../../performanceProfile";
 
 export function MultiplayerBridge() {
   const mode = useStore((state) => state.mode);
@@ -33,6 +34,7 @@ export function MultiplayerBridge() {
   const clearRemoteEditorFocusByEditor = useMultiplayerStore((state) => state.clearRemoteEditorFocusByEditor);
   const pruneRemoteEditorFocuses = useMultiplayerStore((state) => state.pruneRemoteEditorFocuses);
   const selectedItemId = useStore((state) => state.selectedItemId);
+  const performanceProfile = useRenderPerformanceProfile();
 
   const lastSceneRef = useRef<any | null>(null);
   const applyingRemoteRef = useRef(false);
@@ -69,10 +71,10 @@ export function MultiplayerBridge() {
         position: local.position,
         yaw: local.yaw,
       });
-    }, 80);
+    }, performanceProfile.multiplayerMoveIntervalMs);
 
     return () => window.clearInterval(interval);
-  }, [enabled, connected, mode, roomId]);
+  }, [enabled, connected, mode, roomId, performanceProfile.multiplayerMoveIntervalMs]);
 
   useEffect(() => {
     const isCollaborativeEditMode = mode === "edit" || mode === "floor-plan";
