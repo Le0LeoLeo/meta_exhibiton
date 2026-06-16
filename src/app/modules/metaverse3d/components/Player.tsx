@@ -33,7 +33,11 @@ function createSegments(start: number, end: number, cuts: Array<[number, number]
   return result;
 }
 
-export function Player() {
+export function Player({
+  allowMotion = true,
+}: {
+  allowMotion?: boolean;
+}) {
   const mode = useStore((state) => state.mode);
   const setIsPointerLocked = useStore((state) => state.setIsPointerLocked);
   const roomSize = useStore((state) => state.roomSize);
@@ -173,6 +177,14 @@ export function Player() {
   const moveRight = useRef(false);
 
   useEffect(() => {
+    if (allowMotion) return;
+    moveForward.current = false;
+    moveBackward.current = false;
+    moveLeft.current = false;
+    moveRight.current = false;
+  }, [allowMotion]);
+
+  useEffect(() => {
     camera.rotation.order = "YXZ";
     if (mode === "view") {
       playerPosRef.current.set(0, EYE_HEIGHT, 5);
@@ -189,7 +201,7 @@ export function Player() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (mode !== "view") return;
+      if (mode !== "view" || !allowMotion) return;
       switch (event.code) {
         case "ArrowUp":
         case "KeyW": moveForward.current = true; break;
@@ -203,7 +215,7 @@ export function Player() {
     };
 
     const onKeyUp = (event: KeyboardEvent) => {
-      if (mode !== "view") return;
+      if (mode !== "view" || !allowMotion) return;
       switch (event.code) {
         case "ArrowUp":
         case "KeyW": moveForward.current = false; break;
@@ -222,7 +234,7 @@ export function Player() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [mode]);
+  }, [allowMotion, mode]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -230,7 +242,7 @@ export function Player() {
     const pointer = new THREE.Vector2();
 
     const onCanvasClick = (event: MouseEvent) => {
-      if (mode !== "view" || viewingItem) return;
+      if (mode !== "view" || viewingItem || !allowMotion) return;
 
       const rect = canvas.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -260,7 +272,7 @@ export function Player() {
     };
 
     const onMouseMove = (event: MouseEvent) => {
-      if (mode !== "view" || !isLockedRef.current) return;
+      if (mode !== "view" || !allowMotion || !isLockedRef.current) return;
       if (skipNextMouseMoveRef.current) { skipNextMouseMoveRef.current = false; return; }
 
       const maxDelta = 120;
@@ -282,7 +294,7 @@ export function Player() {
       document.removeEventListener("pointerlockchange", onPointerLockChange);
       document.removeEventListener("mousemove", onMouseMove);
     };
-  }, [mode, gl, camera, scene, viewingItem, canOpenViewingItem, openViewingItemById, setIsPointerLocked]);
+  }, [allowMotion, mode, gl, camera, scene, viewingItem, canOpenViewingItem, openViewingItemById, setIsPointerLocked]);
 
   const roomExtents = useMemo(() => ({
     minX: Math.min(...roomBounds.map((b) => b.minX)),
@@ -325,6 +337,7 @@ export function Player() {
 
   useFrame((_, delta) => {
     if (mode !== "view") return;
+    if (!allowMotion) return;
 
     if (isLockedRef.current) {
       const forwardAmount = Number(moveForward.current) - Number(moveBackward.current);

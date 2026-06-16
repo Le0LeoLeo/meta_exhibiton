@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Environment } from "@react-three/drei";
 import * as THREE from "three";
@@ -11,6 +11,7 @@ import {
   useAdaptivePerformance,
 } from "../performance/useAdaptivePerformance";
 import { useStore } from "../store/useStore";
+import { useSceneLifecycle } from "../lifecycle/useSceneLifecycle";
 
 const ViewCanvas = lazy(() => import("./ViewCanvas").then((mod) => ({ default: mod.ViewCanvas })));
 const EditCanvas = lazy(() => import("./EditCanvas").then((mod) => ({ default: mod.EditCanvas })));
@@ -48,37 +49,19 @@ export function CanvasScene({
     signals,
   });
   const performanceProfile = useRenderPerformanceProfile();
-  const [documentVisible, setDocumentVisible] = useState(
-    () =>
-      typeof document === "undefined" ||
-      document.visibilityState === "visible",
-  );
+  const lifecycle = useSceneLifecycle({ detailOpen: viewingItem !== null });
   const envBrightness = roomSize.environmentBrightness ?? 1;
   const enableShadows = !isFloorPlan && performanceProfile.enableShadows;
   const sampleEligible =
-    mode === "view" && !isFloorPlan && viewingItem === null && documentVisible;
+    mode === "view" && !isFloorPlan && lifecycle.allowMotion;
   const frameloop =
-    mode === "view"
-      ? sampleEligible
-        ? "always"
-        : performanceProfile.idleFrameloop
+    mode === "view" && lifecycle.obscured
+      ? performanceProfile.idleFrameloop
       : "always";
 
   useEffect(() => {
     setEffectivePerformanceMode(adaptivePerformance.effectiveMode);
   }, [adaptivePerformance.effectiveMode, setEffectivePerformanceMode]);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const updateVisibility = () => {
-      setDocumentVisible(document.visibilityState === "visible");
-    };
-
-    updateVisibility();
-    document.addEventListener("visibilitychange", updateVisibility);
-    return () =>
-      document.removeEventListener("visibilitychange", updateVisibility);
-  }, []);
 
   return (
     <Canvas
@@ -123,7 +106,7 @@ export function CanvasScene({
         ) : mode === "edit" ? (
           <EditCanvas roomSize={roomSize} items={items} />
         ) : (
-          <ViewCanvas items={items} />
+          <ViewCanvas items={items} allowMotion={lifecycle.allowMotion} />
         )}
       </Suspense>
     </Canvas>

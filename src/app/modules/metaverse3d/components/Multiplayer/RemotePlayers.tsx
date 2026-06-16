@@ -2,11 +2,17 @@ import { useFrame } from "@react-three/fiber";
 import { RemotePlayer } from "./RemotePlayer";
 import { useMultiplayerStore } from "../../network/multiplayerStore";
 
-export function RemotePlayers() {
+export function RemotePlayers({
+  allowMotion = true,
+}: {
+  allowMotion?: boolean;
+}) {
   const remotePlayers = useMultiplayerStore((state) => state.remotePlayers);
   const tickInterpolation = useMultiplayerStore((state) => state.tickInterpolation);
 
   useFrame((_, delta) => {
+    if (!allowMotion) return;
+
     const alpha = Math.min(0.35, 0.08 + delta * 6);
     tickInterpolation(alpha);
   });
