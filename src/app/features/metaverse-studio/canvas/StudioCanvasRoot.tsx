@@ -1,8 +1,10 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 import { CanvasScene } from "../../../modules/metaverse3d/components/CanvasScene";
+import { MobileControls } from "../../../modules/metaverse3d/components/MobileControls";
 import { AgentChatPanel } from "../../../modules/metaverse3d/components/UI/AgentChatPanel";
 import { AgentModeSelector } from "../../../modules/metaverse3d/components/UI/AgentModeSelector";
+import { createPlayerInputState } from "../../../modules/metaverse3d/input/playerInput";
 import { useStore } from "../store";
 import { PreloadOverlay } from "./PreloadOverlay";
 import { useGlobalStudioShortcuts } from "./useGlobalStudioShortcuts";
@@ -33,6 +35,8 @@ export function StudioCanvasRoot() {
   const selectedFloorPlanElementId = useStore((state) => state.selectedFloorPlanElementId);
   const undo = useStore((state) => state.undo);
   const redo = useStore((state) => state.redo);
+  const playerInputRef = useRef(createPlayerInputState());
+  const [nearbyItemTitle, setNearbyItemTitle] = useState<string | null>(null);
 
   const participationMode = agent?.participationMode ?? "solo";
   const isAiParticipation = participationMode === "ai";
@@ -129,8 +133,17 @@ export function StudioCanvasRoot() {
         floorPlanIsTransforming={floorPlanIsTransforming}
         selectedFloorPlanElementId={selectedFloorPlanElementId}
         shouldPreload={shouldPreloadScene}
+        playerInput={playerInputRef}
+        onNearbyItemChange={setNearbyItemTitle}
         onPointerMissed={handlePointerMissed}
       />
+
+      {mode === "view" && (
+        <MobileControls
+          input={playerInputRef}
+          nearbyItemTitle={nearbyItemTitle}
+        />
+      )}
 
       {mode === "view" && <CenterReticle />}
 

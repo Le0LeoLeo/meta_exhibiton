@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo } from "react";
+import { lazy, Suspense, useEffect, useMemo, type MutableRefObject } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Environment } from "@react-three/drei";
 import * as THREE from "three";
@@ -12,6 +12,7 @@ import {
 } from "../performance/useAdaptivePerformance";
 import { useStore } from "../store/useStore";
 import { useSceneLifecycle } from "../lifecycle/useSceneLifecycle";
+import type { PlayerInputState } from "../input/playerInput";
 
 const ViewCanvas = lazy(() => import("./ViewCanvas").then((mod) => ({ default: mod.ViewCanvas })));
 const EditCanvas = lazy(() => import("./EditCanvas").then((mod) => ({ default: mod.EditCanvas })));
@@ -26,6 +27,8 @@ interface CanvasSceneProps {
   selectedFloorPlanElementId: string | null;
   onPointerMissed: () => void;
   shouldPreload?: boolean;
+  playerInput?: MutableRefObject<PlayerInputState>;
+  onNearbyItemChange?: (title: string | null) => void;
 }
 
 export function CanvasScene({
@@ -37,6 +40,8 @@ export function CanvasScene({
   selectedFloorPlanElementId,
   onPointerMissed,
   shouldPreload: _shouldPreload = false,
+  playerInput,
+  onNearbyItemChange,
 }: CanvasSceneProps) {
   const requestedMode = useStore((state) => state.performanceMode);
   const setEffectivePerformanceMode = useStore(
@@ -106,7 +111,12 @@ export function CanvasScene({
         ) : mode === "edit" ? (
           <EditCanvas roomSize={roomSize} items={items} />
         ) : (
-          <ViewCanvas items={items} allowMotion={lifecycle.allowMotion} />
+          <ViewCanvas
+            items={items}
+            allowMotion={lifecycle.allowMotion}
+            playerInput={playerInput}
+            onNearbyItemChange={onNearbyItemChange}
+          />
         )}
       </Suspense>
     </Canvas>

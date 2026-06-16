@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense, useMemo } from "react";
+import { lazy, memo, Suspense, useMemo, type MutableRefObject } from "react";
 import { Physics } from "@react-three/rapier";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 
@@ -9,15 +9,20 @@ import { RemotePlayers } from "./Multiplayer/RemotePlayers";
 import { useStore } from "../store/useStore";
 import type { ExhibitItem as ExhibitItemType } from "../types";
 import { useRenderPerformanceProfile } from "../performanceProfile";
+import type { PlayerInputState } from "../input/playerInput";
 
 const AgentSystem = lazy(() => import("./AgentSystem").then((mod) => ({ default: mod.AgentSystem })));
 
 export const ViewCanvas = memo(function ViewCanvas({
   items,
   allowMotion = true,
+  playerInput,
+  onNearbyItemChange,
 }: {
   items: ExhibitItemType[];
   allowMotion?: boolean;
+  playerInput?: MutableRefObject<PlayerInputState>;
+  onNearbyItemChange?: (title: string | null) => void;
 }) {
   const visibleItems = useMemo(() => items, [items]);
   const isAgentEnabled = useStore((state) => state.agent.enabled);
@@ -31,7 +36,11 @@ export const ViewCanvas = memo(function ViewCanvas({
         {performanceProfile.enableRemotePlayers && (
           <RemotePlayers allowMotion={allowMotion} />
         )}
-        <Player allowMotion={allowMotion} />
+        <Player
+          allowMotion={allowMotion}
+          input={playerInput}
+          onNearbyItemChange={onNearbyItemChange}
+        />
         {isAgentEnabled && (
           <Suspense fallback={null}>
             <AgentSystem allowMotion={allowMotion} />

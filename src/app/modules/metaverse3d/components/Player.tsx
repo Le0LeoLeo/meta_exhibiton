@@ -1,14 +1,38 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import { useLocalPlayerStore } from "../network/localPlayerStore";
+import {
+  createPlayerInputState,
+  setKeyboardKey,
+  type PlayerInputState,
+} from "../input/playerInput";
 
 const LOOK_SENSITIVITY = 0.002;
 const MOVE_SPEED = 5;
 const EYE_HEIGHT = 2.6;
+const AUTO_INTRO_DISTANCE = 2.4;
 
 type Side = "north" | "south" | "east" | "west";
+
+function getItemDisplayName(item: { title?: string; fileName?: string; type?: string }) {
+  return item.title?.trim() || item.fileName?.trim() || `${item.type || "展品"}`;
+}
+
+function getItemFootprintRadius(item: { type?: string; scale: [number, number, number] }) {
+  const [sx, , sz] = item.scale;
+  switch (item.type) {
+    case "painting":
+      return Math.max(0.8, Math.abs(sx) * 0.65);
+    case "text":
+      return Math.max(0.7, Math.abs(sx) * 0.55);
+    case "pedestal":
+      return Math.max(0.8, Math.abs(sx) * 0.6);
+    default:
+      return Math.max(0.75, Math.max(Math.abs(sx), Math.abs(sz)) * 0.55);
+  }
+}
 
 function createSegments(start: number, end: number, cuts: Array<[number, number]>) {
   const normalized = cuts
@@ -35,8 +59,12 @@ function createSegments(start: number, end: number, cuts: Array<[number, number]
 
 export function Player({
   allowMotion = true,
+  input,
+  onNearbyItemChange,
 }: {
   allowMotion?: boolean;
+  input?: MutableRefObject<PlayerInputState>;
+  onNearbyItemChange?: (title: string | null) => void;
 }) {
   const mode = useStore((state) => state.mode);
   const setIsPointerLocked = useStore((state) => state.setIsPointerLocked);
@@ -44,6 +72,7 @@ export function Player({
   const items = useStore((state) => state.items);
   const floorPlanElements = useStore((state) => state.floorPlanElements);
   const viewingItem = useStore((state) => state.viewingItem);
+  const setViewingItem = useStore((state) => state.setViewingItem);
   const canOpenViewingItem = useStore((state) => state.canOpenViewingItem);
   const openViewingItemById = useStore((state) => state.openViewingItemById);
   const setLocalTransform = useLocalPlayerStore((state) => state.setTransform);
@@ -175,6 +204,9 @@ export function Player({
   const moveBackward = useRef(false);
   const moveLeft = useRef(false);
   const moveRight = useRef(false);
+  const nearbyItemIdRef = useRef<string | null>(null);
+  const fallbackInputRef = useRef(createPlayerInputState());
+  const inputRef = input ?? fallbackInputRef;
 
   useEffect(() => {
     if (allowMotion) return;
@@ -182,7 +214,15 @@ export function Player({
     moveBackward.current = false;
     moveLeft.current = false;
     moveRight.current = false;
-  }, [allowMotion]);
+    inputRef.current.moveX = 0;
+    inputRef.current.moveY = 0;
+    inputRef.current.lookDeltaX = 0;
+    inputRef.current.lookDeltaY = 0;
+    inputRef.current.interactRequested = false;
+    inputRef.current.pressedKeys.clear();
+    nearbyItemIdRef.current = null;
+    onNearbyItemChange?.(null);
+  }, [allowMotion, inputRef, onNearbyItemChange]);
 
   useEffect(() => {
     camera.rotation.order = "YXZ";
@@ -202,30 +242,12 @@ export function Player({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (mode !== "view" || !allowMotion) return;
-      switch (event.code) {
-        case "ArrowUp":
-        case "KeyW": moveForward.current = true; break;
-        case "ArrowLeft":
-        case "KeyA": moveLeft.current = true; break;
-        case "ArrowDown":
-        case "KeyS": moveBackward.current = true; break;
-        case "ArrowRight":
-        case "KeyD": moveRight.current = true; break;
-      }
+      setKeyboardKey(inputRef.current, event.code, true);
     };
 
     const onKeyUp = (event: KeyboardEvent) => {
       if (mode !== "view" || !allowMotion) return;
-      switch (event.code) {
-        case "ArrowUp":
-        case "KeyW": moveForward.current = false; break;
-        case "ArrowLeft":
-        case "KeyA": moveLeft.current = false; break;
-        case "ArrowDown":
-        case "KeyS": moveBackward.current = false; break;
-        case "ArrowRight":
-        case "KeyD": moveRight.current = false; break;
-      }
+      setKeyboardKey(inputRef.current, event.code, false);
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -234,7 +256,7 @@ export function Player({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [allowMotion, mode]);
+  }, [allowMotion, inputRef, mode]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -339,9 +361,22 @@ export function Player({
     if (mode !== "view") return;
     if (!allowMotion) return;
 
-    if (isLockedRef.current) {
-      const forwardAmount = Number(moveForward.current) - Number(moveBackward.current);
-      const sideAmount = Number(moveRight.current) - Number(moveLeft.current);
+    const inputState = inputRef.current;
+    yawRef.current -= inputState.lookDeltaX * LOOK_SENSITIVITY;
+    pitchRef.current -= inputState.lookDeltaY * LOOK_SENSITIVITY;
+    inputState.lookDeltaX = 0;
+    inputState.lookDeltaY = 0;
+    const minPitch = -Math.PI / 2 + 0.15;
+    const maxPitch = Math.PI / 2 - 0.15;
+    pitchRef.current = Math.max(minPitch, Math.min(maxPitch, pitchRef.current));
+
+    if (isLockedRef.current || inputState.moveX !== 0 || inputState.moveY !== 0) {
+      const forwardAmount =
+        inputState.moveY ||
+        Number(moveForward.current) - Number(moveBackward.current);
+      const sideAmount =
+        inputState.moveX ||
+        Number(moveRight.current) - Number(moveLeft.current);
 
       if (forwardAmount !== 0 || sideAmount !== 0) {
         const forward = new THREE.Vector3(-Math.sin(yawRef.current), 0, -Math.cos(yawRef.current));
@@ -398,6 +433,50 @@ export function Player({
     camera.position.copy(playerPosRef.current);
     camera.rotation.set(pitchRef.current, yawRef.current, 0);
     setLocalTransform({ x: playerPosRef.current.x, y: playerPosRef.current.y, z: playerPosRef.current.z }, yawRef.current);
+
+    if (viewingItem) {
+      nearbyItemIdRef.current = null;
+      inputState.interactRequested = false;
+      onNearbyItemChange?.(null);
+      return;
+    }
+
+    const nearestItem = items
+      .filter((item) => item.type === "painting" || item.type === "pedestal" || item.type === "text" || item.type === "sculpture")
+      .map((item) => {
+        const [x, , z] = item.position;
+        const distance = Math.hypot(playerPosRef.current.x - x, playerPosRef.current.z - z);
+        return { item, distance };
+      })
+      .sort((a, b) => a.distance - b.distance)[0] ?? null;
+
+    if (!nearestItem) {
+      nearbyItemIdRef.current = null;
+      inputState.interactRequested = false;
+      onNearbyItemChange?.(null);
+      return;
+    }
+
+    const effectiveDistance = Math.max(
+      0,
+      nearestItem.distance - getItemFootprintRadius(nearestItem.item),
+    );
+    if (effectiveDistance > AUTO_INTRO_DISTANCE) {
+      nearbyItemIdRef.current = null;
+      inputState.interactRequested = false;
+      onNearbyItemChange?.(null);
+      return;
+    }
+
+    if (nearbyItemIdRef.current !== nearestItem.item.id) {
+      nearbyItemIdRef.current = nearestItem.item.id;
+      onNearbyItemChange?.(getItemDisplayName(nearestItem.item));
+    }
+
+    if (inputState.interactRequested) {
+      inputState.interactRequested = false;
+      setViewingItem(nearestItem.item);
+    }
   });
 
   return null;
