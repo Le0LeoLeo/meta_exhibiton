@@ -1,202 +1,121 @@
 import { Button } from './ui/button';
-import { ImageWithFallback } from './figma/ImageWithFallback';
-import { motion } from 'motion/react';
 import { Link } from 'react-router';
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { Play, X } from 'lucide-react';
+import { ArrowRight, Boxes, ImagePlus, Sparkles, UsersRound } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Gallery3D } from './Gallery3D';
+import { useI18n } from './I18nProvider';
 
 export function Hero() {
-  const [videoOpen, setVideoOpen] = useState(false);
+  const { t } = useI18n();
+  const quickStats = [
+    { icon: ImagePlus, label: '\u4f5c\u54c1\u7d20\u6750', value: 'PDF / IMG / Video' },
+    { icon: Boxes, label: '3D \u5c55\u9593', value: '\u62d6\u653e\u4f48\u7f6e' },
+    { icon: UsersRound, label: '\u5206\u4eab\u53c3\u89c0', value: '\u516c\u958b\u9023\u7d50' },
+  ];
 
   return (
-    <div className="relative overflow-hidden">
-      {/* Hero Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left Content */}
-          <motion.div 
-            initial={{ opacity: 0, x: -50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="space-y-6"
+    <section className="relative overflow-hidden bg-background">
+      <div className="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-10 px-4 pb-14 pt-12 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:pb-16 lg:pt-14">
+        <div className="max-w-2xl text-left">
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55 }}
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground shadow-sm"
           >
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="inline-flex items-center space-x-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-full text-sm"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-600"></span>
-              </span>
-              <span>元宇宙虛擬展覽平台</span>
-            </motion.div>
-
-            <motion.h1 
-              className="text-5xl lg:text-6xl text-gray-900"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
-            >
-              開創虛擬展覽
-              <br />
-              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                新體驗
-              </span>
-            </motion.h1>
-            
-            <motion.p 
-              className="text-xl text-gray-600 leading-relaxed"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
-            >
-              MetaExpo 提供3D虛擬展覽空間，讓參觀者不受地點限制，
-              線上瀏覽您的展覽。適用於藝術畫廊、產品發表會、
-              企業展示及教育培訓等多種場景。
-            </motion.p>
-
-            {/* Features List */}
-            <motion.div
-              className="grid grid-cols-2 gap-4 py-4"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.7 }}
-            >
-              {[
-                { icon: '🌐', text: '全球觸及' },
-                { icon: '🎨', text: '自由設計' },
-                { icon: '📊', text: '數據分析' },
-                { icon: '💰', text: '降低成本' },
-              ].map((item, index) => (
-                <motion.div
-                  key={item.text}
-                  className="flex items-center space-x-2"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.8 + index * 0.1 }}
-                >
-                  <span className="text-2xl">{item.icon}</span>
-                  <span className="text-gray-700">{item.text}</span>
-                </motion.div>
-              ))}
-            </motion.div>
-
-            <motion.div 
-              className="flex flex-col sm:flex-row gap-4"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.9 }}
-            >
-              <Link to="/register">
-                <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
-                  <Button className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg w-full">
-                    立即體驗
-                  </Button>
-                </motion.div>
-              </Link>
-              <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
-                <Button 
-                  variant="outline" 
-                  className="px-8 py-6 text-lg w-full"
-                  onClick={() => setVideoOpen(true)}
-                >
-                  <Play className="size-5 mr-2" />
-                  觀看演示影片
-                </Button>
-              </motion.div>
-            </motion.div>
-
-            {/* Trust Indicators */}
-            <motion.div
-              className="flex items-center space-x-6 pt-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 1.0 }}
-            >
-              <div className="text-sm text-gray-600">
-                <div className="flex items-center space-x-1 mb-1">
-                  {[...Array(5)].map((_, i) => (
-                    <motion.span
-                      key={i}
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 1.1 + i * 0.1 }}
-                      className="text-yellow-400"
-                    >
-                      ⭐
-                    </motion.span>
-                  ))}
-                </div>
-                <p className="text-xs">用戶好評推薦</p>
-              </div>
-              <div className="h-8 w-px bg-gray-300"></div>
-              <div className="text-sm text-gray-600">
-                <p className="font-semibold text-gray-900">快速上手</p>
-                <p className="text-xs">註冊即可使用</p>
-              </div>
-            </motion.div>
+            <Sparkles className="size-3.5" />
+            <span>{t('appShort')}</span>
           </motion.div>
 
-          {/* Right Content - VR Image */}
-          <motion.div 
-            initial={{ opacity: 0, x: 50, rotate: 5 }}
-            animate={{ opacity: 1, x: 0, rotate: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="relative"
+          <motion.h1
+            initial={{ opacity: 0, y: 26 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, delay: 0.08 }}
+            className="mt-6 max-w-2xl text-4xl font-semibold leading-tight text-foreground sm:text-5xl lg:text-6xl"
           >
-            <motion.div
-              whileHover={{ scale: 1.05, rotate: 2 }}
-              transition={{ type: "spring", stiffness: 300 }}
-            >
-              <ImageWithFallback
-                src="https://images.unsplash.com/photo-1617802690992-15d93263d3a9?w=800&q=80"
-                alt="元宇宙虛擬展覽體驗" 
-                className="w-full h-auto rounded-lg shadow-2xl"
-              />
-            </motion.div>
-            
-            {/* Floating Stats Cards */}
-            <motion.div
-              className="absolute top-8 -left-4 bg-white rounded-lg shadow-xl p-4"
-              animate={{ y: [0, -10, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <div className="text-sm text-gray-600 mb-1">進行中展覽</div>
-              <div className="text-2xl text-purple-600">120+</div>
-            </motion.div>
+            {t('heroTitle1')}
+            <span className="mt-1 block text-curator-brass">{t('heroTitle2')}</span>
+          </motion.h1>
 
-            <motion.div
-              className="absolute bottom-8 -right-4 bg-white rounded-lg shadow-xl p-4"
-              animate={{ y: [0, 10, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
-            >
-              <div className="text-sm text-gray-600 mb-1">本月訪客</div>
-              <div className="text-2xl text-blue-600">8,500+</div>
-            </motion.div>
+          <motion.p
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, delay: 0.18 }}
+            className="mt-5 max-w-xl text-base leading-8 text-muted-foreground sm:text-lg"
+          >
+            {t('heroDescription')}
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="mt-7 flex flex-col gap-3 sm:flex-row"
+          >
+            <Link to="/virtual-gallery/my-exhibitions">
+              <Button className="h-12 w-full rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-curator-brass sm:w-auto">
+                {t('freeStart')}
+                <ArrowRight className="ml-2 size-4" />
+              </Button>
+            </Link>
+            <Link to="/virtual-gallery">
+              <Button variant="outline" className="h-12 w-full rounded-md border-border bg-card px-6 text-sm font-semibold text-foreground shadow-sm transition-all hover:bg-secondary sm:w-auto">
+                {t('learnMore')}
+              </Button>
+            </Link>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.42 }}
+            className="mt-8 grid gap-3 sm:grid-cols-3"
+          >
+            {quickStats.map((item) => (
+              <div key={item.label} className="rounded-md border border-border bg-card p-3 shadow-sm">
+                <item.icon className="mb-2 size-4 text-curator-brass" />
+                <div className="text-xs font-semibold text-foreground">{item.label}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{item.value}</div>
+              </div>
+            ))}
           </motion.div>
         </div>
-      </div>
 
-      {/* Video Dialog */}
-      <Dialog open={videoOpen} onOpenChange={setVideoOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>MetaExpo 平台演示</DialogTitle>
-            <DialogDescription>了解如何使用 MetaExpo 建立虛擬展覽</DialogDescription>
-          </DialogHeader>
-          <div className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
-            <div className="text-center text-gray-400">
-              <Play className="size-16 mx-auto mb-4 text-purple-400" />
-              <p className="text-lg">演示影片</p>
-              <p className="text-sm mt-2">影片內容載入中...</p>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, y: 22 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.18 }}
+          className="relative"
+        >
+          <div className="absolute -left-3 top-6 hidden rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground shadow-sm md:block">
+            Live preview
+          </div>
+          <div className="absolute -right-3 bottom-10 hidden rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground shadow-sm md:block">
+            Share ready
+          </div>
+          <div className="rounded-md border border-border bg-secondary p-3 shadow-[0_28px_90px_-56px_rgba(28,28,26,0.65)]">
+            <div className="mb-3 flex items-center justify-between rounded-md border border-border bg-card px-3 py-2 text-foreground">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-sm bg-curator-brass/70" />
+                <span className="h-2 w-2 rounded-sm bg-muted-foreground/35" />
+                <span className="h-2 w-2 rounded-sm bg-tool-blue/60" />
+              </div>
+              <span className="text-xs font-medium text-muted-foreground">3D Gallery Studio</span>
+            </div>
+            <div className="overflow-hidden rounded-md border border-border bg-[linear-gradient(135deg,#faf9f6_0%,#f4f3ee_100%)] px-3 pb-4 pt-5">
+              <Gallery3D />
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {['Upload', 'Arrange', 'Invite'].map((label, index) => (
+                <div key={label} className="rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground">
+                  <span className="mr-2 text-tool-blue">0{index + 1}</span>
+                  {label}
+                </div>
+              ))}
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+        </motion.div>
+      </div>
+    </section>
   );
 }

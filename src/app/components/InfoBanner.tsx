@@ -1,93 +1,48 @@
 import { Button } from './ui/button';
-import { X } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { useState } from 'react';
 import { Link } from 'react-router';
+import { ArrowRight, Sparkles } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useI18n } from './I18nProvider';
 
 export function InfoBanner() {
-  const [isVisible, setIsVisible] = useState(true);
+  const { t } = useI18n();
 
   return (
-    <AnimatePresence>
-      {isVisible && (
-        <motion.div 
-          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 50, transition: { duration: 0.3 } }}
-          transition={{ duration: 0.6 }}
+    <div className="relative overflow-hidden bg-background py-16 sm:py-20">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.55 }}
+          className="relative overflow-hidden rounded-md border border-border bg-card p-6 shadow-[0_24px_70px_-44px_rgba(28,28,26,0.45)] sm:p-8 lg:p-10"
         >
-          <motion.div 
-            className="bg-blue-50 border border-blue-200 rounded-lg p-6 relative"
-            whileHover={{ scale: 1.02 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          >
-            {/* Close button */}
-            <motion.button 
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-              onClick={() => setIsVisible(false)}
-              whileHover={{ scale: 1.2, rotate: 90 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <X className="size-5" />
-            </motion.button>
-
-            {/* Content */}
-            <div className="pr-8">
-              <motion.div 
-                className="flex items-start space-x-2 mb-4"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <motion.span 
-                  className="text-lg"
-                  animate={{ 
-                    rotate: [0, 10, -10, 10, 0],
-                    scale: [1, 1.2, 1.2, 1.2, 1]
-                  }}
-                  transition={{ 
-                    duration: 1,
-                    repeat: Infinity,
-                    repeatDelay: 2
-                  }}
-                >
-                  🎉
-                </motion.span>
-                <h3 className="text-gray-900">歡迎體驗：免費創建您的第一個虛擬展廳</h3>
-              </motion.div>
-              
-              <motion.p 
-                className="text-sm text-gray-700 leading-relaxed mb-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
-              >
-                現在註冊 MetaExpo，即可獲得30天專業版試用，體驗完整功能。
-                包含3D展廳建立、多人同時瀏覽、數據分析報告等。
-              </motion.p>
-
-              <motion.div 
-                className="flex flex-wrap gap-3"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <Link to="/register">
-                  <Button className="bg-purple-600 hover:bg-purple-700 text-white text-sm">
-                    立即體驗
-                  </Button>
-                </Link>
-                <Link to="/solutions">
-                  <Button variant="outline" className="text-sm">
-                    了解更多詳情
-                  </Button>
-                </Link>
-              </motion.div>
+          <div className="relative z-10 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="max-w-2xl">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground shadow-sm">
+                <Sparkles className="size-3.5" />
+                {t('appShort')}
+              </div>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{t('ctaTitle')}</h2>
+              <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">{t('ctaDesc')}</p>
             </div>
-          </motion.div>
+
+            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+              <Link to="/register">
+                <Button className="h-12 w-full rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-curator-brass lg:w-44">
+                  {t('freeStart')}
+                  <ArrowRight className="ml-2 size-4" />
+                </Button>
+              </Link>
+              <Link to="/virtual-gallery">
+                <Button variant="outline" className="h-12 w-full rounded-md border-border bg-card px-6 text-sm font-semibold text-foreground shadow-sm transition-all hover:bg-secondary lg:w-44">
+                  {t('browseGallery')}
+                </Button>
+              </Link>
+            </div>
+          </div>
         </motion.div>
-      )}
-    </AnimatePresence>
+      </div>
+    </div>
   );
 }
