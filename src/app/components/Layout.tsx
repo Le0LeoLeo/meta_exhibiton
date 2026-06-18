@@ -74,7 +74,7 @@ export function Layout() {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-white transition-colors duration-300 dark:bg-stone-950">
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-background text-foreground transition-colors duration-300">
       {!isFullscreen && <Navigation />}
       <main className="flex-1">
         <AnimatePresence mode="wait" initial={false}>

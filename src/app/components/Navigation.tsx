@@ -1,87 +1,83 @@
 import { Button } from './ui/button';
-import { Link, useLocation } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Globe, LogOut, Menu, UserCircle2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState } from 'react';
-import { Menu, X, LogOut, User } from 'lucide-react';
-import { clearAuth, loadAuth } from '../api/client';
+import { ThemeToggle } from './ThemeToggle';
+import { clearAuth, loadAuth, type AuthUser } from '../api/auth';
 import { toast } from 'sonner';
+import { useI18n } from './I18nProvider';
+
+const navItems = [
+  { labelKey: 'navHome', path: '/' },
+  { labelKey: 'navVirtualGallery', path: '/virtual-gallery' },
+  { labelKey: 'navExhibitions', path: '/exhibitions' },
+  { labelKey: 'navCompetitions', path: '/competitions' },
+  { labelKey: 'navSupport', path: '/support' },
+  { labelKey: 'navResources', path: '/resources' },
+];
+
+function isActivePath(pathname: string, path: string) {
+  return pathname === path || (path !== '/' && pathname.startsWith(path));
+}
 
 export function Navigation() {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => loadAuth().user);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { t, locale, toggleLocale } = useI18n();
 
-  const { token, user } = loadAuth();
+  useEffect(() => {
+    const syncAuth = () => setAuthUser(loadAuth().user);
+    syncAuth();
+    window.addEventListener('storage', syncAuth);
+    window.addEventListener('focus', syncAuth);
+    return () => {
+      window.removeEventListener('storage', syncAuth);
+      window.removeEventListener('focus', syncAuth);
+    };
+  }, []);
+
+  const isLoggedIn = !!authUser;
+  const initials = useMemo(() => (authUser?.name || authUser?.email || 'U').slice(0, 1).toUpperCase(), [authUser]);
 
   const handleLogout = () => {
     clearAuth();
-    toast.success('已登出');
-    // 簡單做法：強制刷新讓 UI 同步登入狀態
-    window.location.href = '/';
+    setAuthUser(null);
+    setMobileMenuOpen(false);
+    toast.success(t('loggedOut'));
+    navigate('/');
   };
 
-  const navItems = [
-    { label: '首頁', path: '/' },
-    { label: '虛擬展廳', path: '/virtual-gallery' },
-    { label: '展覽活動', path: '/exhibitions' },
-    { label: '解決方案', path: '/solutions' },
-    { label: '資源中心', path: '/resources' },
-    { label: '幫助支援', path: '/support' },
-  ];
-
   return (
-    <motion.nav 
-      className="bg-white/95 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50"
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      transition={{ duration: 0.6, type: "spring", stiffness: 100 }}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <motion.div 
-            className="flex items-center"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Link to="/" className="text-2xl text-cyan-500">
-              <motion.span
-                animate={{ 
-                  textShadow: [
-                    "0 0 0px rgba(6, 182, 212, 0)",
-                    "0 0 10px rgba(6, 182, 212, 0.5)",
-                    "0 0 0px rgba(6, 182, 212, 0)"
-                  ]
-                }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                MetaExpo
-              </motion.span>
-            </Link>
-          </motion.div>
+    <nav className="sticky top-0 z-50 border-b border-border bg-card/90 shadow-[0_1px_0_rgba(255,255,255,0.65)] backdrop-blur-md dark:bg-card/90">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between gap-4">
+          <Link to="/" className="group shrink-0 text-left text-base font-semibold tracking-tight text-foreground">
+            <span className="block leading-tight transition-transform duration-200 group-hover:-translate-y-px">{t('appName')}</span>
+            <span className="block text-xs font-medium text-muted-foreground transition-colors group-hover:text-curator-brass">{t('appShort')}</span>
+          </Link>
 
-          {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center space-x-6">
-            {navItems.map((item, index) => {
-              const isActive = location.pathname === item.path;
+          <div className="hidden items-center gap-2 xl:flex">
+            {navItems.map((item) => {
+              const isActive = isActivePath(location.pathname, item.path);
               return (
-                <Link 
-                  key={index}
-                  to={item.path} 
-                  className={`relative text-sm py-1 transition-colors ${
-                    isActive ? 'text-purple-600' : 'text-gray-700 hover:text-gray-900'
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`relative rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'text-foreground'
+                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
                   }`}
-                  onMouseEnter={() => setHoveredIndex(index)}
-                  onMouseLeave={() => setHoveredIndex(null)}
                 >
-                  {item.label}
-                  {(hoveredIndex === index || isActive) && (
+                  {t(item.labelKey)}
+                  {isActive && (
                     <motion.div
-                      className="absolute -bottom-1 left-0 right-0 h-0.5 bg-purple-600"
-                      layoutId="navbar-indicator"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
+                      layoutId="nav-pill"
+                      className="absolute inset-x-3 -bottom-0.5 h-px rounded-full bg-curator-brass"
+                      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                     />
                   )}
                 </Link>
@@ -89,131 +85,126 @@ export function Navigation() {
             })}
           </div>
 
-          {/* Auth Buttons + Mobile Toggle */}
-          <div className="flex items-center space-x-3">
-            <div className="hidden sm:flex items-center space-x-3">
-              {token ? (
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button type="button" onClick={toggleLocale} className="inline-flex h-9 items-center gap-1 rounded-md border border-border bg-card px-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:px-3" aria-label={t('switchLocale')}>
+              <Globe className="size-4" />
+              {locale === 'zh-TW' ? t('localeTraditional') : locale === 'zh-CN' ? t('localeSimplified') : t('localeEnglish')}
+            </button>
+            <ThemeToggle />
+            <div className="hidden items-center gap-2 md:flex">
+              {isLoggedIn ? (
                 <>
-                  <Link to="/profile" className="flex items-center text-sm text-gray-700 gap-2 px-2 hover:text-gray-900">
-                    <User className="size-4 text-gray-500" />
-                    <span className="max-w-40 truncate">{user?.name ?? user?.email ?? '已登入'}</span>
+                  <Link to="/profile" className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-xs font-semibold text-primary-foreground">{initials}</span>
+                    <span className="max-w-28 truncate">{authUser?.name}</span>
                   </Link>
-                  <Link to="/profile">
-                    <Button variant="ghost" className="text-sm">
-                      個人資料
-                    </Button>
-                  </Link>
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
-                    className="text-sm"
                     onClick={handleLogout}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                   >
-                    <LogOut className="size-4 mr-2" />
-                    登出
-                  </Button>
+                    <LogOut className="size-4" />
+                    {t('logout')}
+                  </button>
                 </>
               ) : (
                 <>
-              <Link to="/register">
-                <Button variant="ghost" className="text-sm">
-                  註冊帳號
-                </Button>
-              </Link>
-              <Link to="/login">
-                <Button className="bg-purple-600 hover:bg-purple-700 text-white text-sm">
-                  立即體驗
-                </Button>
-              </Link>
+                  <Link to="/login" className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                    {t('login')}
+                  </Link>
+                  <Link to="/register">
+                    <Button className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-curator-brass">
+                      {t('register')}
+                    </Button>
+                  </Link>
                 </>
               )}
             </div>
 
-            {/* Mobile Menu Toggle */}
-            <motion.button
-              className="md:hidden p-2 rounded-lg text-gray-700 hover:bg-gray-100"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              whileTap={{ scale: 0.9 }}
-            >
-              {mobileMenuOpen ? <X className="size-6" /> : <Menu className="size-6" />}
-            </motion.button>
+            <div className="flex items-center gap-2 md:hidden">
+              {isLoggedIn ? (
+                <button type="button" onClick={handleLogout} className="inline-flex h-10 items-center gap-1 rounded-md border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                  <UserCircle2 className="size-4" />
+                  {initials}
+                </button>
+              ) : (
+                <Link to="/login" className="hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:inline-flex">{t('login')}</Link>
+              )}
+              <button
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label={mobileMenuOpen ? t('closeMenu') : t('openMenu')}
+              >
+                {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile Menu */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
-            className="md:hidden bg-white border-t border-gray-100"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden border-t border-border bg-card xl:hidden"
           >
-            <div className="px-4 py-4 space-y-1">
-              {navItems.map((item, index) => {
-                const isActive = location.pathname === item.path;
-                return (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <Link
-                      to={item.path}
-                      className={`block px-4 py-3 rounded-lg text-sm transition-colors ${
-                        isActive
-                          ? 'bg-purple-50 text-purple-600'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                      onClick={() => setMobileMenuOpen(false)}
+            <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6 lg:px-8">
+              <div className="grid gap-1">
+                {navItems.map((item, i) => {
+                  const isActive = isActivePath(location.pathname, item.path);
+                  return (
+                    <motion.div
+                      key={item.path}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.04 }}
                     >
-                      {item.label}
+                      <Link
+                        to={item.path}
+                        className={`block rounded-md px-3 py-2.5 text-sm transition-colors ${
+                          isActive
+                            ? 'border-l-2 border-curator-brass bg-secondary text-foreground'
+                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {t(item.labelKey)}
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 border-t border-border pt-4">
+                {isLoggedIn ? (
+                  <div className="grid gap-2">
+                    <Link to="/profile" onClick={() => setMobileMenuOpen(false)} className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                      {t('profile')}
                     </Link>
-                  </motion.div>
-                );
-              })}
-              <div className="pt-4 border-t border-gray-100 flex flex-col gap-2">
-                {token ? (
-                  <>
-                    <div className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700">
-                      <User className="size-4 text-gray-500" />
-                      <span className="truncate">{user?.name ?? user?.email ?? '已登入'}</span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full text-sm"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        handleLogout();
-                      }}
-                    >
-                      <LogOut className="size-4 mr-2" />
-                      登出
-                    </Button>
-                  </>
+                    <button type="button" onClick={handleLogout} className="rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                      {t('logout')}
+                    </button>
+                  </div>
                 ) : (
-                  <>
-                <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="ghost" className="w-full text-sm">
-                    註冊帳號
-                  </Button>
-                </Link>
-                <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm">
-                    立即體驗
-                  </Button>
-                </Link>
-                  </>
+                  <div className="grid gap-2">
+                    <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                      {t('login')}
+                    </Link>
+                    <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
+                      <Button className="w-full rounded-md bg-primary text-primary-foreground transition-colors hover:bg-curator-brass">
+                        {t('register')}
+                      </Button>
+                    </Link>
+                  </div>
                 )}
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.nav>
+    </nav>
   );
 }
