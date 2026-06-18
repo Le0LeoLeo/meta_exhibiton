@@ -12,6 +12,7 @@ const navItems = [
   { labelKey: 'navHome', path: '/' },
   { labelKey: 'navVirtualGallery', path: '/virtual-gallery' },
   { labelKey: 'navExhibitions', path: '/exhibitions' },
+  { label: '解決方案', path: '/solutions' },
   { labelKey: 'navCompetitions', path: '/competitions' },
   { labelKey: 'navSupport', path: '/support' },
   { labelKey: 'navResources', path: '/resources' },
@@ -39,6 +40,10 @@ export function Navigation() {
     };
   }, []);
 
+  useEffect(() => {
+    setAuthUser(loadAuth().user);
+  }, [location.pathname]);
+
   const isLoggedIn = !!authUser;
   const initials = useMemo(() => (authUser?.name || authUser?.email || 'U').slice(0, 1).toUpperCase(), [authUser]);
 
@@ -62,6 +67,7 @@ export function Navigation() {
           <div className="hidden items-center gap-2 xl:flex">
             {navItems.map((item) => {
               const isActive = isActivePath(location.pathname, item.path);
+              const label = 'labelKey' in item ? t(item.labelKey) : item.label;
               return (
                 <Link
                   key={item.path}
@@ -72,7 +78,7 @@ export function Navigation() {
                       : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
                   }`}
                 >
-                  {t(item.labelKey)}
+                  {label}
                   {isActive && (
                     <motion.div
                       layoutId="nav-pill"
@@ -121,14 +127,14 @@ export function Navigation() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 md:hidden">
+            <div className="flex items-center gap-2 xl:hidden">
               {isLoggedIn ? (
-                <button type="button" onClick={handleLogout} className="inline-flex h-10 items-center gap-1 rounded-md border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                <button type="button" onClick={handleLogout} className="inline-flex h-10 items-center gap-1 rounded-md border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground md:hidden">
                   <UserCircle2 className="size-4" />
                   {initials}
                 </button>
               ) : (
-                <Link to="/login" className="hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:inline-flex">{t('login')}</Link>
+                <Link to="/login" className="hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:inline-flex md:hidden">{t('login')}</Link>
               )}
               <button
                 className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
@@ -155,6 +161,7 @@ export function Navigation() {
               <div className="grid gap-1">
                 {navItems.map((item, i) => {
                   const isActive = isActivePath(location.pathname, item.path);
+                  const label = 'labelKey' in item ? t(item.labelKey) : item.label;
                   return (
                     <motion.div
                       key={item.path}
@@ -171,7 +178,7 @@ export function Navigation() {
                         }`}
                         onClick={() => setMobileMenuOpen(false)}
                       >
-                        {t(item.labelKey)}
+                        {label}
                       </Link>
                     </motion.div>
                   );
