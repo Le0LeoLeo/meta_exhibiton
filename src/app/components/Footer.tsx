@@ -1,6 +1,5 @@
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
-import { Facebook, Instagram, Linkedin, Twitter, Youtube } from 'lucide-react';
 import { useI18n } from './I18nProvider';
 
 export function Footer() {
@@ -48,14 +47,6 @@ export function Footer() {
     },
   };
 
-  const socialIcons = [
-    { Icon: Facebook, label: 'Facebook' },
-    { Icon: Twitter, label: 'Twitter' },
-    { Icon: Instagram, label: 'Instagram' },
-    { Icon: Linkedin, label: 'LinkedIn' },
-    { Icon: Youtube, label: 'YouTube' },
-  ];
-
   return (
     <footer className="border-t border-border bg-secondary text-muted-foreground">
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
@@ -71,24 +62,6 @@ export function Footer() {
               <span className="block text-xs font-medium text-muted-foreground">{t('appShort')}</span>
             </Link>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t('footerDescription')}</p>
-            <div className="mt-6 flex gap-4">
-              {socialIcons.map(({ Icon, label }, index) => (
-                <motion.a
-                  key={label}
-                  href="#"
-                  className="text-muted-foreground transition-colors hover:text-foreground"
-                  aria-label={label}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.08, type: 'spring' }}
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Icon className="size-5" />
-                </motion.a>
-              ))}
-            </div>
           </motion.div>
 
           {Object.values(footerLinks).map((section, sectionIndex) => (
@@ -128,15 +101,18 @@ export function Footer() {
         >
           <p className="text-xs text-muted-foreground">{t('copyright')}</p>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
-            {['隱私權政策', '服務條款', 'Cookie政策'].map((item) => (
-              <motion.a
-                key={item}
-                href="#"
+            {[
+              { label: '隱私權政策', path: '/support' },
+              { label: '服務條款', path: '/support' },
+              { label: 'Cookie政策', path: '/resources' },
+            ].map((item) => (
+              <motion.div
+                key={item.label}
                 className="text-xs text-muted-foreground transition-colors hover:text-foreground"
                 whileHover={{ y: -1 }}
               >
-                {item}
-              </motion.a>
+                <Link to={item.path}>{item.label}</Link>
+              </motion.div>
             ))}
           </div>
         </motion.div>
