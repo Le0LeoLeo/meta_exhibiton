@@ -1,12 +1,15 @@
 import { Button } from './ui/button';
 import { Link } from 'react-router';
-import { ArrowRight, Boxes, ImagePlus, Sparkles, UsersRound } from 'lucide-react';
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { ArrowRight, Boxes, ImagePlus, Play, Sparkles, UsersRound } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Gallery3D } from './Gallery3D';
 import { useI18n } from './I18nProvider';
 
 export function Hero() {
   const { t } = useI18n();
+  const [videoOpen, setVideoOpen] = useState(false);
   const quickStats = [
     { icon: ImagePlus, label: '\u4f5c\u54c1\u7d20\u6750', value: 'PDF / IMG / Video' },
     { icon: Boxes, label: '3D \u5c55\u9593', value: '\u62d6\u653e\u4f48\u7f6e' },
@@ -52,17 +55,20 @@ export function Hero() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="mt-7 flex flex-col gap-3 sm:flex-row"
           >
-            <Link to="/virtual-gallery/my-exhibitions">
+            <Link to="/register">
               <Button className="h-12 w-full rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-curator-brass sm:w-auto">
                 {t('freeStart')}
                 <ArrowRight className="ml-2 size-4" />
               </Button>
             </Link>
-            <Link to="/virtual-gallery">
-              <Button variant="outline" className="h-12 w-full rounded-md border-border bg-card px-6 text-sm font-semibold text-foreground shadow-sm transition-all hover:bg-secondary sm:w-auto">
-                {t('learnMore')}
-              </Button>
-            </Link>
+            <Button
+              variant="outline"
+              className="h-12 w-full rounded-md border-border bg-card px-6 text-sm font-semibold text-foreground shadow-sm transition-all hover:bg-secondary sm:w-auto"
+              onClick={() => setVideoOpen(true)}
+            >
+              <Play className="mr-2 size-4" />
+              觀看演示影片
+            </Button>
           </motion.div>
 
           <motion.div
@@ -116,6 +122,24 @@ export function Hero() {
           </div>
         </motion.div>
       </div>
+
+      <Dialog open={videoOpen} onOpenChange={setVideoOpen}>
+        <DialogContent className="rounded-md border border-border bg-card text-foreground shadow-[0_24px_70px_-36px_rgba(28,28,26,0.5)] sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>MetaExpo 平台演示</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              了解如何使用 MetaExpo 建立虛擬展覽
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex aspect-video items-center justify-center rounded-md border border-border bg-secondary">
+            <div className="text-center text-muted-foreground">
+              <Play className="mx-auto mb-4 size-16 text-curator-brass" />
+              <p className="text-lg font-semibold text-foreground">演示影片</p>
+              <p className="mt-2 text-sm">影片內容載入中...</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
