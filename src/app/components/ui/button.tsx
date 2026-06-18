@@ -58,8 +58,8 @@ function Button({
     <MotionButton
       data-slot="button"
       className={baseClassName}
-      whileHover={{ scale: 1.05, y: -2 }}
-      whileTap={{ scale: 0.95 }}
+      whileHover={{ y: -1 }}
+      whileTap={{ scale: 0.98 }}
       transition={{ type: "spring", stiffness: 400, damping: 17 }}
       {...props}
     />
