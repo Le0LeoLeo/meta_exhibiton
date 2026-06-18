@@ -51,7 +51,7 @@ export function Showcase() {
                   <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">{featured.desc}</p>
                 </div>
                 <div className="grid max-w-md grid-cols-3 gap-2">
-                  {['Curate', 'Arrange', 'Share'].map((label) => (
+                  {[t('showcaseUseCase1Title'), t('featureMoveTitle'), t('featureInteractTitle')].map((label) => (
                     <div key={label} className="rounded-md border border-border bg-secondary px-3 py-2 text-center text-xs font-semibold text-muted-foreground">
                       {label}
                     </div>

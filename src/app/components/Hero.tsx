@@ -15,6 +15,7 @@ export function Hero() {
     { icon: Boxes, label: '3D \u5c55\u9593', value: '\u62d6\u653e\u4f48\u7f6e' },
     { icon: UsersRound, label: '\u5206\u4eab\u53c3\u89c0', value: '\u516c\u958b\u9023\u7d50' },
   ];
+  const workflowChips = [t('featureSceneTitle'), t('featureMoveTitle'), t('featureInteractTitle')];
 
   return (
     <section className="relative overflow-hidden bg-background">
@@ -67,7 +68,7 @@ export function Hero() {
               onClick={() => setVideoOpen(true)}
             >
               <Play className="mr-2 size-4" />
-              觀看演示影片
+              {t('videoTutorial')}
             </Button>
           </motion.div>
 
@@ -93,12 +94,6 @@ export function Hero() {
           transition={{ duration: 0.7, delay: 0.18 }}
           className="relative"
         >
-          <div className="absolute -left-3 top-6 hidden rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground shadow-sm md:block">
-            Live preview
-          </div>
-          <div className="absolute -right-3 bottom-10 hidden rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground shadow-sm md:block">
-            Share ready
-          </div>
           <div className="rounded-md border border-border bg-secondary p-3 shadow-[0_28px_90px_-56px_rgba(28,28,26,0.65)]">
             <div className="mb-3 flex items-center justify-between rounded-md border border-border bg-card px-3 py-2 text-foreground">
               <div className="flex items-center gap-2">
@@ -106,13 +101,13 @@ export function Hero() {
                 <span className="h-2 w-2 rounded-sm bg-muted-foreground/35" />
                 <span className="h-2 w-2 rounded-sm bg-tool-blue/60" />
               </div>
-              <span className="text-xs font-medium text-muted-foreground">3D Gallery Studio</span>
+              <span className="text-xs font-medium text-muted-foreground">{t('vgBadge')}</span>
             </div>
             <div className="overflow-hidden rounded-md border border-border bg-[linear-gradient(135deg,#faf9f6_0%,#f4f3ee_100%)] px-3 pb-4 pt-5">
               <Gallery3D />
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              {['Upload', 'Arrange', 'Invite'].map((label, index) => (
+              {workflowChips.map((label, index) => (
                 <div key={label} className="rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground">
                   <span className="mr-2 text-tool-blue">0{index + 1}</span>
                   {label}
@@ -126,16 +121,16 @@ export function Hero() {
       <Dialog open={videoOpen} onOpenChange={setVideoOpen}>
         <DialogContent className="rounded-md border border-border bg-card text-foreground shadow-[0_24px_70px_-36px_rgba(28,28,26,0.5)] sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>MetaExpo 平台演示</DialogTitle>
+            <DialogTitle>{t('videoTutorial')}</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              了解如何使用 MetaExpo 建立虛擬展覽
+              {t('heroDescription')}
             </DialogDescription>
           </DialogHeader>
           <div className="flex aspect-video items-center justify-center rounded-md border border-border bg-secondary">
             <div className="text-center text-muted-foreground">
               <Play className="mx-auto mb-4 size-16 text-curator-brass" />
-              <p className="text-lg font-semibold text-foreground">演示影片</p>
-              <p className="mt-2 text-sm">影片內容載入中...</p>
+              <p className="text-lg font-semibold text-foreground">{t('videoTutorial')}</p>
+              <p className="mt-2 text-sm">{t('ctaDesc')}</p>
             </div>
           </div>
         </DialogContent>
