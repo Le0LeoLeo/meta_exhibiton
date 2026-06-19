@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { ArrowRight, CalendarDays, Eye, Loader2, Plus, Radio } from 'lucide-react';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { getPublishedGalleries, type ExhibitionSummary } from '../api/exhibitions';
@@ -9,7 +10,6 @@ import { loadAuth } from '../api/auth';
 import { useI18n } from '../components/I18nProvider';
 
 export default function Exhibitions() {
-  const navigate = useNavigate();
   const { t } = useI18n();
   const [galleries, setGalleries] = useState<ExhibitionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,7 +170,8 @@ export default function Exhibitions() {
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setVisitingExhibition(null)}>{t('cancel')}</Button>
             <Button className="bg-primary text-primary-foreground hover:bg-curator-brass" onClick={() => {
-              if (visitingExhibition) navigate(`/exhibitions/${visitingExhibition.id}`);
+              toast.success('Welcome!', { description: `Entering "${visitingExhibition?.title ?? ''}"` });
+              setVisitingExhibition(null);
             }}>
               {t('enterExhibition')}
             </Button>
