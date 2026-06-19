@@ -6,7 +6,6 @@ import { Button } from '../components/ui/button';
 import {
   createCompetition,
   createGallery,
-  createGalleryShareLink,
   deleteGalleryById,
   getMyCompetitionEntries,
   getMyHostedCompetitions,
@@ -36,8 +35,6 @@ export default function MyExhibitions() {
   const [createOpen, setCreateOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareGalleryId, setShareGalleryId] = useState<string | null>(null);
-  const [shareUrl, setShareUrl] = useState('');
-  const [creatingShareRole, setCreatingShareRole] = useState<'viewer' | 'editor' | null>(null);
   const [editingGalleryId, setEditingGalleryId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -98,10 +95,10 @@ export default function MyExhibitions() {
       const { token } = loadAuth();
       if (!token) return navigate('/login?returnTo=' + encodeURIComponent('/virtual-gallery/my-exhibitions'));
       const sceneJson = getTemplateSceneJson(selectedTemplate.title);
-      await createGallery(token, { title, description: selectedTemplate.description, templateTitle: selectedTemplate.title, templateImage: selectedTemplate.image, category: selectedTemplate.category, ...(sceneJson ? { sceneJson } : {}) });
+      const result = await createGallery(token, { title, description: selectedTemplate.description, templateTitle: selectedTemplate.title, templateImage: selectedTemplate.image, category: selectedTemplate.category, ...(sceneJson ? { sceneJson } : {}) });
       setCreateOpen(false);
       toast.success(t('createdNewExhibition'), { description: `「${title}」${t('addedToMyList')}` });
-      navigate('/virtual-gallery/my-exhibitions');
+      navigate(`/virtual-gallery/create?exhibitionId=${encodeURIComponent(result.gallery.id)}`);
     } catch (err) {
       toast.error(t('createExhibitionFailed'), { description: err instanceof Error ? err.message : t('tryAgainLater') });
     } finally { setIsCreating(false); }
@@ -148,30 +145,20 @@ export default function MyExhibitions() {
     setPublishOpen(true);
   };
 
-  const selectedShareGallery = useMemo(() => items.find((item) => item.id === shareGalleryId) ?? null, [items, shareGalleryId]);
   const copy = async (text: string, ok: string) => { try { await navigator.clipboard.writeText(text); toast.success(ok); } catch { toast.error(t('copyFailed'), { description: t('pleaseCopyManually') }); } };
-  const handleCreateShareLink = async (role: 'viewer' | 'editor') => {
+  const handleCopyEditShare = async () => {
     if (!shareGalleryId) return;
-    const { token } = loadAuth();
-    if (!token) return navigate('/login?returnTo=' + encodeURIComponent('/virtual-gallery/my-exhibitions'));
-    setCreatingShareRole(role);
-    try {
-      const result = await createGalleryShareLink(token, shareGalleryId, {
-        role,
-        expiresInHours: 24 * 7,
-      });
-      setShareUrl(result.share.url);
-      await copy(
-        result.share.url,
-        role === 'editor' ? t('copiedEditShareLink') : t('copiedViewShareLink'),
-      );
-    } catch (err) {
-      toast.error(t('copyFailed'), {
-        description: err instanceof Error ? err.message : t('tryAgainLater'),
-      });
-    } finally {
-      setCreatingShareRole(null);
-    }
+    await copy(
+      `${window.location.origin}/virtual-gallery/create?exhibitionId=${encodeURIComponent(shareGalleryId)}`,
+      t('copiedEditShareLink'),
+    );
+  };
+  const handleCopyViewShare = async () => {
+    if (!shareGalleryId) return;
+    await copy(
+      `${window.location.origin}/virtual-gallery/create?exhibitionId=${encodeURIComponent(shareGalleryId)}&share=view`,
+      t('copiedViewShareLink'),
+    );
   };
 
   const handleConfirmPublish = async () => {
@@ -239,7 +226,7 @@ export default function MyExhibitions() {
                   <Button variant={item.isPublished ? 'outline' : 'default'} className={item.isPublished ? '' : 'bg-success-quiet text-white hover:bg-curator-brass'} onClick={() => void handleTogglePublish(item)} disabled={publishingId === item.id}><Globe className="mr-2 size-4" />{publishingId === item.id ? t('processing') : item.isPublished ? t('unpublish') : t('publishEvent')}</Button>
                   {item.isPublished ? <Button variant="outline" onClick={() => navigate(`/exhibitions/${encodeURIComponent(item.id)}`)}><Eye className="mr-2 size-4" />{t('viewPage')}</Button> : null}
                   {competitions.some((competition) => competition.hostGalleryId === item.id) ? <Button variant="outline" className="border-tool-blue/50 text-tool-blue hover:bg-secondary" onClick={() => navigate('/admin/competitions')}><Trophy className="mr-2 size-4" />{t('hostBackend')}</Button> : null}
-                  <Button variant="outline" onClick={() => { setShareGalleryId(item.id); setShareUrl(''); setShareOpen(true); }}><Share2 className="mr-2 size-4" />{t('share')}</Button>
+                  <Button variant="outline" onClick={() => { setShareGalleryId(item.id); setShareOpen(true); }}><Share2 className="mr-2 size-4" />{t('share')}</Button>
                   {editingGalleryId === item.id ? null : <Button variant="outline" onClick={() => handleStartInlineEdit(item)}><Pencil className="mr-2 size-4" />{t('editInfo')}</Button>}
                   <Button variant="outline" onClick={() => navigate(`/virtual-gallery/create?exhibitionId=${encodeURIComponent(item.id)}`)}><ArrowRight className="mr-2 size-4" />{t('backToEditor')}</Button>
                   <Button variant="outline" className="border-destructive/50 text-destructive hover:bg-secondary" onClick={() => handleOpenDelete(item)}><Trash2 className="mr-2 size-4" />{t('delete')}</Button>
@@ -249,7 +236,7 @@ export default function MyExhibitions() {
           ))}</div>}
         </motion.div>
 
-        <Dialog open={shareOpen} onOpenChange={setShareOpen}><DialogContent><DialogHeader><DialogTitle>{t('shareExhibition')}</DialogTitle><DialogDescription>{t('shareExhibitionDesc')}</DialogDescription></DialogHeader><div className="space-y-3"><Button className="w-full justify-start" variant="outline" onClick={() => void handleCreateShareLink('editor')} disabled={creatingShareRole !== null}>{creatingShareRole === 'editor' ? t('processing') : t('copyEditShareLink')}</Button><Button className="w-full justify-start" variant="outline" onClick={() => void handleCreateShareLink('viewer')} disabled={creatingShareRole !== null}>{creatingShareRole === 'viewer' ? t('processing') : t('copyViewShareLink')}</Button>{shareUrl ? <Input aria-label="Capability share URL" readOnly value={shareUrl} onFocus={(event) => event.currentTarget.select()} /> : null}<Button className="w-full justify-start" variant="outline" onClick={() => shareGalleryId && void copy(`${window.location.origin}/exhibitions/${encodeURIComponent(shareGalleryId)}`, t('copiedPublicLink'))} disabled={!selectedShareGallery?.isPublished}>{t('copyPublicLink')}</Button></div><DialogFooter><Button variant="outline" onClick={() => setShareOpen(false)}>{t('close')}</Button></DialogFooter></DialogContent></Dialog>
+        <Dialog open={shareOpen} onOpenChange={setShareOpen}><DialogContent><DialogHeader><DialogTitle>{t('shareExhibition')}</DialogTitle><DialogDescription>{t('shareExhibitionDesc')}</DialogDescription></DialogHeader><div className="space-y-3"><Button className="w-full justify-start" variant="outline" onClick={() => void handleCopyEditShare()}>{t('copyEditShareLink')}</Button><Button className="w-full justify-start" variant="outline" onClick={() => void handleCopyViewShare()}>{t('copyViewShareLink')}</Button></div><DialogFooter><Button variant="outline" onClick={() => setShareOpen(false)}>{t('close')}</Button></DialogFooter></DialogContent></Dialog>
 
         <Dialog open={publishOpen} onOpenChange={setPublishOpen}><DialogContent className="sm:max-w-3xl overflow-hidden rounded-md border border-border bg-card p-0 shadow-[0_24px_70px_-36px_rgba(28,28,26,0.5)]"><div className="border-b border-border bg-secondary px-6 py-5"><DialogHeader><DialogTitle className="text-xl text-foreground">{t('publishExhibition')}</DialogTitle><DialogDescription className="mt-1 text-sm text-muted-foreground">{t('publishExhibitionDesc')}</DialogDescription></DialogHeader></div><div className="space-y-5 px-6 py-6"><div className="rounded-md border border-border bg-secondary p-4"><div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-wide text-curator-brass">{t('toBePublished')}</p><p className="mt-1 text-lg font-medium text-foreground">{publishGallery?.title || t('untitledExhibition')}</p></div><span className="rounded border border-curator-brass/60 px-3 py-1 text-xs font-medium text-curator-brass">Publish</span></div><p className="mt-3 text-sm leading-6 text-muted-foreground">{t('publishInfo')}</p></div><label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-card p-4 transition hover:border-curator-brass/70 hover:shadow-sm"><input type="checkbox" className="mt-1 size-4 rounded border-border text-curator-brass focus:ring-curator-brass" checked={hostCompetitionEnabled} onChange={(e) => setHostCompetitionEnabled(e.target.checked)} /><div><p className="text-sm font-medium text-foreground">{t('publishAsCompetition')}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{t('publishAsCompetitionDesc')}</p></div></label>{hostCompetitionEnabled ? <div className="space-y-5 rounded-md border border-curator-brass/40 bg-secondary p-5"><div className="space-y-2"><label className="text-sm font-medium text-foreground">{t('competitionName')}</label><Input value={competitionTitle} onChange={(e) => setCompetitionTitle(e.target.value)} placeholder={t('competitionNamePlaceholder')} className="h-11" /></div><div className="space-y-2"><label className="text-sm font-medium text-foreground">{t('competitionDescription')}</label><textarea value={competitionDescription} onChange={(e) => setCompetitionDescription(e.target.value)} className="min-h-[110px] w-full rounded-md border border-border bg-input-background px-3 py-3 text-sm text-foreground outline-none transition focus:border-curator-brass focus:ring-2 focus:ring-curator-brass/30" placeholder={t('competitionDescriptionPlaceholder')} /></div><div className="space-y-2"><label className="text-sm font-medium text-foreground">{t('competitionRules')}</label><textarea value={competitionRules} onChange={(e) => setCompetitionRules(e.target.value)} className="min-h-[130px] w-full rounded-md border border-border bg-input-background px-3 py-3 text-sm text-foreground outline-none transition focus:border-curator-brass focus:ring-2 focus:ring-curator-brass/30" placeholder={t('competitionRulesPlaceholder')} /></div><div className="grid gap-4 sm:grid-cols-2"><label className="space-y-2"><span className="text-sm font-medium text-foreground">{t('registrationDeadline')}</span><input type="datetime-local" value={competitionRegistrationDeadline} onChange={(e) => setCompetitionRegistrationDeadline(e.target.value)} className="h-11 w-full rounded-md border border-border bg-input-background px-3 text-sm text-foreground outline-none transition focus:border-curator-brass focus:ring-2 focus:ring-curator-brass/30" /></label><label className="space-y-2"><span className="text-sm font-medium text-foreground">{t('votingDeadlineOptional')}</span><input type="datetime-local" value={competitionVotingDeadline} onChange={(e) => setCompetitionVotingDeadline(e.target.value)} className="h-11 w-full rounded-md border border-border bg-input-background px-3 text-sm text-foreground outline-none transition focus:border-curator-brass focus:ring-2 focus:ring-curator-brass/30" /></label></div><label className="inline-flex items-center gap-3 text-sm text-muted-foreground"><input type="checkbox" checked={competitionIsPublic} onChange={(e) => setCompetitionIsPublic(e.target.checked)} className="size-4 rounded border-border text-curator-brass focus:ring-curator-brass" /><span>{t('publicCompetition')}</span></label></div> : null}</div><div className="flex items-center justify-between gap-3 border-t border-border bg-secondary px-6 py-4"><p className="text-xs text-muted-foreground">{t('publishNotice')}</p><DialogFooter className="m-0 gap-2 sm:gap-2"><Button variant="outline" onClick={() => setPublishOpen(false)} disabled={publishingId === publishGallery?.id} className="px-4">{t('cancel')}</Button><Button onClick={() => void handleConfirmPublish()} disabled={publishingId === publishGallery?.id || (hostCompetitionEnabled && (!competitionTitle.trim() || !competitionDescription.trim() || !competitionRules.trim() || !competitionRegistrationDeadline.trim()))} className="bg-primary px-4 text-primary-foreground hover:bg-curator-brass">{publishingId === publishGallery?.id ? t('publishing') : t('confirmPublish')}</Button></DialogFooter></div></DialogContent></Dialog>
 

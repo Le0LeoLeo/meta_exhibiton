@@ -6,16 +6,17 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
-import { loginUser, saveAuth } from '../api/auth';
+import { loginUser, saveAuth } from '../api/client';
 import { useI18n } from '../components/I18nProvider';
 
 export default function Login() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get('returnTo') || '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; form?: string }>({});
@@ -35,11 +36,10 @@ export default function Login() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const auth = await loginUser({ email, password });
+      const auth = await loginUser({ email: email.trim(), password });
       saveAuth(auth, { remember: rememberMe });
       toast.success(t('loginSuccess'), { description: t('loginSuccessDesc', { name: auth.user.name }) });
-      const returnTo = searchParams.get('returnTo');
-      navigate(returnTo ? decodeURIComponent(returnTo) : '/', { replace: true });
+      navigate(returnTo);
     } catch (error) {
       setErrors((prev) => ({ ...prev, form: error instanceof Error ? error.message : t('loginFailed') }));
       toast.error(t('loginFailed'), { description: error instanceof Error ? error.message : t('loginFailedDesc') });

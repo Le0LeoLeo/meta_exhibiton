@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Eye, EyeOff, UserPlus, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { registerUser, saveAuth } from '../api/auth';
+import { registerUser, saveAuth } from '../api/client';
 import { useI18n } from '../components/I18nProvider';
 
 export default function Register() {
