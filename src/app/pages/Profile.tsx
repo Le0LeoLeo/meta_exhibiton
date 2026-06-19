@@ -13,9 +13,11 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { useI18n } from '../components/I18nProvider';
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const { token, user: cachedUser, source } = loadAuth();
 
   const [loading, setLoading] = useState(true);
@@ -51,7 +53,7 @@ export default function Profile() {
         if (!cancelled) {
           // token 失效或缺失
           clearAuth();
-          toast.error('登入已過期，請重新登入', {
+          toast.error(t('sessionExpired'), {
             description: err instanceof Error ? err.message : '請稍後再試',
           });
           navigate('/login?returnTo=' + encodeURIComponent('/profile'), { replace: true });
@@ -72,7 +74,7 @@ export default function Profile() {
 
   const handleLogout = () => {
     clearAuth();
-    toast.success('已登出');
+    toast.success(t('logout'));
     navigate('/', { replace: true });
   };
 
@@ -80,7 +82,7 @@ export default function Profile() {
     if (!token || !me) return;
     const trimmed = nameInput.trim();
     if (!trimmed) {
-      toast.error('姓名不可為空');
+      toast.error(t('nameRequired'));
       return;
     }
 
@@ -89,9 +91,9 @@ export default function Profile() {
       const auth = await updateMyName(token, trimmed);
       saveAuth(auth, { remember });
       setMe(auth.user);
-      toast.success('姓名已更新');
+      toast.success(t('nameUpdated'));
     } catch (err) {
-      toast.error('更新姓名失敗', {
+      toast.error(t('nameUpdateFailed'), {
         description: err instanceof Error ? err.message : '請稍後再試',
       });
     } finally {
@@ -103,17 +105,17 @@ export default function Profile() {
     if (!token) return;
 
     if (!currentPassword || !newPassword || !confirmNewPassword) {
-      toast.error('請填寫所有欄位');
+      toast.error(t('fillAllFields'));
       return;
     }
 
     if (newPassword.length < 8) {
-      toast.error('新密碼至少需要 8 個字元');
+      toast.error(t('newPasswordTooShort'));
       return;
     }
 
     if (newPassword !== confirmNewPassword) {
-      toast.error('兩次新密碼輸入不一致');
+      toast.error(t('passwordMismatch'));
       return;
     }
 
@@ -123,9 +125,9 @@ export default function Profile() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
-      toast.success('密碼已更新');
+      toast.success(t('passwordUpdated'));
     } catch (err) {
-      toast.error('修改密碼失敗', {
+      toast.error(t('passwordUpdateFailed'), {
         description: err instanceof Error ? err.message : '請稍後再試',
       });
     } finally {
@@ -140,10 +142,10 @@ export default function Profile() {
     try {
       await deleteMyAccount(token);
       clearAuth();
-      toast.success('帳號已刪除');
+      toast.success(t('accountDeleted'));
       navigate('/', { replace: true });
     } catch (err) {
-      toast.error('刪除帳號失敗', {
+      toast.error(t('accountDeleteFailed'), {
         description: err instanceof Error ? err.message : '請稍後再試',
       });
     } finally {
@@ -152,83 +154,83 @@ export default function Profile() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-slate-50 to-purple-50 py-10 px-4">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div className="min-h-screen bg-background px-4 py-12 text-foreground transition-colors duration-300 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-3xl space-y-6">
         <motion.div
-          className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
+          className="overflow-hidden rounded-md border border-border bg-card shadow-[0_18px_45px_-38px_rgba(28,28,26,0.45)]"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
         >
-          <div className="p-8 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center justify-between border-b border-border p-8">
             <div>
-              <h1 className="text-2xl text-gray-900">使用者中心</h1>
-              <p className="text-sm text-gray-600 mt-1">查看與管理您的帳號</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-curator-brass">{t('profileTitle')}</p>
+              <h1 className="text-3xl font-semibold text-foreground">{t('profileTitle')}</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">{t('profileDesc')}</p>
             </div>
 
             <Button type="button" variant="outline" onClick={handleLogout}>
-              登出
+              {t('logout')}
             </Button>
           </div>
 
-          <div className="p-8 space-y-8">
+          <div className="space-y-8 p-8">
             {loading ? (
-              <div className="text-gray-600">載入中...</div>
+              <div className="text-muted-foreground">{t('loading')}</div>
             ) : !token ? (
               <div className="space-y-4">
-                <p className="text-gray-700">尚未登入，無法查看個人資料。</p>
+                <p className="text-muted-foreground">{t('profileNotLoggedIn')}</p>
                 <Button onClick={() => navigate('/login?returnTo=' + encodeURIComponent('/profile'))}>
-                  前往登入
+                  {t('goToLogin')}
                 </Button>
               </div>
             ) : !me ? (
-              <div className="text-gray-700">找不到使用者資料。</div>
+              <div className="text-muted-foreground">{t('profileNotFound')}</div>
             ) : (
               <>
-                {/* 基本資訊卡 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="rounded-xl border border-gray-200 p-5">
-                    <div className="text-xs text-gray-500">姓名</div>
-                    <div className="mt-1 text-lg text-gray-900 break-words">{me.name}</div>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div className="rounded-md border border-border bg-secondary p-5">
+                    <div className="text-xs text-muted-foreground">{t('name')}</div>
+                    <div className="mt-1 break-words text-lg text-foreground">{me.name}</div>
                   </div>
-                  <div className="rounded-xl border border-gray-200 p-5">
-                    <div className="text-xs text-gray-500">電子郵件</div>
-                    <div className="mt-1 text-lg text-gray-900 break-words">{me.email}</div>
+                  <div className="rounded-md border border-border bg-secondary p-5">
+                    <div className="text-xs text-muted-foreground">{t('email')}</div>
+                    <div className="mt-1 break-words text-lg text-foreground">{me.email}</div>
                   </div>
-                  <div className="rounded-xl border border-gray-200 p-5 md:col-span-2">
-                    <div className="text-xs text-gray-500">使用者 ID</div>
-                    <div className="mt-1 text-sm font-mono text-gray-900 break-all">{me.id}</div>
+                  <div className="rounded-md border border-border bg-secondary p-5 md:col-span-2">
+                    <div className="text-xs text-muted-foreground">{t('profileUserId')}</div>
+                    <div className="mt-1 break-all font-mono text-sm text-foreground">{me.id}</div>
                   </div>
                 </div>
 
                 {/* 編輯姓名 */}
-                <div className="border-t border-gray-100 pt-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-3">編輯姓名</h2>
-                  <p className="text-sm text-gray-600 mb-3">
-                    這個名稱會顯示在導覽列和未來的展覽相關功能中。
+                <div className="border-t border-border pt-6">
+                  <h2 className="mb-3 text-lg font-semibold text-foreground">{t('profileEditName')}</h2>
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    {t('profileNameDesc')}
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                  <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
                     <Input
                       className="sm:max-w-xs"
                       value={nameInput}
                       onChange={(e) => setNameInput(e.target.value)}
-                      placeholder="輸入新的姓名"
+                      placeholder={t('profileNamePlaceholder')}
                     />
                     <Button type="button" onClick={handleSaveName} disabled={nameSaving}>
-                      {nameSaving ? '儲存中...' : '儲存變更'}
+                      {nameSaving ? t('saving') : t('saveChanges')}
                     </Button>
                   </div>
                 </div>
 
                 {/* 修改密碼 */}
-                <div className="border-t border-gray-100 pt-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-3">修改密碼</h2>
-                  <p className="text-sm text-gray-600 mb-4">
-                    建議定期更新密碼，並避免與其他服務使用相同密碼。
+                <div className="border-t border-border pt-6">
+                  <h2 className="mb-3 text-lg font-semibold text-foreground">{t('profileChangePassword')}</h2>
+                  <p className="mb-4 text-sm text-muted-foreground">
+                    {t('profilePasswordDesc')}
                   </p>
-                  <div className="space-y-3 max-w-md">
+                  <div className="max-w-md space-y-3">
                     <div>
-                      <div className="text-xs text-gray-600 mb-1">目前密碼</div>
+                      <div className="mb-1 text-xs text-muted-foreground">{t('profileCurrentPassword')}</div>
                       <Input
                         type="password"
                         value={currentPassword}
@@ -236,7 +238,7 @@ export default function Profile() {
                       />
                     </div>
                     <div>
-                      <div className="text-xs text-gray-600 mb-1">新的密碼</div>
+                      <div className="mb-1 text-xs text-muted-foreground">{t('profileNewPassword')}</div>
                       <Input
                         type="password"
                         value={newPassword}
@@ -244,7 +246,7 @@ export default function Profile() {
                       />
                     </div>
                     <div>
-                      <div className="text-xs text-gray-600 mb-1">確認新的密碼</div>
+                      <div className="mb-1 text-xs text-muted-foreground">{t('profileConfirmNewPassword')}</div>
                       <Input
                         type="password"
                         value={confirmNewPassword}
@@ -256,25 +258,25 @@ export default function Profile() {
                       onClick={handleChangePassword}
                       disabled={changingPassword}
                     >
-                      {changingPassword ? '修改中...' : '更新密碼'}
+                      {changingPassword ? t('changingPassword') : t('updatePassword')}
                     </Button>
                   </div>
                 </div>
 
                 {/* 刪除帳號 */}
-                <div className="border-t border-gray-100 pt-6">
-                  <h2 className="text-lg font-semibold text-red-600 mb-3">刪除帳號</h2>
-                  <p className="text-sm text-gray-700 mb-3">
-                    此操作無法復原。所有與此帳號相關的資料將會被永久刪除。
+                <div className="border-t border-border pt-6">
+                  <h2 className="mb-3 text-lg font-semibold text-destructive">{t('profileDeleteAccount')}</h2>
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    {t('profileDeleteDesc')}
                   </p>
-                  <p className="text-xs text-gray-600 mb-2">
-                    若要確認刪除，請在下方輸入 <span className="font-mono font-semibold">DELETE</span>。
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    {t('profileDeleteHint')} <span className="font-mono font-semibold">DELETE</span>。
                   </p>
-                  <div className="space-y-3 max-w-md">
+                  <div className="max-w-md space-y-3">
                     <Input
                       value={deleteConfirmText}
                       onChange={(e) => setDeleteConfirmText(e.target.value)}
-                      placeholder="輸入 DELETE 以確認"
+                      placeholder={t('profileDeletePlaceholder')}
                     />
                     <Button
                       type="button"
@@ -282,7 +284,7 @@ export default function Profile() {
                       disabled={deleteConfirmText !== 'DELETE' || deleting}
                       onClick={handleDeleteAccount}
                     >
-                      {deleting ? '刪除中...' : '永久刪除帳號'}
+                      {deleting ? t('deleting') : t('profileDeleteConfirm')}
                     </Button>
                   </div>
                 </div>
