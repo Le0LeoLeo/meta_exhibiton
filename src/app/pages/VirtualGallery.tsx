@@ -252,8 +252,9 @@ export default function VirtualGallery() {
             <DialogDescription>Enter the exhibition ID shared with you.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-card-foreground">Exhibition ID</label>
+            <label htmlFor="join-exhibition-id" className="text-sm font-medium text-card-foreground">Exhibition ID</label>
             <Input
+              id="join-exhibition-id"
               value={joinGalleryId}
               onChange={(event) => setJoinGalleryId(event.target.value)}
               placeholder="Example: c96a39b9-85d1-4207-a71e-636338c7ba1a"
