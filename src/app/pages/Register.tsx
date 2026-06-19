@@ -73,12 +73,14 @@ export default function Register() {
     const isPasswordField = field === 'password' || field === 'confirmPassword';
     const showPwd = field === 'password' ? showPassword : showConfirm;
     const togglePwd = field === 'password' ? () => setShowPassword(!showPassword) : () => setShowConfirm(!showConfirm);
+    const fieldId = `register-${field}`;
 
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay }}>
-        <label className="mb-1.5 block text-sm text-muted-foreground">{label}</label>
+        <label htmlFor={fieldId} className="mb-1.5 block text-sm text-muted-foreground">{label}</label>
         <div className="relative">
           <Input
+            id={fieldId}
             type={isPasswordField ? (showPwd ? 'text' : 'password') : type}
             placeholder={placeholder}
             className={`w-full ${isPasswordField ? 'pr-10' : ''} ${errors[field] ? 'border-destructive' : ''}`}
@@ -86,7 +88,13 @@ export default function Register() {
             onChange={(e) => updateField(field, e.target.value)}
           />
           {isPasswordField && (
-            <button type="button" onClick={togglePwd} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground">
+            <button
+              type="button"
+              onClick={togglePwd}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={showPwd ? `Hide ${label}` : `Show ${label}`}
+              aria-pressed={showPwd}
+            >
               {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           )}

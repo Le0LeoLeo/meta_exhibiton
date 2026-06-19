@@ -210,7 +210,11 @@ export default function Profile() {
                     {t('profileNameDesc')}
                   </p>
                   <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+                    <label htmlFor="profile-name" className="sr-only">
+                      {t('name')}
+                    </label>
                     <Input
+                      id="profile-name"
                       className="sm:max-w-xs"
                       value={nameInput}
                       onChange={(e) => setNameInput(e.target.value)}
@@ -230,24 +234,27 @@ export default function Profile() {
                   </p>
                   <div className="max-w-md space-y-3">
                     <div>
-                      <div className="mb-1 text-xs text-muted-foreground">{t('profileCurrentPassword')}</div>
+                      <label htmlFor="profile-current-password" className="mb-1 block text-xs text-muted-foreground">{t('profileCurrentPassword')}</label>
                       <Input
+                        id="profile-current-password"
                         type="password"
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
                       />
                     </div>
                     <div>
-                      <div className="mb-1 text-xs text-muted-foreground">{t('profileNewPassword')}</div>
+                      <label htmlFor="profile-new-password" className="mb-1 block text-xs text-muted-foreground">{t('profileNewPassword')}</label>
                       <Input
+                        id="profile-new-password"
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                       />
                     </div>
                     <div>
-                      <div className="mb-1 text-xs text-muted-foreground">{t('profileConfirmNewPassword')}</div>
+                      <label htmlFor="profile-confirm-new-password" className="mb-1 block text-xs text-muted-foreground">{t('profileConfirmNewPassword')}</label>
                       <Input
+                        id="profile-confirm-new-password"
                         type="password"
                         value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
@@ -269,11 +276,12 @@ export default function Profile() {
                   <p className="mb-3 text-sm text-muted-foreground">
                     {t('profileDeleteDesc')}
                   </p>
-                  <p className="mb-2 text-xs text-muted-foreground">
+                  <label htmlFor="profile-delete-confirm" className="mb-2 block text-xs text-muted-foreground">
                     {t('profileDeleteHint')} <span className="font-mono font-semibold">DELETE</span>。
-                  </p>
+                  </label>
                   <div className="max-w-md space-y-3">
                     <Input
+                      id="profile-delete-confirm"
                       value={deleteConfirmText}
                       onChange={(e) => setDeleteConfirmText(e.target.value)}
                       placeholder={t('profileDeletePlaceholder')}

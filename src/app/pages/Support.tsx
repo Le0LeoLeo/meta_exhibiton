@@ -273,8 +273,9 @@ export default function Support() {
             >
               <div className="grid gap-6 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm text-muted-foreground">姓名 *</label>
+                  <label htmlFor="support-name" className="mb-2 block text-sm text-muted-foreground">姓名 *</label>
                   <Input
+                    id="support-name"
                     placeholder="請輸入您的姓名"
                     className={formErrors.name ? 'border-destructive' : ''}
                     value={formData.name}
@@ -283,8 +284,9 @@ export default function Support() {
                   {formErrors.name && <p className="mt-1 text-xs text-destructive">{formErrors.name}</p>}
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm text-muted-foreground">電子郵件 *</label>
+                  <label htmlFor="support-email" className="mb-2 block text-sm text-muted-foreground">電子郵件 *</label>
                   <Input
+                    id="support-email"
                     type="email"
                     placeholder="your@email.com"
                     className={formErrors.email ? 'border-destructive' : ''}
@@ -295,8 +297,9 @@ export default function Support() {
                 </div>
               </div>
               <div>
-                <label className="mb-2 block text-sm text-muted-foreground">主旨 *</label>
+                <label htmlFor="support-subject" className="mb-2 block text-sm text-muted-foreground">主旨 *</label>
                 <Input
+                  id="support-subject"
                   placeholder="請簡述您的問題"
                   className={formErrors.subject ? 'border-destructive' : ''}
                   value={formData.subject}
@@ -305,8 +308,9 @@ export default function Support() {
                 {formErrors.subject && <p className="mt-1 text-xs text-destructive">{formErrors.subject}</p>}
               </div>
               <div>
-                <label className="mb-2 block text-sm text-muted-foreground">問題描述 *</label>
+                <label htmlFor="support-description" className="mb-2 block text-sm text-muted-foreground">問題描述 *</label>
                 <Textarea
+                  id="support-description"
                   placeholder="請詳細描述您遇到的問題或需求..."
                   rows={6}
                   className={formErrors.description ? 'border-destructive' : ''}

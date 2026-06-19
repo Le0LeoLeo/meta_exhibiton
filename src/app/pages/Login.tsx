@@ -63,8 +63,9 @@ export default function Login() {
 
             <form className="space-y-4" onSubmit={handleSubmit}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-                <label className="mb-1.5 block text-sm text-muted-foreground">{t('email')}</label>
+                <label htmlFor="login-email" className="mb-1.5 block text-sm text-muted-foreground">{t('email')}</label>
                 <Input
+                  id="login-email"
                   type="email"
                   placeholder={t('emailPlaceholder')}
                   className={`w-full ${errors.email ? 'border-destructive' : ''}`}
@@ -75,16 +76,23 @@ export default function Login() {
               </motion.div>
 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}>
-                <label className="mb-1.5 block text-sm text-muted-foreground">{t('password')}</label>
+                <label htmlFor="login-password" className="mb-1.5 block text-sm text-muted-foreground">{t('password')}</label>
                 <div className="relative">
                   <Input
+                    id="login-password"
                     type={showPassword ? 'text' : 'password'}
                     placeholder={t('passwordPlaceholder')}
                     className={`w-full pr-10 ${errors.password ? 'border-destructive' : ''}`}
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: undefined })); }}
                   />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showPassword}
+                  >
                     {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
                 </div>
