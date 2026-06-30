@@ -31,6 +31,7 @@ export type AgentSessionStatePayload = {
   tourProgress?: {
     currentStopIndex?: number;
     totalStops?: number;
+    currentExhibitId?: string | null;
     completedExhibitIds?: string[];
   } | null;
 };
