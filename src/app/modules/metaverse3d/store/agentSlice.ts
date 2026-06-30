@@ -2,6 +2,17 @@ import type { MetaverseStoreSlice } from "./baseSlice";
 import type { AgentChatMessage, AgentRecommendation, AgentState } from "../agent/types";
 import { createDefaultAgentTourSession, defaultAgentState } from "./metaverseStoreUtils";
 
+let fallbackTourRunCounter = 0;
+
+function createTourRunId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  fallbackTourRunCounter += 1;
+  return `${Date.now()}-${fallbackTourRunCounter}`;
+}
+
 export const createAgentSlice: MetaverseStoreSlice<{
   agent: AgentState;
   agentChat: AgentChatMessage[];
@@ -78,6 +89,7 @@ export const createAgentSlice: MetaverseStoreSlice<{
           isChatOpen: true,
           activeExhibit: null,
           tourSession: {
+            tourRunId: createTourRunId(),
             status: "running",
             routeExhibitIds: route,
             currentStopIndex: 0,

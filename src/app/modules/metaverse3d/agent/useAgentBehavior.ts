@@ -22,6 +22,8 @@ export function useAgentBehavior({
   const setAgentNearbyExhibit = useStore((state) => state.setAgentNearbyExhibit);
   const setAgentActiveExhibit = useStore((state) => state.setAgentActiveExhibit);
   const setAgentRecommendedExhibit = useStore((state) => state.setAgentRecommendedExhibit);
+  const markAgentTourArrived = useStore((state) => state.markAgentTourArrived);
+  const markAgentTourExplained = useStore((state) => state.markAgentTourExplained);
   const localPlayer = useLocalPlayerStore((state) => state.position);
 
   const lastWanderTargetRef = useRef(new THREE.Vector3(0, AGENT_GROUND_Y, 0));
@@ -34,6 +36,9 @@ export function useAgentBehavior({
   const movementAccumulatorRef = useRef(0);
   const movementTickRef = useRef(0);
   const requestingGuideRef = useRef(false);
+  const lastTourTargetIdRef = useRef<string | null>(null);
+  const lastGuidedRequestKeyRef = useRef<string | null>(null);
+  const lastTourSessionSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -44,7 +49,17 @@ export function useAgentBehavior({
   }, []);
 
   const nearbyExhibits = useMemo(() => toExhibitData(items), [items]);
-  const tourExhibits = useMemo(() => [...nearbyExhibits].sort((a, b) => (a.position[2] - b.position[2]) || (a.position[0] - b.position[0])), [nearbyExhibits]);
+  const tourExhibits = useMemo(() => {
+    const routeExhibitIds = agent.tourSession.routeExhibitIds;
+    if (routeExhibitIds.length > 0) {
+      const exhibitsById = new Map(nearbyExhibits.map((exhibit) => [exhibit.id, exhibit]));
+      return routeExhibitIds
+        .map((exhibitId) => exhibitsById.get(exhibitId))
+        .filter((exhibit): exhibit is (typeof nearbyExhibits)[number] => Boolean(exhibit));
+    }
+
+    return [...nearbyExhibits].sort((a, b) => (a.position[2] - b.position[2]) || (a.position[0] - b.position[0]));
+  }, [agent.tourSession.routeExhibitIds, nearbyExhibits]);
   const roomBounds = useMemo(() => buildRoomBounds(roomSize, floorPlanElements), [roomSize, floorPlanElements]);
   const doorGraph = useMemo(() => buildDoorGraph(roomBounds), [roomBounds]);
   const agentPosition = agent.position ?? [0, AGENT_GROUND_Y, 2.5];
@@ -98,6 +113,9 @@ export function useAgentBehavior({
         movementAccumulatorRef,
         movementTickRef,
         requestingGuideRef,
+        lastTourTargetIdRef,
+        lastGuidedRequestKeyRef,
+        lastTourSessionSignatureRef,
       },
       deltaSeconds: frameDelta,
       actions: {
@@ -105,6 +123,9 @@ export function useAgentBehavior({
         setAgentDialogue,
         setAgentRecommendedExhibit,
         setAgentActiveExhibit,
+        markAgentTourArrived,
+        markAgentTourExplained,
+        getAgent: () => useStore.getState().agent,
       },
     });
   });

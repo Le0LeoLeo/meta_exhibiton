@@ -7,6 +7,7 @@ export type AgentParticipationMode = "solo" | "ai";
 export type AgentTourStatus = "idle" | "running" | "paused" | "arrived" | "complete";
 
 export interface AgentTourSession {
+  tourRunId: string | null;
   status: AgentTourStatus;
   routeExhibitIds: string[];
   currentStopIndex: number;

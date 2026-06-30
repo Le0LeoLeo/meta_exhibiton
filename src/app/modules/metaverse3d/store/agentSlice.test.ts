@@ -22,6 +22,7 @@ describe("createAgentSlice guided tour actions", () => {
       isChatOpen: true,
       activeExhibit: null,
       tourSession: {
+        tourRunId: expect.any(String),
         status: "running",
         routeExhibitIds: ["exhibit-a", "exhibit-b"],
         currentStopIndex: 0,
@@ -30,6 +31,22 @@ describe("createAgentSlice guided tour actions", () => {
         lastExplainedExhibitId: null,
       },
     });
+    expect(store.getState().agent.tourSession.tourRunId).not.toBe("");
+  });
+
+  it("creates a new tour run id each time a tour starts", () => {
+    const store = createAgentStore();
+
+    store.getState().startAgentTour(["exhibit-a"]);
+    const firstRunId = store.getState().agent.tourSession.tourRunId;
+    store.getState().startAgentTour(["exhibit-a"]);
+    const secondRunId = store.getState().agent.tourSession.tourRunId;
+
+    expect(firstRunId).toEqual(expect.any(String));
+    expect(secondRunId).toEqual(expect.any(String));
+    expect(firstRunId).not.toBe("");
+    expect(secondRunId).not.toBe("");
+    expect(secondRunId).not.toBe(firstRunId);
   });
 
   it("does not start a tour without exhibits", () => {
@@ -45,10 +62,12 @@ describe("createAgentSlice guided tour actions", () => {
     const store = createAgentStore();
 
     store.getState().startAgentTour(["exhibit-a", "exhibit-b"]);
+    const tourRunId = store.getState().agent.tourSession.tourRunId;
     store.getState().pauseAgentTour();
 
     expect(store.getState().agent.mode).toBe("idle");
     expect(store.getState().agent.tourSession).toMatchObject({
+      tourRunId,
       status: "paused",
       currentStopIndex: 0,
       currentExhibitId: "exhibit-a",
@@ -61,6 +80,7 @@ describe("createAgentSlice guided tour actions", () => {
       followUser: false,
       mode: "tour",
       tourSession: {
+        tourRunId,
         status: "running",
         currentStopIndex: 0,
         currentExhibitId: "exhibit-a",
@@ -121,12 +141,14 @@ describe("createAgentSlice guided tour actions", () => {
     const store = createAgentStore();
 
     store.getState().startAgentTour(["exhibit-a", "exhibit-b"]);
+    const tourRunId = store.getState().agent.tourSession.tourRunId;
     store.getState().markAgentTourArrived("exhibit-a");
     store.getState().advanceAgentTour();
 
     expect(store.getState().agent).toMatchObject({
       mode: "tour",
       tourSession: {
+        tourRunId,
         status: "running",
         routeExhibitIds: ["exhibit-a", "exhibit-b"],
         currentStopIndex: 1,
@@ -140,6 +162,7 @@ describe("createAgentSlice guided tour actions", () => {
     expect(store.getState().agent).toMatchObject({
       mode: "idle",
       tourSession: {
+        tourRunId,
         status: "complete",
         routeExhibitIds: ["exhibit-a", "exhibit-b"],
         currentStopIndex: 1,
@@ -199,6 +222,7 @@ describe("createAgentSlice guided tour actions", () => {
       pendingQuestion: "",
     });
     expect(tourSession).toEqual(defaultAgentTourSession);
+    expect(tourSession.tourRunId).toBeNull();
     expect(tourSession).not.toBe(defaultAgentTourSession);
     expect(tourSession.routeExhibitIds).not.toBe(defaultAgentTourSession.routeExhibitIds);
   });

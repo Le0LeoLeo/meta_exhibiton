@@ -21,6 +21,7 @@ export interface SceneSnapshot {
 export const MAX_HISTORY = 100;
 
 export const createDefaultAgentTourSession = (): AgentTourSession => ({
+  tourRunId: null,
   status: "idle",
   routeExhibitIds: [],
   currentStopIndex: 0,
