@@ -9,6 +9,7 @@ import { createJwtHelpers } from './auth/jwt.js';
 import { registerAuthRoutes } from './routes/authRoutes.js';
 import { registerGalleryRoutes } from './routes/galleryRoutes.js';
 import { registerCurateRoutes } from './routes/curateRoutes.js';
+import { registerAiCuratorRoutes } from './routes/aiCuratorRoutes.js';
 
 const {
   PORT,
@@ -33,6 +34,7 @@ app.get('/api/health', (_req, res) => {
 registerAuthRoutes(app, deps.auth);
 registerGalleryRoutes(app, deps.gallery);
 registerCurateRoutes(app, deps.curate);
+registerAiCuratorRoutes(app, deps.aiCurator);
 
 app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);

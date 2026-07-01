@@ -15,8 +15,9 @@ import {
 } from '../db.js';
 import { generateCuratedSceneWithQwen, buildCuratedScene } from '../services/curateService.js';
 import { generateGuideTtsAudio } from '../services/ttsService.js';
+import { generateCuratorPlan } from '../services/aiCuratorService.js';
 
-export function buildAppDependencies({ requireAuth, signToken }) {
+export function buildAppDependencies({ requireAuth, signToken, rateLimiters = {} }) {
   return {
     auth: {
       requireAuth,
@@ -43,6 +44,11 @@ export function buildAppDependencies({ requireAuth, signToken }) {
       generateCuratedSceneWithQwen,
       buildCuratedScene,
       generateGuideTtsAudio,
+    },
+    aiCurator: {
+      requireAuth,
+      aiWritingLimiter: rateLimiters.aiWritingLimiter,
+      generateCuratorPlan,
     },
   };
 }
