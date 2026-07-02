@@ -27,8 +27,9 @@ import {
   Square as StopIcon,
 } from "lucide-react";
 import { ExhibitItem, WallFace, WallMaterialPreset } from "../../types";
-import { generateGuideTts } from "../../../../api/client";
+import { generateGuideTts, loadAuth } from "../../../../api/client";
 import { emitChatMessage } from "../../network/socketClient";
+import { AiCuratorPanel } from "./AiCuratorPanel";
 
 export function EditUI() {
   const navigate = useNavigate();
@@ -92,6 +93,7 @@ export function EditUI() {
   const [isSettingsPanelCollapsed, setIsSettingsPanelCollapsed] = useState(false);
   const [isNetworkPanelOpen, setIsNetworkPanelOpen] = useState(false);
   const [isMorePanelOpen, setIsMorePanelOpen] = useState(false);
+  const [isAiCuratorOpen, setIsAiCuratorOpen] = useState(false);
   const [keepFrameAspectRatio, setKeepFrameAspectRatio] = useState(true);
   const [curatePrompt, setCuratePrompt] = useState("");
   const [isCurating, setIsCurating] = useState(false);
@@ -894,6 +896,26 @@ export function EditUI() {
       {isMorePanelOpen && (
       <div className="absolute right-[23rem] top-20 w-64 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl shadow-sm p-3 pointer-events-auto z-30 space-y-2">
         <h3 className="text-xs font-semibold text-slate-700">更多工具</h3>
+
+        <button
+          onClick={() => setIsAiCuratorOpen((prev) => !prev)}
+          className="w-full text-left px-3 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 transition-colors text-xs font-medium"
+        >
+          AI 策展助手
+        </button>
+
+        {isAiCuratorOpen && (
+          <AiCuratorPanel
+            token={loadAuth().token}
+            currentScene={exportScene()}
+            importScene={importScene}
+            onApplied={() => {
+              setIsAiCuratorOpen(false);
+              setIsMorePanelOpen(false);
+              window.alert("AI 策展草稿已套用到目前展廳。");
+            }}
+          />
+        )}
 
         <button
           onClick={handleExportScene}
