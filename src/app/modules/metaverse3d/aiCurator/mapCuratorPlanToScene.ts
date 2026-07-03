@@ -8,6 +8,12 @@ export interface SceneSnapshot {
   wallMaterialOverrides: Record<string, Partial<WallMaterialSettings>>;
 }
 
+export type CuratorSceneApplyMode = "replace" | "preserve-existing";
+
+export interface MapCuratorPlanOptions {
+  applyMode?: CuratorSceneApplyMode;
+}
+
 const DEFAULT_ROOM_SIZE: RoomSize = {
   width: 12,
   length: 18,
@@ -179,11 +185,17 @@ function createRoomElement(roomSize: RoomSize): FloorPlanElement {
   };
 }
 
+function isAiCuratorItem(item: ExhibitItem) {
+  return item.id.startsWith("ai-curator-");
+}
+
 export function mapCuratorPlanToScene(
   plan: CuratorPlanResponse,
   currentScene?: SceneSnapshot | null,
+  options: MapCuratorPlanOptions = {},
 ): SceneSnapshot {
   const roomSize = currentScene?.roomSize ?? DEFAULT_ROOM_SIZE;
+  const shouldPreserveExisting = options.applyMode === "preserve-existing" && currentScene;
   const halfLength = roomSize.length / 2;
   const titleY = clampRoomY(
     clamp(roomSize.height * 0.65, 1.4, Math.max(1.4, roomSize.height - 0.25)),
@@ -240,10 +252,19 @@ export function mapCuratorPlanToScene(
     ));
   });
 
+  const floorPlanElements = [createRoomElement(roomSize)];
+
   return {
     roomSize,
-    items,
-    floorPlanElements: [createRoomElement(roomSize)],
+    items: shouldPreserveExisting
+      ? [
+        ...currentScene.items.filter((item) => !isAiCuratorItem(item)),
+        ...items,
+      ]
+      : items,
+    floorPlanElements: shouldPreserveExisting && currentScene.floorPlanElements.length > 0
+      ? currentScene.floorPlanElements
+      : floorPlanElements,
     wallMaterialOverrides: currentScene?.wallMaterialOverrides ?? {},
   };
 }

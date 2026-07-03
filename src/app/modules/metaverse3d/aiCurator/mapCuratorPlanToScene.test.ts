@@ -191,4 +191,51 @@ describe("mapCuratorPlanToScene", () => {
 
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it("can preserve existing non AI curator scene content", () => {
+    const scene = mapCuratorPlanToScene(
+      plan,
+      {
+        roomSize: customRoomSize,
+        items: [
+          {
+            id: "existing-painting",
+            type: "painting",
+            position: [1, 1.5, 2],
+            rotation: [0, 0, 0],
+            scale: [1, 1, 1],
+            content: "/uploads/existing.jpg",
+          },
+          {
+            id: "ai-curator-exhibit-old",
+            type: "text",
+            position: [0, 1, 0],
+            rotation: [0, 0, 0],
+            scale: [1, 1, 1],
+            content: "Old AI draft",
+          },
+        ],
+        floorPlanElements: [
+          {
+            id: "existing-room",
+            type: "room",
+            position: [0, 0.02, 0],
+            rotation: [0, 0, 0],
+            scale: [customRoomSize.width, 0.04, customRoomSize.length],
+            color: "#ffffff",
+          },
+        ],
+        wallMaterialOverrides: { "room:north": { wallColor: "#abcdef" } },
+      },
+      { applyMode: "preserve-existing" },
+    );
+
+    expect(scene.items.some((item) => item.id === "existing-painting")).toBe(true);
+    expect(scene.items.some((item) => item.id === "ai-curator-exhibit-old")).toBe(false);
+    expect(scene.items.some((item) => item.id === "ai-curator-title")).toBe(true);
+    expect(scene.floorPlanElements).toEqual([
+      expect.objectContaining({ id: "existing-room" }),
+    ]);
+    expect(scene.wallMaterialOverrides).toEqual({ "room:north": { wallColor: "#abcdef" } });
+  });
 });
