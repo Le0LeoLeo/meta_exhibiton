@@ -6,6 +6,15 @@ import {
   type CuratorSceneApplyMode,
   type SceneSnapshot,
 } from "../../aiCurator/mapCuratorPlanToScene";
+import {
+  aiCuratorCopy as copy,
+  curatorIntentOptions,
+  formatGeneratedCounts,
+  getCuratorIntentLabel,
+  type CuratorIntent,
+} from "./aiCuratorCopy";
+
+type HumanizedCuratorPlanRequest = CuratorPlanRequest & { intent: CuratorIntent };
 
 type AiCuratorPanelProps = {
   token: string | null;
@@ -14,46 +23,9 @@ type AiCuratorPanelProps = {
   onApplied?: () => void;
   requestCuratorPlan?: (
     token: string,
-    payload: CuratorPlanRequest,
+    payload: HumanizedCuratorPlanRequest,
   ) => Promise<CuratorPlanResponse>;
 };
-
-const copy = {
-  title: "AI \u7b56\u5c55\u52a9\u624b",
-  signInError: "\u8acb\u5148\u767b\u5165\u518d\u4f7f\u7528 AI \u7b56\u5c55\u3002",
-  failed: "AI \u7b56\u5c55\u751f\u6210\u5931\u6557",
-  theme: "\u5c55\u89bd\u4e3b\u984c",
-  themePlaceholder: "\u4f8b\u5982\uff1a\u6fb3\u9580\u975e\u907a\u6587\u5316\u5c55",
-  style: "\u98a8\u683c",
-  whiteBox: "\u767d\u76d2\u5c55\u5ef3",
-  warmMuseum: "\u6eab\u6696\u535a\u7269\u9928",
-  techShowroom: "\u79d1\u6280\u5c55\u5ef3",
-  historyGallery: "\u6b77\u53f2\u5c55\u5ef3",
-  immersive: "\u6c89\u6d78\u5f0f",
-  exhibits: "\u5c55\u54c1\u6578",
-  audience: "\u76ee\u6a19\u89c0\u773e",
-  audiencePlaceholder: "\u4f8b\u5982\uff1a\u4e2d\u5b78\u751f\u3001\u89aa\u5b50\u89c0\u773e\u3001\u4f01\u696d\u8a2a\u5ba2",
-  language: "\u8a9e\u8a00",
-  zhTw: "\u7e41\u9ad4\u4e2d\u6587",
-  zhCn: "\u7c21\u9ad4\u4e2d\u6587",
-  applyMode: "\u5957\u7528\u65b9\u5f0f",
-  replace: "\u91cd\u5efa\u5c55\u5ef3",
-  preserveExisting: "\u4fdd\u7559\u73fe\u6709\u5c55\u54c1",
-  generating: "\u751f\u6210\u4e2d...",
-  generate: "\u751f\u6210\u7b56\u5c55\u65b9\u6848",
-  preview: "\u7b56\u5c55\u9810\u89bd",
-  replaceWarning: "\u5373\u5c07\u53d6\u4ee3\u76ee\u524d\u5c55\u5ef3\u8349\u7a3f",
-  preserveWarning: "\u5373\u5c07\u4fdd\u7559\u73fe\u6709\u5c55\u54c1\u4e26\u52a0\u5165 AI \u8349\u7a3f",
-  confirmHint: "\u78ba\u8a8d\u5f8c\u6703\u628a\u6b64 AI \u7b56\u5c55\u8349\u7a3f\u5957\u7528\u5230\u76ee\u524d\u7de8\u8f2f\u5668\u3002",
-  confirmApply: "\u78ba\u8a8d\u5957\u7528",
-  applyToScene: "\u5957\u7528\u5230\u5c55\u5ef3",
-  backToPreview: "\u8fd4\u56de\u9810\u89bd",
-  discard: "\u6368\u68c4",
-};
-
-function formatGeneratedCounts(sectionCount: number, exhibitCount: number) {
-  return `${sectionCount} \u500b\u5c55\u5340 / ${exhibitCount} \u4ef6\u5c55\u54c1`;
-}
 
 export function AiCuratorPanel({
   token,
@@ -63,6 +35,7 @@ export function AiCuratorPanel({
   requestCuratorPlan = defaultRequestCuratorPlan,
 }: AiCuratorPanelProps) {
   const [theme, setTheme] = useState("");
+  const [intent, setIntent] = useState<CuratorIntent>("warm-memory");
   const [style, setStyle] = useState("white-box");
   const [audience, setAudience] = useState("");
   const [language, setLanguage] = useState<"zh-TW" | "zh-CN" | "en">("zh-TW");
@@ -70,6 +43,7 @@ export function AiCuratorPanel({
   const [applyMode, setApplyMode] = useState<CuratorSceneApplyMode>("replace");
   const [isGenerating, setIsGenerating] = useState(false);
   const [preview, setPreview] = useState<CuratorPlanResponse | null>(null);
+  const [previewIntent, setPreviewIntent] = useState<CuratorIntent | null>(null);
   const [isConfirmingApply, setIsConfirmingApply] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,19 +58,24 @@ export function AiCuratorPanel({
 
     setError(null);
     setPreview(null);
+    setPreviewIntent(null);
     setIsConfirmingApply(false);
     setIsGenerating(true);
     try {
-      const result = await requestCuratorPlan(token, {
+      const payload: HumanizedCuratorPlanRequest = {
         theme: theme.trim(),
+        intent,
         style,
         audience: audience.trim() || undefined,
         language,
         exhibitCount,
-      });
+      };
+      const result = await requestCuratorPlan(token, payload);
       setPreview(result);
+      setPreviewIntent(intent);
     } catch (err) {
-      setError(err instanceof Error ? err.message : copy.failed);
+      const detail = err instanceof Error ? err.message : copy.failed;
+      setError(`${copy.unchangedError} ${detail}`);
     } finally {
       setIsGenerating(false);
     }
@@ -115,6 +94,7 @@ export function AiCuratorPanel({
 
   const handleDiscardPreview = () => {
     setPreview(null);
+    setPreviewIntent(null);
     setIsConfirmingApply(false);
   };
 
@@ -135,6 +115,21 @@ export function AiCuratorPanel({
           placeholder={copy.themePlaceholder}
           maxLength={500}
         />
+      </label>
+
+      <label className="block text-[11px] text-slate-700">
+        {copy.intent}
+        <select
+          value={intent}
+          onChange={(event) => setIntent(event.target.value as CuratorIntent)}
+          className="mt-1 w-full rounded-xl border border-cyan-200 bg-white px-2 py-1.5 text-xs text-slate-900"
+        >
+          {curatorIntentOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </label>
 
       <div className="grid grid-cols-2 gap-2">
@@ -236,6 +231,9 @@ export function AiCuratorPanel({
             <p className="text-[11px] font-semibold text-emerald-700">{copy.preview}</p>
             <p className="mt-1 text-sm font-semibold text-slate-950">{preview.exhibition.title}</p>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{preview.exhibition.introduction}</p>
+            <p className="mt-1 rounded-lg border border-emerald-100 bg-white px-2 py-1.5 text-[11px] text-emerald-800">
+              {copy.intentSummary}：{getCuratorIntentLabel(previewIntent ?? intent)}
+            </p>
           </div>
 
           <div className="space-y-1">
@@ -263,6 +261,8 @@ export function AiCuratorPanel({
             <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
               <p className="font-semibold">{applyWarning}</p>
               <p>{formatGeneratedCounts(generatedSectionCount, generatedExhibitCount)}</p>
+              <p>{copy.preserveDetail}</p>
+              <p>{copy.changeDetail}</p>
               <p>{copy.confirmHint}</p>
             </div>
           )}

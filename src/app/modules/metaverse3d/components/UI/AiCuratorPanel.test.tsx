@@ -6,13 +6,20 @@ import { AiCuratorPanel } from "./AiCuratorPanel";
 
 const text = {
   theme: "\u5c55\u89bd\u4e3b\u984c",
+  intent: "\u7b56\u5c55\u65b9\u5411",
+  warmMemory: "\u6eab\u6696\u56de\u61b6",
+  professionalGallery: "\u5c08\u696d\u5c55\u89bd",
   generate: "\u751f\u6210\u7b56\u5c55\u65b9\u6848",
+  generating: "\u6b63\u5728\u6574\u7406\u4f60\u7684\u7b56\u5c55\u65b9\u5411\uff0c\u5148\u4e0d\u6703\u6539\u52d5\u76ee\u524d\u5c55\u5834\u3002",
   preserveExisting: "\u4fdd\u7559\u73fe\u6709\u5c55\u54c1",
-  preserveWarning: "\u5373\u5c07\u4fdd\u7559\u73fe\u6709\u5c55\u54c1\u4e26\u52a0\u5165 AI \u8349\u7a3f",
+  preserveWarning: "\u6703\u5148\u4fdd\u7559\u4f60\u73fe\u6709\u7684\u5c55\u54c1\u8cc7\u6599\uff0c\u518d\u6839\u64da\u65b0\u7684\u7b56\u5c55\u65b9\u5411\u6574\u7406\u5c55\u793a\u4f4d\u7f6e\u548c\u8aaa\u660e\u3002",
+  preserveDetail: "\u6703\u4fdd\u7559\uff1a\u5df2\u4e0a\u50b3\u5a92\u9ad4\u3001\u73fe\u6709\u5c55\u54c1\u8cc7\u6599\u3002",
+  changeDetail: "\u6703\u6574\u7406\uff1a\u5c55\u5340\u7bc0\u594f\u3001\u6587\u5b57\u8aaa\u660e\u3001\u71c8\u5149\u8207\u5c55\u793a\u4f4d\u7f6e\u3002",
   applyToScene: "\u5957\u7528\u5230\u5c55\u5ef3",
   confirmApply: "\u78ba\u8a8d\u5957\u7528",
   title: "\u6fb3\u9580\u975e\u907a\u6587\u5316\u5c55",
   counts: "1 \u500b\u5c55\u5340 / 1 \u4ef6\u5c55\u54c1",
+  unchangedError: "\u9019\u6b21\u6c92\u6709\u6210\u529f\u751f\u6210\u8a08\u5283\u3002\u4f60\u7684\u5c55\u5834\u4ecd\u7136\u4fdd\u6301\u539f\u72c0\uff0c\u53ef\u4ee5\u7a0d\u5f8c\u91cd\u8a66\u3002",
 };
 
 const plan: CuratorPlanResponse = {
@@ -81,8 +88,39 @@ afterEach(() => {
 });
 
 describe("AiCuratorPanel", () => {
-  it("generates a preview and applies only after inline confirmation", async () => {
+  it("sends the default warm-memory intent when generating without changing intent", async () => {
     const requestCuratorPlan = vi.fn().mockResolvedValue(plan);
+    const importScene = vi.fn();
+
+    render(
+      <AiCuratorPanel
+        token="token-1"
+        currentScene={currentScene}
+        importScene={importScene}
+        requestCuratorPlan={requestCuratorPlan}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(text.theme), {
+      target: { value: text.title },
+    });
+    fireEvent.click(screen.getByRole("button", { name: text.generate }));
+
+    await screen.findByText(text.title);
+    expect(requestCuratorPlan).toHaveBeenCalledWith("token-1", expect.objectContaining({
+      theme: text.title,
+      intent: "warm-memory",
+    }));
+    expect(importScene).not.toHaveBeenCalled();
+  });
+
+  it("generates a preview and applies only after inline confirmation", async () => {
+    let resolvePlan: (value: CuratorPlanResponse) => void = () => {};
+    const requestCuratorPlan = vi.fn().mockImplementation(() => (
+      new Promise<CuratorPlanResponse>((resolve) => {
+        resolvePlan = resolve;
+      })
+    ));
     const importScene = vi.fn();
     const onApplied = vi.fn();
 
@@ -96,18 +134,37 @@ describe("AiCuratorPanel", () => {
       />,
     );
 
+    expect(screen.getByLabelText(text.intent)).toHaveValue("warm-memory");
+    expect(screen.getByRole("option", { name: text.warmMemory })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(text.intent), {
+      target: { value: "professional-gallery" },
+    });
+
     fireEvent.change(screen.getByLabelText(text.theme), {
       target: { value: text.title },
     });
     fireEvent.click(screen.getByLabelText(text.preserveExisting));
     fireEvent.click(screen.getByRole("button", { name: text.generate }));
+    expect(await screen.findByRole("button", { name: text.generating })).toBeDisabled();
+    resolvePlan(plan);
 
     await screen.findByText(text.title);
+    expect(requestCuratorPlan).toHaveBeenCalledWith("token-1", expect.objectContaining({
+      theme: text.title,
+      intent: "professional-gallery",
+    }));
+    expect(screen.getByText(`${text.intent}\uff1a${text.professionalGallery}`)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(text.intent), {
+      target: { value: "warm-memory" },
+    });
+    expect(screen.getByText(`${text.intent}\uff1a${text.professionalGallery}`)).toBeInTheDocument();
     expect(importScene).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: text.applyToScene }));
     expect(importScene).not.toHaveBeenCalled();
     expect(screen.getByText(text.preserveWarning)).toBeInTheDocument();
+    expect(screen.getByText(text.preserveDetail)).toBeInTheDocument();
+    expect(screen.getByText(text.changeDetail)).toBeInTheDocument();
     expect(screen.getByText(text.counts)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: text.confirmApply }));
@@ -134,7 +191,10 @@ describe("AiCuratorPanel", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: text.generate }));
 
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("network failed"));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(text.unchangedError);
+      expect(screen.getByRole("alert")).toHaveTextContent("network failed");
+    });
     expect(importScene).not.toHaveBeenCalled();
   });
 });
