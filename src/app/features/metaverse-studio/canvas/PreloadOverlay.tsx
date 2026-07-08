@@ -3,9 +3,9 @@ import { memo } from "react";
 import type { SceneLoadStage } from "./useScenePreloader";
 
 const stageLabels: Record<SceneLoadStage, string> = {
-  interface: "準備展覽介面",
-  core: "建立展館與操作空間",
-  nearby: "載入附近作品與互動",
+  interface: "準備展覽介面，資料仍會保留",
+  core: "建立展館與操作空間，先不會改動你的內容",
+  nearby: "正在載入附近作品與互動，可以先進入後再繼續補載。",
   complete: "展覽已準備完成",
 };
 
@@ -28,7 +28,11 @@ export const PreloadOverlay = memo(function PreloadOverlay({
 }: PreloadOverlayProps) {
   const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
   const failureMessage =
-    failedAssets > 0 ? `${failedAssets} 個資源載入失敗，已略過` : "";
+    failedAssets > 0 ? `${failedAssets} 個資源暫時載入失敗，已先略過；展覽資料仍然保留。` : "";
+  const stageLabel = stageLabels[stage];
+  const statusMessage = stageLabel.endsWith("。")
+    ? `${stageLabel} ${clampedProgress}% ${failureMessage}`
+    : `${stageLabel}，${clampedProgress}% ${failureMessage}`;
 
   return (
     <div
@@ -38,11 +42,11 @@ export const PreloadOverlay = memo(function PreloadOverlay({
     >
       <div className="w-[min(92vw,28rem)] rounded-2xl border border-white/10 bg-slate-900/90 p-5 shadow-2xl backdrop-blur-md">
         <div role="status" aria-live="polite" className="sr-only">
-          {stageLabels[stage]}，{clampedProgress}% {failureMessage}
+          {statusMessage}
         </div>
         <div className="mb-3 flex items-center justify-between gap-4">
           <div>
-            <div className="text-sm font-medium text-white">正在載入展覽資源</div>
+            <div className="text-sm font-medium text-white">正在準備展覽，資料仍會保留</div>
             <div className="mt-1 text-xs text-slate-300">{stageLabels[stage]}</div>
           </div>
           <div className="text-sm font-semibold text-cyan-300">{clampedProgress}%</div>
