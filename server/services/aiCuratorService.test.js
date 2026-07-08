@@ -92,6 +92,35 @@ describe('aiCuratorService', () => {
     expect(new Set(result.exhibition.exhibits.map((exhibit) => exhibit.id)).size).toBe(3);
   });
 
+  it('uses warm memory language in fallback plans when requested', async () => {
+    const { generateCuratorPlan } = await import('./aiCuratorService.js');
+
+    const result = await generateCuratorPlan({
+      theme: 'Graduation memories',
+      exhibitCount: 3,
+      intent: 'warm-memory',
+    });
+
+    expect(result.source).toBe('fallback');
+    expect(result.exhibition.introduction).toContain('memory');
+    expect(result.exhibition.guideOpening).toContain('story');
+  });
+
+  it('adds intent-specific instructions to model messages', async () => {
+    const { _private } = await import('./aiCuratorService.js');
+
+    const messages = _private.buildCuratorMessages({
+      theme: 'Student design awards',
+      language: 'zh-TW',
+      intent: 'competition-showcase',
+    }, 6);
+
+    expect(messages[1].content).toContain('Curatorial intent: competition-showcase');
+    expect(messages[1].content).toContain(
+      'Intent instruction: Use a showcase tone that highlights strengths, completion quality, and judging clarity.',
+    );
+  });
+
   it('extracts a JSON object from surrounding model text', async () => {
     const { _private } = await import('./aiCuratorService.js');
 

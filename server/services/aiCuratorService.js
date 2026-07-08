@@ -6,6 +6,12 @@ const DEFAULT_TIMEOUT_MS = 15000;
 const FALLBACK_WARNING = 'AI curator fallback used because no API key is configured.';
 const ALLOWED_MEDIA = new Set(['image', 'text', 'model', 'video', 'mixed']);
 const ALLOWED_PLACEMENT_HINTS = ['left-wall', 'right-wall', 'back-wall', 'center'];
+const DEFAULT_INTENT = 'warm-memory';
+const INTENT_INSTRUCTIONS = {
+  'warm-memory': 'Use a warm, memory-led tone that connects people, places, and lived experience without becoming sentimental.',
+  'professional-gallery': 'Use a precise gallery tone with clear sections, concise labels, and a calm visitor flow.',
+  'competition-showcase': 'Use a showcase tone that highlights strengths, completion quality, and judging clarity.',
+};
 
 function getApiKey() {
   return process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY || '';
@@ -73,6 +79,12 @@ function clampExhibitCount(value) {
   return Math.max(3, Math.min(12, parsed));
 }
 
+function normalizeIntent(value) {
+  return Object.prototype.hasOwnProperty.call(INTENT_INSTRUCTIONS, value)
+    ? value
+    : DEFAULT_INTENT;
+}
+
 function createSection(theme, index, raw = {}, usedIds) {
   const title = stringValue(raw.title, `${theme} Chapter ${index + 1}`);
   const fallbackId = `section-${index + 1}`;
@@ -105,6 +117,7 @@ function createExhibit(theme, index, section, raw = {}, usedIds) {
 }
 
 function createFallbackPlan(input = {}, warnings = [FALLBACK_WARNING]) {
+  const intent = normalizeIntent(input.intent);
   const theme = stringValue(input.theme || input.prompt || input.title, 'Untitled Exhibition');
   const exhibitCount = clampExhibitCount(input.exhibitCount ?? input.count);
   const sections = [
@@ -138,8 +151,12 @@ function createFallbackPlan(input = {}, warnings = [FALLBACK_WARNING]) {
     source: 'fallback',
     exhibition: {
       title: `${theme} Curated Exhibition`,
-      introduction: `A guided exhibition plan for ${theme}, arranged for a balanced virtual gallery experience.`,
-      guideOpening: `Welcome to ${theme}. Move through each section as a connected story rather than a checklist.`,
+      introduction: intent === 'warm-memory'
+        ? `A guided exhibition plan for ${theme}, arranged as a warm memory-led journey through people, places, and lived experience.`
+        : `A guided exhibition plan for ${theme}, arranged for a balanced virtual gallery experience.`,
+      guideOpening: intent === 'competition-showcase'
+        ? `Welcome to ${theme}. Move through each section to understand the strongest ideas, execution quality, and judging highlights.`
+        : `Welcome to ${theme}. Move through each section as a connected story rather than a checklist.`,
       sections,
       exhibits,
     },
@@ -245,6 +262,8 @@ function normalizeCuratorPlan(rawPlan = {}, input = {}) {
 function buildCuratorMessages(input, exhibitCount) {
   const theme = stringValue(input.theme || input.prompt || input.title, 'Untitled Exhibition');
   const language = stringValue(input.language, 'English');
+  const intent = normalizeIntent(input.intent);
+  const intentInstruction = INTENT_INSTRUCTIONS[intent];
   return [
     {
       role: 'system',
@@ -264,6 +283,8 @@ function buildCuratorMessages(input, exhibitCount) {
         `Theme: ${theme}`,
         `Language: ${language}`,
         `Exhibit count: ${exhibitCount}`,
+        `Curatorial intent: ${intent}`,
+        `Intent instruction: ${intentInstruction}`,
         'Create 3 to 5 sections and exactly the requested number of exhibits.',
         'Focus on curatorial story, visitor flow, and wall/pedestal placement hints only.',
       ].join('\n'),
@@ -312,8 +333,10 @@ export async function generateCuratorPlan(input = {}) {
 }
 
 export const _private = {
+  buildCuratorMessages,
   clampExhibitCount,
   createFallbackPlan,
   extractJsonObject,
+  normalizeIntent,
   normalizeCuratorPlan,
 };
