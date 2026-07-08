@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CuratorPlanResponse } from "@/app/api/aiCurator";
 import type { SceneSnapshot } from "../../aiCurator/mapCuratorPlanToScene";
@@ -106,7 +106,7 @@ describe("AiCuratorPanel", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: text.generate }));
 
-    await screen.findByText(text.title);
+    await screen.findByText(plan.exhibition.introduction);
     expect(requestCuratorPlan).toHaveBeenCalledWith("token-1", expect.objectContaining({
       theme: text.title,
       intent: "warm-memory",
@@ -146,9 +146,11 @@ describe("AiCuratorPanel", () => {
     fireEvent.click(screen.getByLabelText(text.preserveExisting));
     fireEvent.click(screen.getByRole("button", { name: text.generate }));
     expect(await screen.findByRole("button", { name: text.generating })).toBeDisabled();
-    resolvePlan(plan);
+    act(() => {
+      resolvePlan(plan);
+    });
 
-    await screen.findByText(text.title);
+    await screen.findByText(plan.exhibition.introduction);
     expect(requestCuratorPlan).toHaveBeenCalledWith("token-1", expect.objectContaining({
       theme: text.title,
       intent: "professional-gallery",
