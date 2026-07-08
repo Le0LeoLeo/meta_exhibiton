@@ -1,9 +1,12 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from "./base";
 
+export type CuratorIntent = "warm-memory" | "professional-gallery" | "competition-showcase";
+
 export interface CuratorPlanRequest {
   theme: string;
   style?: string;
   audience?: string;
+  intent?: CuratorIntent;
   language: "zh-TW" | "zh-CN" | "en";
   exhibitCount: number;
 }

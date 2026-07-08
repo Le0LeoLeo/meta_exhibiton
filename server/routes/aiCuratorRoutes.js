@@ -1,9 +1,16 @@
 import { z } from 'zod';
 
+const curatorIntentSchema = z.enum([
+  'warm-memory',
+  'professional-gallery',
+  'competition-showcase',
+]);
+
 const curatorPlanSchema = z.object({
   theme: z.string().trim().min(1, 'theme is required').max(500),
   style: z.string().trim().max(120).optional(),
   audience: z.string().trim().max(120).optional(),
+  intent: curatorIntentSchema.default('warm-memory'),
   language: z.enum(['zh-TW', 'zh-CN', 'en']).default('zh-TW'),
   exhibitCount: z.number().int().min(3).max(12).default(6),
 });

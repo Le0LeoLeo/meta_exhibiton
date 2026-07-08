@@ -121,7 +121,38 @@ describe('aiCuratorRoutes', () => {
       theme: '澳門非遺文化展',
       language: 'zh-TW',
       exhibitCount: 6,
+      intent: 'warm-memory',
     });
+  });
+
+  it('passes a valid curator intent to generation', async () => {
+    const generateCuratorPlan = vi.fn().mockResolvedValue({
+      exhibition: { title: 'Competition plan' },
+    });
+    const response = await postCuratorPlan(await startApp({ generateCuratorPlan }), {
+      theme: 'Student design awards',
+      intent: 'competition-showcase',
+    });
+
+    expect(response.status).toBe(200);
+    expect(generateCuratorPlan).toHaveBeenCalledWith({
+      theme: 'Student design awards',
+      language: 'zh-TW',
+      exhibitCount: 6,
+      intent: 'competition-showcase',
+    });
+  });
+
+  it('returns 400 for invalid curator intent', async () => {
+    const generateCuratorPlan = vi.fn();
+    const response = await postCuratorPlan(await startApp({ generateCuratorPlan }), {
+      theme: 'Macau history',
+      intent: 'cold-sales-pitch',
+    });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).message).toBeTruthy();
+    expect(generateCuratorPlan).not.toHaveBeenCalled();
   });
 
   it('returns 500 when curator generation fails', async () => {
