@@ -9,6 +9,7 @@ import {
   clampJoystick,
   type PlayerInputState,
 } from "../input/playerInput";
+import { useI18n } from "../../../components/I18nProvider";
 
 export function MobileControls({
   input,
@@ -17,6 +18,7 @@ export function MobileControls({
   input: MutableRefObject<PlayerInputState>;
   nearbyItemTitle: string | null;
 }) {
+  const { t } = useI18n();
   const joystickOrigin = useRef({ x: 0, y: 0 });
   const lastLookPoint = useRef<{ x: number; y: number } | null>(null);
 
@@ -58,7 +60,7 @@ export function MobileControls({
   return (
     <div className="pointer-events-none absolute inset-0 z-30">
       <div
-        aria-label="移動控制"
+        aria-label={t("mobileMoveControl")}
         className="pointer-events-auto absolute bottom-6 left-6 size-28 touch-none rounded-full border border-white/30 bg-slate-950/40"
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -77,7 +79,7 @@ export function MobileControls({
         onPointerCancel={resetJoystick}
       />
       <div
-        aria-label="視角控制"
+        aria-label={t("mobileLookControl")}
         className="pointer-events-auto absolute inset-y-0 right-0 w-1/2 touch-none"
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -112,7 +114,7 @@ export function MobileControls({
             input.current.interactRequested = true;
           }}
         >
-          查看「{nearbyItemTitle}」
+          {t("mobileViewItem", { title: nearbyItemTitle })}
         </button>
       )}
     </div>

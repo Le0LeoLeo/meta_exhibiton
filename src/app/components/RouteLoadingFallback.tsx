@@ -1,4 +1,7 @@
+import { useI18n } from './I18nProvider';
+
 export function RouteLoadingFallback() {
+  const { t } = useI18n();
   return (
     <div
       role="status"
@@ -16,7 +19,7 @@ export function RouteLoadingFallback() {
             />
           ))}
         </div>
-        <span className="sr-only">正在載入展覽…</span>
+        <span className="sr-only">{t('routeLoading')}</span>
       </div>
     </div>
   );

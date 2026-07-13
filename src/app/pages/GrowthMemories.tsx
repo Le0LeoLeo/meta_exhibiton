@@ -9,6 +9,7 @@ import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Switch } from '../components/ui/switch';
 import { toast } from 'sonner';
+import { useI18n } from '../components/I18nProvider';
 import {
   createGrowthAsset,
   createGrowthChild,
@@ -29,27 +30,27 @@ import {
 } from '../api/client';
 
 const templates = [
-  { id: 'newborn', name: '新生初遇', desc: '適合 0-1 歲，紀錄第一次微笑與第一聲啼哭。', vibe: '柔和奶油色系' },
-  { id: 'birthday', name: '生日星球', desc: '把每年生日變成可回放的 3D 祝福派對。', vibe: '繽紛高飽和' },
-  { id: 'school', name: '入學紀念', desc: '收錄學校生活、作品與成長里程碑。', vibe: '清新書卷感' },
+  { id: 'newborn', nameKey: 'gm.template.newborn.name', descKey: 'gm.template.newborn.desc', vibeKey: 'gm.template.newborn.vibe' },
+  { id: 'birthday', nameKey: 'gm.template.birthday.name', descKey: 'gm.template.birthday.desc', vibeKey: 'gm.template.birthday.vibe' },
+  { id: 'school', nameKey: 'gm.template.school.name', descKey: 'gm.template.school.desc', vibeKey: 'gm.template.school.vibe' },
 ];
 
 const recommendationModes = [
-  { id: 'explore', label: '探索型' },
-  { id: 'guide', label: '導覽型' },
-  { id: 'story', label: '故事型' },
+  { id: 'explore', key: 'gm.recommendation.mode.explore' },
+  { id: 'guide', key: 'gm.recommendation.mode.guide' },
+  { id: 'story', key: 'gm.recommendation.mode.story' },
 ];
 
 const recommendationInterests = [
-  { id: 'story', label: '敘事回顧' },
-  { id: 'media', label: '照片影片' },
-  { id: 'social', label: '親友互動' },
+  { id: 'story', key: 'gm.recommendation.interest.story' },
+  { id: 'media', key: 'gm.recommendation.interest.media' },
+  { id: 'social', key: 'gm.recommendation.interest.social' },
 ];
 
 const recommendationDepths = [
-  { id: 'fast', label: '快速' },
-  { id: 'balanced', label: '平衡' },
-  { id: 'deep', label: '深度' },
+  { id: 'fast', key: 'gm.recommendation.depth.fast' },
+  { id: 'balanced', key: 'gm.recommendation.depth.balanced' },
+  { id: 'deep', key: 'gm.recommendation.depth.deep' },
 ];
 
 function SectionCard({ title, description, icon, children }: { title: string; description: string; icon: React.ReactNode; children: React.ReactNode }) {
@@ -68,10 +69,11 @@ function SectionCard({ title, description, icon, children }: { title: string; de
 }
 
 function RecommendationCard({ recommendation }: { recommendation: GrowthRecommendation | null }) {
+  const { t } = useI18n();
   if (!recommendation) return null;
   return (
     <div className="rounded-3xl border border-sky-200 bg-sky-50 p-4 text-slate-800">
-      <p className="text-[11px] uppercase tracking-[0.24em] text-sky-600">個人化推薦路線</p>
+      <p className="text-[11px] uppercase tracking-[0.24em] text-sky-600">{t('gm.recommendation.personalized')}</p>
       <h4 className="mt-2 text-lg font-semibold text-slate-950">{recommendation.title}</h4>
       <p className="mt-1 text-sm leading-6 text-slate-600">{recommendation.reason}</p>
     </div>
@@ -79,10 +81,11 @@ function RecommendationCard({ recommendation }: { recommendation: GrowthRecommen
 }
 
 export default function GrowthMemories() {
+  const { t } = useI18n();
   const [childName, setChildName] = useState('');
   const [birthday, setBirthday] = useState('2025-01-01');
   const [selectedTemplate, setSelectedTemplate] = useState('newborn');
-  const [story, setStory] = useState('今天我們一起建立第一座專屬於孩子的線上成長展覽館。');
+  const [story, setStory] = useState(t('gm.story_default'));
   const [isPrivate, setIsPrivate] = useState(true);
   const [selectedChildId, setSelectedChildId] = useState('');
   const [selectedExhibitId, setSelectedExhibitId] = useState('');
@@ -97,7 +100,7 @@ export default function GrowthMemories() {
   const [assetUrl, setAssetUrl] = useState('');
   const [assetNote, setAssetNote] = useState('');
   const [assetDate, setAssetDate] = useState('');
-  const [commentUserName, setCommentUserName] = useState('家人');
+  const [commentUserName, setCommentUserName] = useState(t('gm.comment_user_default'));
   const [commentContent, setCommentContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [editorMode, setEditorMode] = useState<'curate' | 'preview' | 'share'>('curate');
@@ -124,7 +127,7 @@ export default function GrowthMemories() {
       if (!selectedChildId && childrenRes.children[0]?.id) setSelectedChildId(childrenRes.children[0].id);
       if (!selectedExhibitId && exhibitsRes.exhibits[0]?.id) setSelectedExhibitId(exhibitsRes.exhibits[0].id);
     } catch (err) {
-      toast.error('載入成長紀念資料失敗', { description: err instanceof Error ? err.message : '未知錯誤' });
+      toast.error(t('gm.load_error'), { description: err instanceof Error ? err.message : t('gm.load_error_unknown') });
     }
   };
 
@@ -136,7 +139,7 @@ export default function GrowthMemories() {
       setAssets(assetsRes.assets);
       setComments(commentsRes.comments);
     } catch (err) {
-      toast.error('載入展館內容失敗', { description: err instanceof Error ? err.message : '未知錯誤' });
+      toast.error(t('gm.load_exhibit_error'), { description: err instanceof Error ? err.message : t('gm.load_error_unknown') });
     }
   };
 
@@ -149,13 +152,13 @@ export default function GrowthMemories() {
         <section className="rounded-[32px] border border-white/70 bg-white/75 p-6 shadow-[0_30px_90px_-48px_rgba(15,23,42,0.55)] backdrop-blur-xl sm:p-8">
           <div className="flex flex-wrap gap-3">
             {recommendationModes.map((item) => (
-              <button key={item.id} onClick={() => setPrefMode(item.id)} className={`rounded-full px-4 py-2 text-sm ${prefMode === item.id ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-700'}`}>{item.label}</button>
+              <button key={item.id} onClick={() => setPrefMode(item.id)} className={`rounded-full px-4 py-2 text-sm ${prefMode === item.id ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-700'}`}>{t(item.key)}</button>
             ))}
             {recommendationInterests.map((item) => (
-              <button key={item.id} onClick={() => setPrefInterest(item.id)} className={`rounded-full px-4 py-2 text-sm ${prefInterest === item.id ? 'bg-sky-600 text-white' : 'bg-sky-50 text-sky-700'}`}>{item.label}</button>
+              <button key={item.id} onClick={() => setPrefInterest(item.id)} className={`rounded-full px-4 py-2 text-sm ${prefInterest === item.id ? 'bg-sky-600 text-white' : 'bg-sky-50 text-sky-700'}`}>{t(item.key)}</button>
             ))}
             {recommendationDepths.map((item) => (
-              <button key={item.id} onClick={() => setPrefDepth(item.id)} className={`rounded-full px-4 py-2 text-sm ${prefDepth === item.id ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700'}`}>{item.label}</button>
+              <button key={item.id} onClick={() => setPrefDepth(item.id)} className={`rounded-full px-4 py-2 text-sm ${prefDepth === item.id ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700'}`}>{t(item.key)}</button>
             ))}
           </div>
           <div className="mt-4">
@@ -165,7 +168,7 @@ export default function GrowthMemories() {
             {recommendationRoutes.slice(0, 3).map((item) => (
               <button key={item.exhibitId} onClick={() => navigate(item.route)} className="rounded-2xl border border-slate-200 bg-white p-4 text-left">
                 <p className="font-semibold">{item.title}</p>
-                <p className="text-sm text-slate-500">{item.routeType} · 分數 {item.score}</p>
+                <p className="text-sm text-slate-500">{item.routeType} · {t('gm.recommendation.score')} {item.score}</p>
               </button>
             ))}
           </div>

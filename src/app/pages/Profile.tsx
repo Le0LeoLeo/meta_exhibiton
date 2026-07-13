@@ -54,7 +54,7 @@ export default function Profile() {
           // token 失效或缺失
           clearAuth();
           toast.error(t('sessionExpired'), {
-            description: err instanceof Error ? err.message : '請稍後再試',
+            description: err instanceof Error ? err.message : t('retryLater'),
           });
           navigate('/login?returnTo=' + encodeURIComponent('/profile'), { replace: true });
         }
@@ -94,7 +94,7 @@ export default function Profile() {
       toast.success(t('nameUpdated'));
     } catch (err) {
       toast.error(t('nameUpdateFailed'), {
-        description: err instanceof Error ? err.message : '請稍後再試',
+        description: err instanceof Error ? err.message : t('retryLater'),
       });
     } finally {
       setNameSaving(false);
@@ -128,7 +128,7 @@ export default function Profile() {
       toast.success(t('passwordUpdated'));
     } catch (err) {
       toast.error(t('passwordUpdateFailed'), {
-        description: err instanceof Error ? err.message : '請稍後再試',
+        description: err instanceof Error ? err.message : t('retryLater'),
       });
     } finally {
       setChangingPassword(false);
@@ -146,7 +146,7 @@ export default function Profile() {
       navigate('/', { replace: true });
     } catch (err) {
       toast.error(t('accountDeleteFailed'), {
-        description: err instanceof Error ? err.message : '請稍後再試',
+        description: err instanceof Error ? err.message : t('retryLater'),
       });
     } finally {
       setDeleting(false);

@@ -43,6 +43,11 @@ export interface ExhibitItem {
   textBackboardColor?: string;
   lightIntensity?: number;
   isLocked?: boolean;
+  uploadStatus?: "pending" | "uploading" | "done" | "error";
+  uploadProgress?: number;
+  assetId?: string;
+  assetUrl?: string;
+  thumbnailUrl?: string;
 }
 
 export type WallFace = "north" | "south" | "east" | "west";
@@ -63,6 +68,7 @@ export interface RoomSize {
   wallColor: string;
   wallMaterialPreset: WallMaterialPreset;
   wallTextureUrl: string;
+  wallTextureCustomPresets?: Array<{ label: string; value: string }>;
   wallTextureTiling: number;
   wallRoughness: number;
   wallMetalness: number;
@@ -109,4 +115,6 @@ export interface FloorPlanElement {
   scale: [number, number, number];
   color?: string;
   isLocked?: boolean;
+  doorOffset?: number;
+  doorWidth?: number;
 }

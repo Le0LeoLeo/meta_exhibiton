@@ -1,33 +1,18 @@
+import { Canvas } from '@react-three/fiber';
+import { ContactShadows, OrbitControls } from '@react-three/drei';
 import { motion } from 'motion/react';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import * as THREE from 'three';
+import { useI18n } from './I18nProvider';
+import { canCreateWebGLContext } from '../modules/metaverse3d/components/webglSupport';
 
-/*
- * CSS 3D Room — all faces placed from a single origin using correct transform math.
- *
- * Room dimensions:  W (width / X), H (height / Y), D (depth / Z)
- * Origin = exact centre of the room.
- *
- * Face formula (each div centred with margin then transformed):
- *   Back:    translateZ(-D/2)                     size W × H
- *   Left:    rotateY(-90deg) translateZ(W/2)      size D × H
- *   Right:   rotateY(90deg)  translateZ(W/2)      size D × H
- *   Floor:   rotateX(-90deg) translateZ(H/2)      size W × D
- *   Ceiling: rotateX(90deg)  translateZ(H/2)      size W × D
- */
-
-const W = 260;
-const H = 150;
-const D = 200;
-
-const paintingColors = [
-  'from-rose-200 to-rose-300 dark:from-rose-400/40 dark:to-rose-500/40',
-  'from-sky-200 to-sky-300 dark:from-sky-400/40 dark:to-sky-500/40',
-  'from-amber-200 to-amber-300 dark:from-amber-400/40 dark:to-amber-500/40',
-  'from-emerald-200 to-emerald-300 dark:from-emerald-400/40 dark:to-emerald-500/40',
-  'from-violet-200 to-violet-300 dark:from-violet-400/40 dark:to-violet-500/40',
-  'from-pink-200 to-pink-300 dark:from-pink-400/40 dark:to-pink-500/40',
-  'from-teal-200 to-teal-300 dark:from-teal-400/40 dark:to-teal-500/40',
-];
+const artworkPalettes = [
+  ['#ff6b6b', '#ffd166', '#fef3c7'],
+  ['#38bdf8', '#2dd4bf', '#ecfeff'],
+  ['#a78bfa', '#60a5fa', '#f5f3ff'],
+  ['#34d399', '#bef264', '#fef08a'],
+  ['#fb7185', '#fdba74', '#fff7ed'],
+] as const;
 
 function canRunDecorativeMotion() {
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
@@ -62,177 +47,193 @@ function useDecorativeMotionAllowed() {
   return isAllowed;
 }
 
+type ArtworkProps = {
+  palette: readonly [string, string, string];
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: [number, number, number];
+};
+
+function Artwork({ palette, position, rotation = [0, 0, 0], scale = [1, 1, 1] }: ArtworkProps) {
+  return (
+    <group position={position} rotation={rotation} scale={scale}>
+      <mesh castShadow receiveShadow position={[0, 0, -0.015]}>
+        <boxGeometry args={[0.82, 1.08, 0.07]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.45} metalness={0.04} />
+      </mesh>
+      <mesh position={[0, 0, 0.03]}>
+        <planeGeometry args={[0.66, 0.84]} />
+        <meshStandardMaterial color={palette[0]} roughness={0.38} emissive={palette[1]} emissiveIntensity={0.08} />
+      </mesh>
+      <mesh position={[-0.13, 0.12, 0.04]}>
+        <circleGeometry args={[0.2, 28]} />
+        <meshStandardMaterial color={palette[1]} roughness={0.35} emissive={palette[1]} emissiveIntensity={0.12} />
+      </mesh>
+      <mesh position={[0.18, -0.18, 0.05]} rotation={[0, 0, 0.45]}>
+        <planeGeometry args={[0.42, 0.18]} />
+        <meshStandardMaterial color={palette[2]} roughness={0.5} transparent opacity={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+function Pedestal({ position, accent }: { position: [number, number, number]; accent: string }) {
+  return (
+    <group position={position}>
+      <mesh castShadow receiveShadow position={[0, 0.35, 0]}>
+        <cylinderGeometry args={[0.36, 0.43, 0.7, 32]} />
+        <meshStandardMaterial color="#e7e5e4" roughness={0.5} metalness={0.08} />
+      </mesh>
+      <mesh castShadow position={[0, 0.88, 0]}>
+        <icosahedronGeometry args={[0.28, 1]} />
+        <meshStandardMaterial color={accent} roughness={0.25} metalness={0.25} emissive={accent} emissiveIntensity={0.12} />
+      </mesh>
+    </group>
+  );
+}
+
+function LightStrip({ position, rotation = [0, 0, 0] }: { position: [number, number, number]; rotation?: [number, number, number] }) {
+  return (
+    <group position={position} rotation={rotation}>
+      <mesh>
+        <boxGeometry args={[1.45, 0.035, 0.035]} />
+        <meshStandardMaterial color="#fff7cc" emissive="#facc15" emissiveIntensity={1.9} toneMapped={false} />
+      </mesh>
+      <pointLight color="#ffe6a3" intensity={0.52} distance={3.3} />
+    </group>
+  );
+}
+
+function GalleryScene() {
+  return (
+    <>
+      <color attach="background" args={['#f8fbff']} />
+      <fog attach="fog" args={['#f8fbff', 8.5, 14]} />
+      <ambientLight intensity={0.55} />
+      <hemisphereLight args={['#e0f2fe', '#fef3c7', 0.8]} />
+      <directionalLight position={[3.8, 6, 4.2]} intensity={1.15} castShadow shadow-mapSize={[1024, 1024]} />
+      <spotLight position={[-3.2, 4.4, 2.7]} angle={0.42} penumbra={0.55} intensity={1.2} color="#fff2cc" castShadow />
+      <pointLight position={[2.6, 1.8, -2.2]} intensity={0.8} color="#67e8f9" distance={5} />
+
+      <group>
+        <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+          <planeGeometry args={[6.4, 5.4]} />
+          <meshStandardMaterial color="#e8edf3" roughness={0.62} metalness={0.05} />
+        </mesh>
+
+        <gridHelper args={[6.4, 16, '#9fb2c8', '#d6dee8']} position={[0, 0.012, 0]} />
+
+        <mesh receiveShadow position={[0, 1.45, -2.6]}>
+          <boxGeometry args={[6.4, 2.9, 0.12]} />
+          <meshStandardMaterial color="#f8fafc" roughness={0.58} metalness={0.02} />
+        </mesh>
+        <mesh receiveShadow position={[-3.2, 1.45, -1.15]} rotation={[0, Math.PI / 2, 0]}>
+          <boxGeometry args={[2.9, 2.9, 0.12]} />
+          <meshStandardMaterial color="#eef8f4" roughness={0.58} metalness={0.02} transparent opacity={0.86} />
+        </mesh>
+        <mesh receiveShadow position={[3.2, 1.45, -1.15]} rotation={[0, -Math.PI / 2, 0]}>
+          <boxGeometry args={[2.9, 2.9, 0.12]} />
+          <meshStandardMaterial color="#fff3ee" roughness={0.58} metalness={0.02} transparent opacity={0.78} />
+        </mesh>
+
+        <LightStrip position={[-1.65, 2.86, -0.85]} rotation={[0, 0, 0.04]} />
+        <LightStrip position={[1.65, 2.86, -1.05]} rotation={[0, 0, -0.04]} />
+        <LightStrip position={[0, 2.78, 1.15]} rotation={[0, 0, 0]} />
+
+        <Artwork palette={artworkPalettes[0]} position={[-1.9, 1.75, -2.51]} scale={[1.04, 1.04, 1.04]} />
+        <Artwork palette={artworkPalettes[1]} position={[0, 1.65, -2.5]} rotation={[0, 0, 0.03]} scale={[0.9, 0.9, 0.9]} />
+        <Artwork palette={artworkPalettes[2]} position={[1.9, 1.75, -2.51]} scale={[1.04, 1.04, 1.04]} />
+        <Artwork palette={artworkPalettes[3]} position={[-3.11, 1.58, -1.35]} rotation={[0, Math.PI / 2, 0]} scale={[0.82, 0.82, 0.82]} />
+        <Artwork palette={artworkPalettes[4]} position={[3.11, 1.58, -1.15]} rotation={[0, -Math.PI / 2, 0]} scale={[0.82, 0.82, 0.82]} />
+
+        <Pedestal position={[-1.25, 0, 0.35]} accent="#38bdf8" />
+        <Pedestal position={[1.25, 0, 0.25]} accent="#fb7185" />
+
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.025, 1.15]}>
+          <ringGeometry args={[0.82, 0.87, 72]} />
+          <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.65} transparent opacity={0.78} toneMapped={false} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 1.15]}>
+          <planeGeometry args={[0.12, 2.7]} />
+          <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={0.72} transparent opacity={0.62} toneMapped={false} />
+        </mesh>
+      </group>
+
+      <ContactShadows position={[0, 0.02, 0]} opacity={0.25} scale={7} blur={2.7} far={4} />
+    </>
+  );
+}
+
 export function Gallery3D() {
-  const [isHovering, setIsHovering] = useState(false);
-  const isDecorativeMotionAllowed = useDecorativeMotionAllowed();
-  const rotateRef = useRef({ x: 18, y: -30 });
-  const sceneRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number>(0);
+  const { t } = useI18n();
+  const [webglSupported] = useState(() =>
+    canCreateWebGLContext(
+      document,
+      () =>
+        new THREE.WebGLRenderer({
+          antialias: true,
+          alpha: false,
+          powerPreference: 'high-performance',
+        }),
+    ),
+  );
 
-  useEffect(() => {
-    if (isHovering || !isDecorativeMotionAllowed) return;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = now - last;
-      last = now;
-      rotateRef.current.y += dt * 0.004;
-      if (sceneRef.current) {
-        sceneRef.current.style.transform =
-          `rotateX(${rotateRef.current.x}deg) rotateY(${rotateRef.current.y}deg)`;
-      }
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [isDecorativeMotionAllowed, isHovering]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const nx = (e.clientX - rect.left) / rect.width - 0.5;
-    const ny = (e.clientY - rect.top) / rect.height - 0.5;
-    rotateRef.current.y = -30 + nx * 50;
-    rotateRef.current.x = 18 - ny * 25;
-    if (sceneRef.current) {
-      sceneRef.current.style.transform =
-        `rotateX(${rotateRef.current.x}deg) rotateY(${rotateRef.current.y}deg)`;
-    }
-  }, []);
-
-  /* shared absolute-centred style for every room face */
-  const face = (
-    w: number, h: number, transform: string, extra?: React.CSSProperties,
-  ): React.CSSProperties => ({
-    position: 'absolute',
-    width: w,
-    height: h,
-    left: '50%',
-    top: '50%',
-    marginLeft: -w / 2,
-    marginTop: -h / 2,
-    transform,
-    backfaceVisibility: 'hidden',
-    ...extra,
-  });
+  if (!webglSupported) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.7, delay: 0.25 }}
+        className="relative mx-auto flex h-72 w-full max-w-xl items-center justify-center overflow-hidden rounded-md bg-[linear-gradient(135deg,#f8fbff_0%,#eef4f8_100%)] sm:h-80"
+        data-testid="gallery3d-webgl-fallback"
+      >
+        <MiniGallery3D className="scale-150" />
+        <div className="pointer-events-none absolute inset-x-4 bottom-3 flex items-center justify-between rounded-md border border-white/70 bg-white/72 px-3 py-2 text-[11px] font-semibold text-stone-600 shadow-sm backdrop-blur dark:border-white/10 dark:bg-stone-950/58 dark:text-stone-300">
+          <span>{t('gallery3d.previewLabel')}</span>
+          <span className="text-[#10b981]">{t('gallery3d.dragHint')}</span>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.92 }}
+      initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.8, delay: 0.3 }}
-      className="relative w-full max-w-xl mx-auto select-none"
-      style={{ perspective: 900 }}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => {
-        setIsHovering(false);
-        rotateRef.current.x = 18;
-      }}
+      transition={{ duration: 0.7, delay: 0.25 }}
+      className="relative mx-auto h-72 w-full max-w-xl overflow-hidden rounded-md sm:h-80"
     >
-      {/* Soft glow underneath */}
-      <div className="absolute inset-x-12 bottom-2 h-14 bg-gradient-to-t from-stone-300/20 dark:from-stone-600/15 to-transparent blur-2xl rounded-full" />
-
-      {/* 3D scene container */}
-      <div
-        ref={sceneRef}
-        className="relative w-full h-64 sm:h-72 cursor-grab active:cursor-grabbing"
-        style={{
-          transformStyle: 'preserve-3d',
-          transform: 'rotateX(18deg) rotateY(-30deg)',
-          transition: isHovering ? 'transform 0.06s ease-out' : 'none',
+      <Canvas
+        shadows
+        dpr={[1, 1.6]}
+        orthographic
+        camera={{ position: [3.6, 3.05, 5.2], zoom: 72, near: 0.1, far: 40 }}
+        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+        onCreated={({ gl }) => {
+          gl.toneMapping = THREE.ACESFilmicToneMapping;
+          gl.toneMappingExposure = 1.08;
+          gl.outputColorSpace = THREE.SRGBColorSpace;
         }}
       >
-        {/* ─── Back Wall ─── */}
-        <div
-          className="bg-gradient-to-b from-white via-stone-50 to-stone-100 dark:from-stone-800 dark:via-stone-850 dark:to-stone-900 border border-stone-200/30 dark:border-stone-700/25"
-          style={face(W, H, `translateZ(${-D / 2}px)`, {
-            boxShadow: 'inset 0 0 50px rgba(0,0,0,0.03)',
-          })}
-        >
-          {/* Paintings on back wall */}
-          <div className="absolute inset-0 flex items-center justify-center gap-5 px-8">
-            <div className={`w-11 h-16 rounded bg-gradient-to-br ${paintingColors[0]} shadow-md ring-1 ring-white/30 dark:ring-white/10`} />
-            <div className={`w-14 h-10 rounded bg-gradient-to-br ${paintingColors[1]} shadow-md ring-1 ring-white/30 dark:ring-white/10`} />
-            <div className={`w-11 h-16 rounded bg-gradient-to-br ${paintingColors[2]} shadow-md ring-1 ring-white/30 dark:ring-white/10`} />
-          </div>
-        </div>
-
-        {/* ─── Left Wall ─── */}
-        <div
-          className="bg-gradient-to-r from-stone-100 via-stone-50 to-white dark:from-stone-900 dark:via-stone-850 dark:to-stone-800 border border-stone-200/25 dark:border-stone-700/20"
-          style={face(D, H, `rotateY(-90deg) translateZ(${W / 2}px)`, {
-            boxShadow: 'inset 0 0 40px rgba(0,0,0,0.04)',
-          })}
-        >
-          <div className="absolute inset-0 flex items-center justify-center gap-4 px-6">
-            <div className={`w-14 h-10 rounded bg-gradient-to-br ${paintingColors[3]} shadow-md ring-1 ring-white/30 dark:ring-white/10`} />
-            <div className={`w-11 h-14 rounded bg-gradient-to-br ${paintingColors[4]} shadow-md ring-1 ring-white/30 dark:ring-white/10`} />
-          </div>
-        </div>
-
-        {/* ─── Right Wall ─── */}
-        <div
-          className="bg-gradient-to-l from-stone-100 via-stone-50 to-white dark:from-stone-900 dark:via-stone-850 dark:to-stone-800 border border-stone-200/25 dark:border-stone-700/20"
-          style={face(D, H, `rotateY(90deg) translateZ(${W / 2}px)`, {
-            boxShadow: 'inset 0 0 40px rgba(0,0,0,0.04)',
-          })}
-        >
-          <div className="absolute inset-0 flex items-center justify-center gap-4 px-6">
-            <div className={`w-11 h-14 rounded bg-gradient-to-br ${paintingColors[5]} shadow-md ring-1 ring-white/30 dark:ring-white/10`} />
-            <div className={`w-14 h-10 rounded bg-gradient-to-br ${paintingColors[6]} shadow-md ring-1 ring-white/30 dark:ring-white/10`} />
-          </div>
-        </div>
-
-        {/* ─── Floor ─── */}
-        <div
-          className="bg-gradient-to-b from-stone-100 to-stone-200/90 dark:from-stone-800 dark:to-stone-900/90"
-          style={face(W, D, `rotateX(-90deg) translateZ(${H / 2}px)`)}
-        >
-          {/* Subtle tile pattern */}
-          <div
-            className="absolute inset-0 opacity-[0.06] dark:opacity-[0.08]"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgba(0,0,0,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.15) 1px, transparent 1px)',
-              backgroundSize: '40px 40px',
-            }}
-          />
-
-          {/* Pedestals on the floor — positioned via absolute within the floor plane */}
-          <div className="absolute" style={{ left: '30%', top: '40%', transform: 'translate(-50%, -50%)' }}>
-            <div className="w-7 h-4 bg-gradient-to-t from-stone-300 to-stone-200 dark:from-stone-600 dark:to-stone-500 rounded-sm shadow-sm" />
-            <div className={`w-4 h-4 bg-gradient-to-br ${paintingColors[0]} rounded-full mx-auto -mt-3 shadow-md`} />
-          </div>
-          <div className="absolute" style={{ left: '70%', top: '40%', transform: 'translate(-50%, -50%)' }}>
-            <div className="w-7 h-4 bg-gradient-to-t from-stone-300 to-stone-200 dark:from-stone-600 dark:to-stone-500 rounded-sm shadow-sm" />
-            <div className={`w-4 h-4 bg-gradient-to-br ${paintingColors[1]} rounded-full mx-auto -mt-3 shadow-md`} />
-          </div>
-        </div>
-
-        {/* ─── Ceiling ─── */}
-        <div
-          className="bg-gradient-to-b from-white to-stone-50/80 dark:from-stone-800 dark:to-stone-800/80"
-          style={face(W, D, `rotateX(90deg) translateZ(${H / 2}px)`)}
-        >
-          {/* Light strips */}
-          <div className="absolute inset-x-10 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-transparent via-amber-200/50 dark:via-amber-400/20 to-transparent rounded-full" />
-          <div className="absolute inset-x-20 top-[40%] h-0.5 bg-gradient-to-r from-transparent via-white/40 dark:via-white/10 to-transparent rounded-full" />
-        </div>
+        <GalleryScene />
+        <OrbitControls
+          makeDefault
+          autoRotate={false}
+          enablePan={false}
+          enableZoom={false}
+          minPolarAngle={Math.PI / 4.2}
+          maxPolarAngle={Math.PI / 2.08}
+          target={[0, 1.15, -1.35]}
+        />
+      </Canvas>
+      <div className="pointer-events-none absolute inset-x-4 bottom-3 flex items-center justify-between rounded-md border border-white/70 bg-white/72 px-3 py-2 text-[11px] font-semibold text-stone-600 shadow-sm backdrop-blur dark:border-white/10 dark:bg-stone-950/58 dark:text-stone-300">
+        <span>{t('gallery3d.previewLabel')}</span>
+        <span className="text-[#10b981]">{t('gallery3d.dragHint')}</span>
       </div>
-
-      {/* Hint text */}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.2 }}
-        className="text-center text-xs text-stone-400 dark:text-stone-600 mt-4"
-      >
-        移動滑鼠探索展廳
-      </motion.p>
     </motion.div>
   );
 }
 
-/* ─── Mini version for auth page backgrounds ─── */
 export function MiniGallery3D({ className = '' }: { className?: string }) {
   const isDecorativeMotionAllowed = useDecorativeMotionAllowed();
   const sceneRef = useRef<HTMLDivElement>(null);
@@ -278,30 +279,26 @@ export function MiniGallery3D({ className = '' }: { className?: string }) {
           position: 'relative',
         }}
       >
-        {/* Back */}
         <div
-          className="bg-white/30 dark:bg-white/8 border border-stone-200/15 dark:border-stone-700/12 backdrop-blur-sm rounded-sm"
+          className="rounded-sm border border-stone-200/15 bg-white/30 backdrop-blur-sm dark:border-stone-700/12 dark:bg-white/8"
           style={miniFace(mW, mH, `translateZ(${-mD / 2}px)`)}
         >
-          <div className="flex items-center justify-center gap-2 h-full px-3">
-            <div className="w-5 h-7 rounded-sm bg-rose-200/40 dark:bg-rose-400/20" />
-            <div className="w-6 h-4 rounded-sm bg-sky-200/40 dark:bg-sky-400/20" />
-            <div className="w-5 h-7 rounded-sm bg-amber-200/40 dark:bg-amber-400/20" />
+          <div className="flex h-full items-center justify-center gap-2 px-3">
+            <div className="h-7 w-5 rounded-sm bg-rose-200/40 dark:bg-rose-400/20" />
+            <div className="h-4 w-6 rounded-sm bg-sky-200/40 dark:bg-sky-400/20" />
+            <div className="h-7 w-5 rounded-sm bg-amber-200/40 dark:bg-amber-400/20" />
           </div>
         </div>
-        {/* Left */}
         <div
-          className="bg-stone-100/25 dark:bg-stone-800/15 border border-stone-200/10 dark:border-stone-700/8 backdrop-blur-sm rounded-sm"
+          className="rounded-sm border border-stone-200/10 bg-stone-100/25 backdrop-blur-sm dark:border-stone-700/8 dark:bg-stone-800/15"
           style={miniFace(mD, mH, `rotateY(-90deg) translateZ(${mW / 2}px)`)}
         />
-        {/* Right */}
         <div
-          className="bg-stone-100/25 dark:bg-stone-800/15 border border-stone-200/10 dark:border-stone-700/8 backdrop-blur-sm rounded-sm"
+          className="rounded-sm border border-stone-200/10 bg-stone-100/25 backdrop-blur-sm dark:border-stone-700/8 dark:bg-stone-800/15"
           style={miniFace(mD, mH, `rotateY(90deg) translateZ(${mW / 2}px)`)}
         />
-        {/* Floor */}
         <div
-          className="bg-stone-200/15 dark:bg-stone-700/12 backdrop-blur-sm"
+          className="bg-stone-200/15 backdrop-blur-sm dark:bg-stone-700/12"
           style={miniFace(mW, mD, `rotateX(-90deg) translateZ(${mH / 2}px)`)}
         />
       </div>

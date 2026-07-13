@@ -12,7 +12,7 @@ const navItems = [
   { labelKey: 'navHome', path: '/' },
   { labelKey: 'navVirtualGallery', path: '/virtual-gallery' },
   { labelKey: 'navExhibitions', path: '/exhibitions' },
-  { label: '解決方案', path: '/solutions' },
+  { labelKey: 'navSolutions', path: '/solutions' },
   { labelKey: 'navCompetitions', path: '/competitions' },
   { labelKey: 'navSupport', path: '/support' },
   { labelKey: 'navResources', path: '/resources' },

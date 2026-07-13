@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { getPublishedGalleryById, type ExhibitionDetail } from '../api/exhibitions';
 import { useStore } from '../features/metaverse-studio';
+import { useI18n } from '../components/I18nProvider';
 
 const MetaverseStudioApp = lazy(() => import('../features/metaverse-studio'));
 const pendingGalleryRequests = new Map<
@@ -48,11 +49,12 @@ function loadPublishedGallery(exhibitionId: string) {
 }
 
 function StudioLoadingFallback() {
+  const { t } = useI18n();
   return (
     <div className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-stone-950 px-4 text-center text-white">
       <div>
         <Loader2 className="mx-auto mb-4 size-8 animate-spin text-cyan-300" />
-        <p className="text-sm font-medium">正在載入 3D 展場...</p>
+        <p className="text-sm font-medium">{t('viewSceneLoading')}</p>
       </div>
     </div>
   );
@@ -61,6 +63,7 @@ function StudioLoadingFallback() {
 export default function ExhibitionView() {
   const navigate = useNavigate();
   const params = useParams();
+  const { t } = useI18n();
   const exhibitionId = (params.exhibitionId || '').trim();
   const [gallery, setGallery] = useState<ExhibitionDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,7 +75,7 @@ export default function ExhibitionView() {
 
     const load = async () => {
       if (!exhibitionId) {
-        setError('缺少展覽編號');
+        setError(t('viewMissingId'));
         setIsLoading(false);
         return;
       }
@@ -110,8 +113,8 @@ export default function ExhibitionView() {
             }
           } catch {
             setGallery(null);
-            setError('無法載入 3D 場景。');
-            toast.error('場景資料格式異常', { description: '已載入展覽資訊，但 3D 場景資料無法解析。' });
+            setError(t('viewSceneLoadFailed'));
+            toast.error(t('viewSceneDataFormatError'), { description: t('viewSceneDataParseFailed') });
             return;
           }
         }
@@ -120,9 +123,9 @@ export default function ExhibitionView() {
         store.setMode('view');
       } catch (err) {
         if (cancelled) return;
-        const message = err instanceof Error ? err.message : '載入公開展覽失敗';
+        const message = err instanceof Error ? err.message : t('viewLoadFailed');
         setError(message);
-        toast.error('載入公開展覽失敗', { description: message });
+        toast.error(t('viewLoadFailed'), { description: message });
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -141,14 +144,14 @@ export default function ExhibitionView() {
           <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-white/5 shadow-2xl shadow-black/20 backdrop-blur">
             <Loader2 className="size-6 animate-spin text-cyan-300" />
           </div>
-          <p className="mb-3 text-sm uppercase tracking-[0.35em] text-stone-400">觀展模式載入中</p>
-          <h1 className="text-2xl font-semibold sm:text-3xl">正在準備展覽場景</h1>
+          <p className="mb-3 text-sm uppercase tracking-[0.35em] text-stone-400">{t('viewLoadingMode')}</p>
+          <h1 className="text-2xl font-semibold sm:text-3xl">{t('viewPreparingScene')}</h1>
           <p className="mt-3 max-w-md text-sm leading-6 text-stone-400">
-            系統正在下載展覽資料、還原 3D 場景與互動設定，請稍候片刻。
+            {t('viewLoadingDesc')}
           </p>
           <div className="mt-8 flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-stone-300 backdrop-blur">
             <Sparkles className="size-3.5 text-violet-300" />
-            提升觀展流暢度與資料載入穩定性
+            {t('viewLoadingTip')}
           </div>
         </div>
       </div>
@@ -159,14 +162,14 @@ export default function ExhibitionView() {
     return (
       <div className="min-h-[calc(100vh-64px)] bg-stone-50 px-4 py-16 text-foreground dark:bg-stone-950">
         <div className="mx-auto max-w-2xl rounded-3xl border border-stone-200 bg-white p-8 text-center shadow-sm dark:border-stone-800 dark:bg-stone-900">
-          <h1 className="mb-3 text-3xl text-stone-900 dark:text-white">找不到展覽</h1>
-          <p className="mb-6 text-stone-600 dark:text-stone-400">{error || '這個展覽可能尚未發佈，或已被下架。'}</p>
+          <h1 className="mb-3 text-3xl text-stone-900 dark:text-white">{t('viewNotFound')}</h1>
+          <p className="mb-6 text-stone-600 dark:text-stone-400">{error || t('viewNotFoundDesc')}</p>
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Button onClick={() => navigate('/exhibitions')} className="bg-gradient-to-r from-violet-600 to-sky-500 text-white">
-              返回展覽活動
+              {t('viewBackToExhibitions')}
             </Button>
             <Button variant="outline" onClick={() => window.location.reload()} className="border-stone-200 bg-white text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-800">
-              重新整理
+              {t('refresh')}
             </Button>
           </div>
         </div>
@@ -182,16 +185,16 @@ export default function ExhibitionView() {
           sessionStatus={
           <div className="flex max-w-full flex-wrap items-center justify-end gap-2 rounded-2xl border border-stone-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur dark:border-stone-800 dark:bg-stone-900/95">
             <Button size="sm" variant="outline" onClick={() => navigate('/exhibitions')} className="border-stone-200 bg-white text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-800">
-              <ArrowLeft className="size-4 mr-2" />返回活動頁
+              <ArrowLeft className="size-4 mr-2" />{t('viewBackToExhibitions')}
             </Button>
             <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/30 dark:text-violet-300">
-              <Eye className="size-3 mr-1" />觀展模式
+              <Eye className="size-3 mr-1" />{t('editorViewMode')}
             </span>
             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${webGpuAvailable ? 'border border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-300' : 'border border-stone-200 bg-stone-50 text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300'}`}>
-              <Cpu className="size-3 mr-1" />{webGpuAvailable ? 'WebGPU 可用' : 'WebGPU 不可用'}
+              <Cpu className="size-3 mr-1" />{webGpuAvailable ? t('viewWebGpuAvailable') : t('viewWebGpuUnavailable')}
             </span>
             <span className="max-w-[20rem] truncate text-xs text-stone-700 dark:text-stone-200" title={gallery.title}>{gallery.title}</span>
-            <span className="inline-flex items-center text-xs text-stone-600 dark:text-stone-400"><UserRound className="size-3 mr-1" />{gallery.ownerName || '匿名策展人'}</span>
+            <span className="inline-flex items-center text-xs text-stone-600 dark:text-stone-400"><UserRound className="size-3 mr-1" />{gallery.ownerName || t('anonymousCurator')}</span>
             <span className="inline-flex items-center whitespace-nowrap text-xs text-stone-500 dark:text-stone-500"><CalendarDays className="size-3 mr-1" />{new Date(gallery.publishedAt || gallery.updatedAt).toLocaleDateString('zh-TW')}</span>
           </div>
           }
@@ -200,13 +203,13 @@ export default function ExhibitionView() {
 
       <div className="absolute left-4 top-4 z-20 flex max-w-sm flex-col gap-3">
         <Button className="w-fit border border-stone-200 bg-white/95 text-stone-900 shadow-lg hover:bg-white dark:border-stone-700 dark:bg-stone-900/95 dark:text-white dark:hover:bg-stone-800" variant="outline" onClick={() => navigate('/exhibitions')}>
-          <ArrowLeft className="size-4 mr-2" />退出展覽
+          <ArrowLeft className="size-4 mr-2" />{t('viewExit')}
         </Button>
         <div className="pointer-events-none rounded-2xl border border-stone-200 bg-white/85 p-4 text-stone-900 shadow-lg backdrop-blur-md dark:border-stone-800 dark:bg-stone-950/70 dark:text-white">
           <p className="text-lg font-medium">{gallery.title}</p>
-          <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-300">{gallery.description || '歡迎進入本次虛擬展覽。'}</p>
+          <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-300">{gallery.description || t('viewDefaultDescription')}</p>
           <div className="mt-3 flex items-center gap-3 text-xs text-stone-500 dark:text-stone-500">
-            <span className="inline-flex items-center gap-1"><UserRound className="size-3" />{gallery.ownerName || '匿名策展人'}</span>
+            <span className="inline-flex items-center gap-1"><UserRound className="size-3" />{gallery.ownerName || t('anonymousCurator')}</span>
             <span className="inline-flex items-center gap-1"><CalendarDays className="size-3" />{new Date(gallery.publishedAt || gallery.updatedAt).toLocaleDateString('zh-TW')}</span>
           </div>
         </div>

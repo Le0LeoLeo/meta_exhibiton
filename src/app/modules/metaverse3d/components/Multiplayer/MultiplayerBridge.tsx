@@ -21,11 +21,13 @@ export function MultiplayerBridge() {
   const connected = useMultiplayerStore((state) => state.connected);
   const roomId = useMultiplayerStore((state) => state.roomId);
   const nickname = useMultiplayerStore((state) => state.nickname);
-  const isHost = useMultiplayerStore((state) => state.isHost);
+  const shareToken = useMultiplayerStore((state) => state.shareToken);
+  const role = useMultiplayerStore((state) => state.role);
+  const canEditMultiplayer = role === "editor" || role === "owner";
   const sceneSyncPayload = useMultiplayerStore((state) => state.sceneSyncPayload);
   const setSceneSyncPayload = useMultiplayerStore((state) => state.setSceneSyncPayload);
-  const sceneOpPayload = useMultiplayerStore((state) => state.sceneOpPayload);
-  const setSceneOpPayload = useMultiplayerStore((state) => state.setSceneOpPayload);
+  const sceneOpPayloads = useMultiplayerStore((state) => state.sceneOpPayloads);
+  const dequeueSceneOpPayload = useMultiplayerStore((state) => state.dequeueSceneOpPayload);
   const sceneOpAckPayload = useMultiplayerStore((state) => state.sceneOpAckPayload);
   const setSceneOpAckPayload = useMultiplayerStore((state) => state.setSceneOpAckPayload);
   const sceneFocusPayload = useMultiplayerStore((state) => state.sceneFocusPayload);
@@ -56,7 +58,7 @@ export function MultiplayerBridge() {
   useEffect(() => {
     if (!enabled || !connected) return;
     joinCurrentRoom();
-  }, [enabled, connected, roomId, nickname]);
+  }, [enabled, connected, roomId, nickname, shareToken]);
 
   useEffect(() => {
     if (!enabled || !connected || mode !== "view") return;
@@ -78,7 +80,7 @@ export function MultiplayerBridge() {
 
   useEffect(() => {
     const isCollaborativeEditMode = mode === "edit" || mode === "floor-plan";
-    if (!enabled || !connected || !isCollaborativeEditMode) return;
+    if (!enabled || !connected || !isCollaborativeEditMode || !canEditMultiplayer) return;
 
     const interval = window.setInterval(() => {
       if (applyingRemoteRef.current) return;
@@ -106,6 +108,29 @@ export function MultiplayerBridge() {
         const clientOpId = `room-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         pendingOpsRef.current.add(clientOpId);
         emitSceneOp({ roomId, clientOpId, op: { kind: "set-room", roomSize: scene.roomSize } });
+      }
+
+      if (JSON.stringify(previous.floorPlanElements) !== JSON.stringify(scene.floorPlanElements)) {
+        const clientOpId = `floor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        pendingOpsRef.current.add(clientOpId);
+        emitSceneOp({
+          roomId,
+          clientOpId,
+          op: { kind: "set-floor-plan", floorPlanElements: scene.floorPlanElements },
+        });
+      }
+
+      if (JSON.stringify(previous.wallMaterialOverrides) !== JSON.stringify(scene.wallMaterialOverrides)) {
+        const clientOpId = `wall-material-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        pendingOpsRef.current.add(clientOpId);
+        emitSceneOp({
+          roomId,
+          clientOpId,
+          op: {
+            kind: "set-wall-material-overrides",
+            wallMaterialOverrides: scene.wallMaterialOverrides,
+          },
+        });
       }
 
       const prevById = new Map((previous.items || []).map((item: any) => [item.id, item]));
@@ -147,7 +172,7 @@ export function MultiplayerBridge() {
     }, 120);
 
     return () => window.clearInterval(interval);
-  }, [enabled, connected, mode, roomId, exportScene, isHost]);
+  }, [enabled, connected, mode, roomId, exportScene, canEditMultiplayer]);
 
   useEffect(() => {
     const isCollaborativeEditMode = mode === "edit" || mode === "floor-plan";
@@ -176,13 +201,14 @@ export function MultiplayerBridge() {
   }, [sceneSyncPayload, roomId, mode, importScene, setSceneSyncPayload]);
 
   useEffect(() => {
+    const sceneOpPayload = sceneOpPayloads[0];
     if (!sceneOpPayload) return;
     if (sceneOpPayload.roomId !== roomId) return;
     const isCollaborativeEditMode = mode === "edit" || mode === "floor-plan";
     if (!isCollaborativeEditMode) return;
 
     if (pendingOpsRef.current.has(sceneOpPayload.clientOpId)) {
-      setSceneOpPayload(null);
+      dequeueSceneOpPayload(sceneOpPayload.clientOpId);
       return;
     }
 
@@ -200,6 +226,10 @@ export function MultiplayerBridge() {
     const { op } = sceneOpPayload;
     if (op.kind === "set-room") {
       next.roomSize = op.roomSize;
+    } else if (op.kind === "set-floor-plan") {
+      next.floorPlanElements = op.floorPlanElements;
+    } else if (op.kind === "set-wall-material-overrides") {
+      next.wallMaterialOverrides = op.wallMaterialOverrides;
     } else if (op.kind === "add-item") {
       next.items.push(op.item);
     } else if (op.kind === "update-item") {
@@ -214,8 +244,8 @@ export function MultiplayerBridge() {
     importScene(next);
     lastSceneRef.current = next;
     applyingRemoteRef.current = false;
-    setSceneOpPayload(null);
-  }, [sceneOpPayload, roomId, mode, importScene, setSceneOpPayload, exportScene]);
+    dequeueSceneOpPayload(sceneOpPayload.clientOpId);
+  }, [sceneOpPayloads, roomId, mode, importScene, dequeueSceneOpPayload, exportScene]);
 
   useEffect(() => {
     if (!sceneOpAckPayload) return;
@@ -225,9 +255,9 @@ export function MultiplayerBridge() {
   }, [sceneOpAckPayload, roomId, setSceneOpAckPayload]);
 
   useEffect(() => {
-    if (!enabled || !connected || mode !== "edit") return;
+    if (!enabled || !connected || mode !== "edit" || !canEditMultiplayer) return;
     emitSceneFocus({ roomId, itemId: selectedItemId ?? null, nickname });
-  }, [enabled, connected, mode, roomId, selectedItemId, nickname]);
+  }, [enabled, connected, mode, roomId, selectedItemId, nickname, canEditMultiplayer]);
 
   useEffect(() => {
     if (!sceneFocusPayload) return;

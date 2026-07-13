@@ -1,5 +1,6 @@
 import { motion, useInView } from 'motion/react';
 import { useRef, useEffect, useState } from 'react';
+import { useI18n } from './I18nProvider';
 
 function AnimatedCounter({ value }: { value: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -36,11 +37,12 @@ function AnimatedCounter({ value }: { value: string }) {
 }
 
 export function Stats() {
+  const { t } = useI18n();
   const stats = [
-    { value: '800+', label: '註冊用戶' },
-    { value: '350+', label: '虛擬展覽' },
-    { value: '120K+', label: '展覽訪客' },
-    { value: '92%', label: '客戶滿意度' },
+    { value: '800+', label: t('stats.registeredUsers') },
+    { value: '350+', label: t('stats.virtualExhibitions') },
+    { value: '120K+', label: t('stats.exhibitionVisitors') },
+    { value: '92%', label: t('stats.customerSatisfaction') },
   ];
 
   return (

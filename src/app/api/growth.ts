@@ -40,6 +40,17 @@ export type GrowthAsset = {
   createdAt: string;
 };
 
+export function normalizeGrowthAsset(asset: GrowthAsset): GrowthAsset {
+  const contentUrl = asset.contentUrl?.startsWith('/')
+    ? apiUrl(asset.contentUrl)
+    : asset.contentUrl;
+  return { ...asset, contentUrl };
+}
+
+function normalizeGrowthAssetsResponse(data: { assets: GrowthAsset[] }): { assets: GrowthAsset[] } {
+  return { ...data, assets: data.assets.map(normalizeGrowthAsset) };
+}
+
 export type GrowthComment = {
   id: string;
   ownerId: string;
@@ -144,7 +155,8 @@ export async function createGrowthAsset(
   });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '新增成長素材失敗');
-  return data as { asset: GrowthAsset };
+  const result = data as { asset: GrowthAsset };
+  return { ...result, asset: normalizeGrowthAsset(result.asset) };
 }
 
 export async function uploadGrowthAsset(
@@ -166,7 +178,8 @@ export async function uploadGrowthAsset(
   });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '上傳成長素材失敗');
-  return data as { asset: GrowthAsset };
+  const result = data as { asset: GrowthAsset };
+  return { ...result, asset: normalizeGrowthAsset(result.asset) };
 }
 
 export async function getGrowthAssetsByExhibit(token: string, exhibitId: string): Promise<{ assets: GrowthAsset[] }> {
@@ -175,7 +188,7 @@ export async function getGrowthAssetsByExhibit(token: string, exhibitId: string)
   });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '載入成長素材失敗');
-  return data as { assets: GrowthAsset[] };
+  return normalizeGrowthAssetsResponse(data as { assets: GrowthAsset[] });
 }
 
 export async function createGrowthComment(
@@ -227,7 +240,7 @@ export async function getSharedGrowthAssets(token: string): Promise<{ assets: Gr
   const res = await fetch(apiUrl(`/api/share/growth/exhibits/${encodeURIComponent(token)}/assets`));
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '載入分享素材失敗');
-  return data as { assets: GrowthAsset[] };
+  return normalizeGrowthAssetsResponse(data as { assets: GrowthAsset[] });
 }
 
 export async function getSharedGrowthComments(token: string): Promise<{ comments: GrowthComment[] }> {

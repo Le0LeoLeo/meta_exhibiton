@@ -2,48 +2,50 @@ import { BatteryMedium, Gauge, MonitorCog, Sparkles } from "lucide-react";
 
 import { useRenderPerformanceProfile } from "../../performanceProfile";
 import { useStore } from "../../store/useStore";
+import { useI18n } from "../../../../components/I18nProvider";
 import type { PerformanceMode } from "../../types";
 
-const options: Array<{
-  value: PerformanceMode;
-  label: string;
-  title: string;
-  Icon: typeof Gauge;
-}> = [
-  {
-    value: "auto",
-    label: "自動",
-    title: "自動依裝置與即時效能調整品質",
-    Icon: MonitorCog,
-  },
-  {
-    value: "performance",
-    label: "省電",
-    title: "優先維持流暢度並降低耗電",
-    Icon: BatteryMedium,
-  },
-  {
-    value: "balanced",
-    label: "平衡",
-    title: "平衡畫質與流暢度",
-    Icon: Gauge,
-  },
-  {
-    value: "quality",
-    label: "高畫質",
-    title: "優先呈現完整光影與細節",
-    Icon: Sparkles,
-  },
-];
-
 export function PerformanceModeControl({ compact = false }: { compact?: boolean }) {
+  const { t } = useI18n();
   const performanceMode = useStore((state) => state.performanceMode);
   const setPerformanceMode = useStore((state) => state.setPerformanceMode);
   const profile = useRenderPerformanceProfile();
   const currentDpr = profile.dpr.join("-");
   const autoTitle = import.meta.env.DEV
     ? `${profile.effectiveMode} · DPR ${currentDpr}`
-    : "自動調整畫質以維持流暢觀展";
+    : t("perfAutoTitleDev");
+
+  const options: Array<{
+    value: PerformanceMode;
+    label: string;
+    title: string;
+    Icon: typeof Gauge;
+  }> = [
+    {
+      value: "auto",
+      label: t("perfAuto"),
+      title: t("perfAutoDesc"),
+      Icon: MonitorCog,
+    },
+    {
+      value: "performance",
+      label: t("perfBattery"),
+      title: t("perfBatteryDesc"),
+      Icon: BatteryMedium,
+    },
+    {
+      value: "balanced",
+      label: t("perfBalanced"),
+      title: t("perfBalancedDesc"),
+      Icon: Gauge,
+    },
+    {
+      value: "quality",
+      label: t("perfHighQuality"),
+      title: t("perfQualityDesc"),
+      Icon: Sparkles,
+    },
+  ];
 
   return (
     <div className="pointer-events-auto rounded-lg border border-white/15 bg-slate-950/55 p-1 text-white shadow-sm backdrop-blur-md">
@@ -51,7 +53,7 @@ export function PerformanceModeControl({ compact = false }: { compact?: boolean 
         {!compact && (
           <span className="inline-flex h-8 items-center gap-1.5 px-2 text-[11px] font-medium text-white/70">
             <Gauge className="size-3.5" />
-            效能
+            {t("perfMode")}
           </span>
         )}
         {options.map(({ value, label, title, Icon }) => {

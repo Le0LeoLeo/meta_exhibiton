@@ -1,10 +1,12 @@
 import { create } from "zustand";
 import type {
   ChatMessagePayload,
+  MultiplayerRole,
   PlayerJoinedPayload,
   PlayerLeftPayload,
   PlayerMovedPayload,
   PlayerSnapshot,
+  RoomErrorPayload,
   RoomJoinedPayload,
   SceneFocusPayload,
   SceneOpAckPayload,
@@ -40,6 +42,9 @@ type MultiplayerState = {
   selfId: string | null;
   connected: boolean;
   isHost: boolean;
+  shareToken: string;
+  role: MultiplayerRole | null;
+  roomError: RoomErrorPayload | null;
   remotePlayers: Record<string, RemotePlayerState>;
   remoteEditorFocuses: Record<string, RemoteEditorFocus>;
   setEnabled: (enabled: boolean) => void;
@@ -48,6 +53,9 @@ type MultiplayerState = {
   setRoomId: (roomId: string) => void;
   setNickname: (nickname: string) => void;
   setConnected: (connected: boolean) => void;
+  setShareToken: (shareToken: string) => void;
+  setRole: (role: MultiplayerRole | null) => void;
+  setRoomError: (error: RoomErrorPayload | null) => void;
   applyRoomJoined: (payload: RoomJoinedPayload) => void;
   applyPlayerJoined: (payload: PlayerJoinedPayload) => void;
   applyPlayerMoved: (payload: PlayerMovedPayload) => void;
@@ -57,9 +65,10 @@ type MultiplayerState = {
   sceneSyncPayload: SceneSyncPayload | null;
   lastSceneSyncAt: number | null;
   setSceneSyncPayload: (payload: SceneSyncPayload | null) => void;
-  sceneOpPayload: SceneOpPayload | null;
+  sceneOpPayloads: SceneOpPayload[];
   lastSceneOpAt: number | null;
   setSceneOpPayload: (payload: SceneOpPayload | null) => void;
+  dequeueSceneOpPayload: (clientOpId: string) => void;
   sceneOpAckPayload: SceneOpAckPayload | null;
   setSceneOpAckPayload: (payload: SceneOpAckPayload | null) => void;
   sceneFocusPayload: SceneFocusPayload | null;
@@ -113,11 +122,14 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   selfId: null,
   connected: false,
   isHost: false,
+  shareToken: "",
+  role: null,
+  roomError: null,
   remotePlayers: {},
   remoteEditorFocuses: {},
   sceneSyncPayload: null,
   lastSceneSyncAt: null,
-  sceneOpPayload: null,
+  sceneOpPayloads: [],
   lastSceneOpAt: null,
   sceneOpAckPayload: null,
   sceneFocusPayload: null,
@@ -128,6 +140,34 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   setRoomId: (roomId) => set({ roomId: normalizeRoomId(roomId) }),
   setNickname: (nickname) => set({ nickname: normalizeNickname(nickname) }),
   setConnected: (connected) => set({ connected }),
+  setShareToken: (shareToken) => set({ shareToken: shareToken.trim() }),
+  setRole: (role) => set({ role }),
+  setRoomError: (roomError) => {
+    const clearsAuthorization = roomError && [
+      "AUTH_REQUIRED",
+      "FORBIDDEN",
+      "INVALID_SHARE",
+      "SHARE_EXPIRED",
+    ].includes(roomError.code);
+
+    set(clearsAuthorization
+      ? {
+          roomError,
+          role: null,
+          selfId: null,
+          shareToken: "",
+          chatMessages: [],
+          remotePlayers: {},
+          remoteEditorFocuses: {},
+          sceneSyncPayload: null,
+          lastSceneSyncAt: null,
+          sceneOpPayloads: [],
+          lastSceneOpAt: null,
+          sceneOpAckPayload: null,
+          sceneFocusPayload: null,
+        }
+      : { roomError });
+  },
 
   applyRoomJoined: (payload) => {
     const remotePlayers: Record<string, RemotePlayerState> = {};
@@ -139,6 +179,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     set({
       selfId: payload.selfId,
       roomId: normalizeRoomId(payload.roomId),
+      role: payload.role,
+      roomError: null,
       chatMessages: [],
       remotePlayers,
     });
@@ -212,8 +254,17 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   setSceneSyncPayload: (payload) =>
     set({ sceneSyncPayload: payload, lastSceneSyncAt: payload ? Date.now() : null }),
-  setSceneOpPayload: (payload) =>
-    set({ sceneOpPayload: payload, lastSceneOpAt: payload ? Date.now() : null }),
+  setSceneOpPayload: (payload) => set((state) => ({
+    sceneOpPayloads: payload
+      ? [...state.sceneOpPayloads, payload].slice(-200)
+      : [],
+    lastSceneOpAt: payload ? Date.now() : null,
+  })),
+  dequeueSceneOpPayload: (clientOpId) => set((state) => ({
+    sceneOpPayloads: state.sceneOpPayloads.filter(
+      (payload) => payload.clientOpId !== clientOpId,
+    ),
+  })),
   setSceneOpAckPayload: (payload) => set({ sceneOpAckPayload: payload }),
   setSceneFocusPayload: (payload) => set({ sceneFocusPayload: payload }),
 
@@ -280,11 +331,16 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       selfId: null,
       connected: false,
       isHost: false,
+      shareToken: "",
+      role: null,
+      roomError: null,
       chatMessages: [],
       remotePlayers: {},
       remoteEditorFocuses: {},
       sceneSyncPayload: null,
-      sceneOpPayload: null,
+      lastSceneSyncAt: null,
+      sceneOpPayloads: [],
+      lastSceneOpAt: null,
       sceneOpAckPayload: null,
       sceneFocusPayload: null,
     }),

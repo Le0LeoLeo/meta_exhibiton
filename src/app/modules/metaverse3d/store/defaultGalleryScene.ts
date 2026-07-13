@@ -148,7 +148,8 @@ export const defaultGalleryScene = JSON.parse(`{
       "rotation": [0, 0, 0],
       "scale": [9, 0.04, 50],
       "color": "#dbeafe",
-      "isLocked": true
+      "isLocked": true,
+      "doorWidth": 1.2
     },
     {
       "id": "6d36eb9d-27c2-4350-8711-09f69ffff045",
@@ -157,7 +158,8 @@ export const defaultGalleryScene = JSON.parse(`{
       "rotation": [0, 0, 0],
       "scale": [25, 0.04, 25],
       "color": "#dbeafe",
-      "isLocked": false
+      "isLocked": false,
+      "doorWidth": 1.2
     },
     {
       "id": "a0218829-6cd0-4b7a-b34e-97031f9a576c",

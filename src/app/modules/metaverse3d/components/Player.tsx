@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import { useLocalPlayerStore } from "../network/localPlayerStore";
+import { loadAuth, requestAgentReply, requestQwenTts } from "../../../api/client";
+import { getAgentSceneExhibits, buildAgentReplyRequest } from "../agent/requestContext";
 import {
   createPlayerInputState,
   setKeyboardKey,
@@ -13,6 +15,8 @@ const LOOK_SENSITIVITY = 0.002;
 const MOVE_SPEED = 5;
 const EYE_HEIGHT = 2.6;
 const AUTO_INTRO_DISTANCE = 2.4;
+const REMINDER_OUTSIDE_RANGE_MS = 60000;
+const AUTO_INTRO_COOLDOWN_MS = 15000;
 
 type Side = "north" | "south" | "east" | "west";
 
@@ -73,8 +77,9 @@ export function Player({
   const floorPlanElements = useStore((state) => state.floorPlanElements);
   const viewingItem = useStore((state) => state.viewingItem);
   const setViewingItem = useStore((state) => state.setViewingItem);
-  const canOpenViewingItem = useStore((state) => state.canOpenViewingItem);
-  const openViewingItemById = useStore((state) => state.openViewingItemById);
+  const personality = useStore((state) => state.agent.personality);
+  const setAgentNearbyExhibit = useStore((state) => state.setAgentNearbyExhibit);
+  const setAgentActiveExhibit = useStore((state) => state.setAgentActiveExhibit);
   const setLocalTransform = useLocalPlayerStore((state) => state.setTransform);
   const wallThickness = Math.max(0.12, roomSize.wallThickness);
 
@@ -205,6 +210,11 @@ export function Player({
   const moveLeft = useRef(false);
   const moveRight = useRef(false);
   const nearbyItemIdRef = useRef<string | null>(null);
+  const nearbyItemEnteredAtRef = useRef<number | null>(null);
+  const outsideRangeEnteredAtRef = useRef<number | null>(null);
+  const lastReminderAtRef = useRef(0);
+  const introRequestIdRef = useRef(0);
+  const proximityRingRef = useRef<THREE.Mesh>(null);
   const fallbackInputRef = useRef(createPlayerInputState());
   const inputRef = input ?? fallbackInputRef;
 
@@ -221,6 +231,9 @@ export function Player({
     inputRef.current.interactRequested = false;
     inputRef.current.pressedKeys.clear();
     nearbyItemIdRef.current = null;
+    nearbyItemEnteredAtRef.current = null;
+    outsideRangeEnteredAtRef.current = null;
+    if (proximityRingRef.current) proximityRingRef.current.visible = false;
     onNearbyItemChange?.(null);
   }, [allowMotion, inputRef, onNearbyItemChange]);
 
@@ -232,6 +245,10 @@ export function Player({
       pitchRef.current = 0;
       camera.position.copy(playerPosRef.current);
       camera.rotation.set(0, 0, 0);
+      isLockedRef.current = false;
+      skipNextMouseMoveRef.current = false;
+      setIsPointerLocked(false);
+      if (document.pointerLockElement) document.exitPointerLock();
     } else {
       if (document.pointerLockElement === gl.domElement) document.exitPointerLock();
       isLockedRef.current = false;
@@ -259,38 +276,37 @@ export function Player({
   }, [allowMotion, inputRef, mode]);
 
   useEffect(() => {
+    if (mode !== "view") {
+      nearbyItemIdRef.current = null;
+      nearbyItemEnteredAtRef.current = null;
+      outsideRangeEnteredAtRef.current = null;
+      lastReminderAtRef.current = 0;
+      introRequestIdRef.current = 0;
+      if (proximityRingRef.current) proximityRingRef.current.visible = false;
+    }
+
     const canvas = gl.domElement;
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-
-    const onCanvasClick = (event: MouseEvent) => {
-      if (mode !== "view" || viewingItem || !allowMotion) return;
-
-      const rect = canvas.getBoundingClientRect();
-      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(pointer, camera);
-      const intersects = raycaster.intersectObjects(scene.children, true);
-      const hit = intersects.find((entry) => entry.object?.userData?.itemType === "painting");
-      const itemId = hit?.object?.userData?.itemId as string | undefined;
-
-      if (itemId && canOpenViewingItem()) {
-        if (document.pointerLockElement === canvas) document.exitPointerLock();
-        openViewingItemById(itemId);
-        return;
-      }
-
-      if (document.pointerLockElement !== canvas && !viewingItem) {
-        void canvas.requestPointerLock();
-      }
-    };
-
     const onPointerLockChange = () => {
       const locked = document.pointerLockElement === canvas;
       isLockedRef.current = locked;
       if (locked) skipNextMouseMoveRef.current = true;
       setIsPointerLocked(locked);
+    };
+
+    const onCanvasClick = async () => {
+      if (mode !== "view" || !allowMotion) return;
+      if (document.pointerLockElement === canvas) return;
+      try {
+        if (document.pointerLockElement) document.exitPointerLock();
+        await canvas.requestPointerLock();
+      } catch {
+        try {
+          if (document.pointerLockElement) document.exitPointerLock();
+          await canvas.requestPointerLock({ unadjustedMovement: true } as PointerLockOptions);
+        } catch {
+          // ignore browser-specific pointer lock failures
+        }
+      }
     };
 
     const onMouseMove = (event: MouseEvent) => {
@@ -307,16 +323,16 @@ export function Player({
       pitchRef.current = Math.max(minPitch, Math.min(maxPitch, pitchRef.current));
     };
 
-    canvas.addEventListener("click", onCanvasClick);
     document.addEventListener("pointerlockchange", onPointerLockChange);
+    canvas.addEventListener("click", onCanvasClick);
     document.addEventListener("mousemove", onMouseMove);
 
     return () => {
-      canvas.removeEventListener("click", onCanvasClick);
       document.removeEventListener("pointerlockchange", onPointerLockChange);
+      canvas.removeEventListener("click", onCanvasClick);
       document.removeEventListener("mousemove", onMouseMove);
     };
-  }, [allowMotion, mode, gl, camera, scene, viewingItem, canOpenViewingItem, openViewingItemById, setIsPointerLocked]);
+  }, [allowMotion, mode, gl, setIsPointerLocked]);
 
   const roomExtents = useMemo(() => ({
     minX: Math.min(...roomBounds.map((b) => b.minX)),
@@ -343,19 +359,14 @@ export function Player({
     }),
   ], [floorPlanWallColliders, collidableItems]);
 
-  const wallRaycaster = useMemo(() => new THREE.Raycaster(), []);
-  const down = useMemo(() => new THREE.Vector3(0, -1, 0), []);
+  const _wallRaycaster = useMemo(() => new THREE.Raycaster(), []);
+  const _down = useMemo(() => new THREE.Vector3(0, -1, 0), []);
 
-  const blocksBySceneWall = (x: number, z: number, playerRadius: number) => {
-    const samples = [[x, z], [x + playerRadius, z], [x - playerRadius, z], [x, z + playerRadius], [x, z - playerRadius]] as const;
-    for (const [sx, sz] of samples) {
-      wallRaycaster.set(new THREE.Vector3(sx, roomSize.height + 2, sz), down);
-      const hits = wallRaycaster.intersectObjects(scene.children, true);
-      const wallHit = hits.find((h) => h.object?.userData?.blockPlayer === true);
-      if (wallHit) return true;
-    }
-    return false;
-  };
+  const blocksBySceneWall = (_x: number, _z: number, _playerRadius: number) => false;
+  const exhibitItems = useMemo(
+    () => items.filter((item) => item.type === "painting" || item.type === "pedestal" || item.type === "text" || item.type === "sculpture"),
+    [items],
+  );
 
   useFrame((_, delta) => {
     if (mode !== "view") return;
@@ -436,48 +447,111 @@ export function Player({
 
     if (viewingItem) {
       nearbyItemIdRef.current = null;
-      inputState.interactRequested = false;
+      nearbyItemEnteredAtRef.current = null;
+      outsideRangeEnteredAtRef.current = null;
       onNearbyItemChange?.(null);
       return;
     }
 
-    const nearestItem = items
-      .filter((item) => item.type === "painting" || item.type === "pedestal" || item.type === "text" || item.type === "sculpture")
+    const playerPosition = playerPosRef.current;
+    const nearestItem = exhibitItems
       .map((item) => {
         const [x, , z] = item.position;
-        const distance = Math.hypot(playerPosRef.current.x - x, playerPosRef.current.z - z);
+        const dx = playerPosition.x - x;
+        const dz = playerPosition.z - z;
+        const distance = Math.hypot(dx, dz);
         return { item, distance };
       })
       .sort((a, b) => a.distance - b.distance)[0] ?? null;
 
+    const now = Date.now();
     if (!nearestItem) {
       nearbyItemIdRef.current = null;
-      inputState.interactRequested = false;
+      nearbyItemEnteredAtRef.current = null;
+      outsideRangeEnteredAtRef.current = null;
       onNearbyItemChange?.(null);
+      if (proximityRingRef.current) proximityRingRef.current.visible = false;
       return;
     }
 
-    const effectiveDistance = Math.max(
-      0,
-      nearestItem.distance - getItemFootprintRadius(nearestItem.item),
-    );
-    if (effectiveDistance > AUTO_INTRO_DISTANCE) {
-      nearbyItemIdRef.current = null;
-      inputState.interactRequested = false;
-      onNearbyItemChange?.(null);
-      return;
-    }
+    const radius = getItemFootprintRadius(nearestItem.item);
+    const effectiveDistance = Math.max(0, nearestItem.distance - radius);
+    const inIntroRange = effectiveDistance <= AUTO_INTRO_DISTANCE;
 
-    if (nearbyItemIdRef.current !== nearestItem.item.id) {
+    if (inIntroRange) {
       nearbyItemIdRef.current = nearestItem.item.id;
+      nearbyItemEnteredAtRef.current = now;
+      outsideRangeEnteredAtRef.current = null;
       onNearbyItemChange?.(getItemDisplayName(nearestItem.item));
+      if (inputState.interactRequested) {
+        inputState.interactRequested = false;
+        setViewingItem(nearestItem.item);
+      }
+      if (proximityRingRef.current) proximityRingRef.current.visible = false;
+      return;
     }
 
-    if (inputState.interactRequested) {
-      inputState.interactRequested = false;
-      setViewingItem(nearestItem.item);
+    inputState.interactRequested = false;
+
+    if (!outsideRangeEnteredAtRef.current || nearbyItemIdRef.current !== nearestItem.item.id) {
+      nearbyItemIdRef.current = nearestItem.item.id;
+      nearbyItemEnteredAtRef.current = null;
+      outsideRangeEnteredAtRef.current = now;
+      return;
     }
+
+    if (now - lastReminderAtRef.current < REMINDER_OUTSIDE_RANGE_MS) return;
+    const outsideElapsed = now - outsideRangeEnteredAtRef.current;
+    if (outsideElapsed < REMINDER_OUTSIDE_RANGE_MS) return;
+
+    lastReminderAtRef.current = now;
+    outsideRangeEnteredAtRef.current = now;
+
+    const displayName = getItemDisplayName(nearestItem.item);
+    const promptByPersonality: Record<string, string> = {
+      xiaobai: `請用親切、簡單的方式提醒使用者：他已經在 ${displayName} 附近待了一段時間，可以再靠近一點看看。不要太長。`,
+      expert: `請用專業、自然的語氣提醒使用者：他已在 ${displayName} 附近停留許久，可以靠近展品欣賞細節。語氣簡潔，不要固定模板。`,
+      humor: `請用幽默誇張的方式提醒使用者：他在 ${displayName} 附近站太久了，像是快要和空氣結婚一樣，可以趕快靠近一點看看。不要太長。`,
+    };
+
+    void (async () => {
+      const { token } = loadAuth();
+      if (!token) return;
+
+      try {
+        const payload = buildAgentReplyRequest({
+          question: promptByPersonality[personality] || promptByPersonality.xiaobai,
+          personality,
+          exhibit: nearestItem.item,
+          nearbyExhibits: getAgentSceneExhibits(items),
+        });
+        const result = await requestAgentReply(token, payload);
+        const audio = await requestQwenTts(token, { text: result.answer });
+        const url = URL.createObjectURL(audio);
+        const speaker = new Audio(url);
+        speaker.onended = () => URL.revokeObjectURL(url);
+        await speaker.play().catch(() => undefined);
+      } catch {
+        const fallbackText = `${displayName}附近停留了一段時間，可以靠近一點看得更清楚。`;
+        try {
+          const audio = await requestQwenTts(token, { text: fallbackText });
+          const url = URL.createObjectURL(audio);
+          const speaker = new Audio(url);
+          speaker.onended = () => URL.revokeObjectURL(url);
+          await speaker.play().catch(() => undefined);
+        } catch {
+          // ignore reminder failures
+        }
+      }
+    })();
   });
 
-  return null;
+  return (
+    <group>
+      <mesh ref={proximityRingRef} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+        <ringGeometry args={[AUTO_INTRO_DISTANCE - 0.08, AUTO_INTRO_DISTANCE, 64]} />
+        <meshBasicMaterial color="#f59e0b" transparent opacity={0.22} depthWrite={false} />
+      </mesh>
+    </group>
+  );
 }

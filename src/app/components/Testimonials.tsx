@@ -1,24 +1,26 @@
 import { Star } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useI18n } from './I18nProvider';
 
 export function Testimonials() {
+  const { t } = useI18n();
   const testimonials = [
     {
-      name: '陳雅婷',
-      role: '國立美術館 策展人',
-      content: 'MetaExpo 讓我們的展覽延伸到線上，吸引了不少海外觀眾。虛擬導覽功能使用起來很方便。',
+      name: t('testimonials.item1.name'),
+      role: t('testimonials.item1.role'),
+      content: t('testimonials.item1.content'),
       rating: 5,
     },
     {
-      name: '王建華',
-      role: 'TechCorp 行銷總監',
-      content: '用 MetaExpo 辦產品發表會，省下了不少場地費用，後台的數據分析也幫助我們了解客戶的瀏覽習慣。',
+      name: t('testimonials.item2.name'),
+      role: t('testimonials.item2.role'),
+      content: t('testimonials.item2.content'),
       rating: 5,
     },
     {
-      name: '林怡君',
-      role: '藝術家',
-      content: '作為獨立藝術家，MetaExpo 讓我能在線上展示作品，接觸到更多藝術愛好者。操作簡單，功能也夠用。',
+      name: t('testimonials.item3.name'),
+      role: t('testimonials.item3.role'),
+      content: t('testimonials.item3.content'),
       rating: 5,
     },
   ];
@@ -33,8 +35,8 @@ export function Testimonials() {
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-4xl text-gray-900 mb-4">客戶好評</h2>
-          <p className="text-xl text-gray-600">看看我們的客戶怎麼說</p>
+          <h2 className="text-4xl text-gray-900 mb-4">{t('testimonials.sectionTitle')}</h2>
+          <p className="text-xl text-gray-600">{t('testimonials.sectionSubtitle')}</p>
         </motion.div>
 
         <div className="grid md:grid-cols-3 gap-8">

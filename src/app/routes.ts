@@ -34,7 +34,6 @@ export const router = createBrowserRouter([
           { path: 'virtual-gallery/my-exhibitions', lazy: lazyPage(() => import('./pages/MyExhibitions')) },
           { path: 'virtual-gallery/create', lazy: lazyPage(() => import('./pages/VirtualGalleryCreate')), handle: { layout: 'fullscreen' } },
           { path: 'virtual-gallery/upload', lazy: lazyPage(() => import('./pages/ExhibitionUploadPlatform')), handle: { layout: 'fullscreen' } },
-          { path: 'virtual-gallery/uploadupload', lazy: lazyPage(() => import('./pages/ExhibitionUploadPlatform')), handle: { layout: 'fullscreen' } },
           { path: 'growth-memories', lazy: lazyPage(() => import('./pages/GrowthMemories')) },
           { path: 'growth-memories/recommendations', lazy: lazyPage(() => import('./pages/GrowthRecommendation')) },
           { path: 'growth-memories/3d/:exhibitId', lazy: lazyPage(() => import('./pages/GrowthMemories3D')) },

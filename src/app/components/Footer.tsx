@@ -6,43 +6,43 @@ export function Footer() {
   const { t } = useI18n();
   const footerLinks = {
     product: {
-      title: '產品',
+      titleKey: 'footerProduct',
       links: [
-        { label: '虛擬展廳', path: '/virtual-gallery' },
-        { label: '展覽活動', path: '/exhibitions' },
-        { label: 'VR體驗', path: '/virtual-gallery' },
-        { label: '數據分析', path: '/solutions' },
-        { label: '整合API', path: '/resources' },
+        { labelKey: 'footerProductGallery', path: '/virtual-gallery' },
+        { labelKey: 'footerProductExhibitions', path: '/exhibitions' },
+        { labelKey: 'footerProductVr', path: '/virtual-gallery' },
+        { labelKey: 'footerProductAnalytics', path: '/solutions' },
+        { labelKey: 'footerProductApi', path: '/resources' },
       ],
     },
     solutions: {
-      title: '解決方案',
+      titleKey: 'footerSolutions',
       links: [
-        { label: '藝術展覽', path: '/solutions' },
-        { label: '企業展示', path: '/solutions' },
-        { label: '教育培訓', path: '/solutions' },
-        { label: '虛擬博物館', path: '/solutions' },
-        { label: '活動策劃', path: '/solutions' },
+        { labelKey: 'footerSolutionsArt', path: '/solutions' },
+        { labelKey: 'footerSolutionsEnterprise', path: '/solutions' },
+        { labelKey: 'footerSolutionsEducation', path: '/solutions' },
+        { labelKey: 'footerSolutionsMuseum', path: '/solutions' },
+        { labelKey: 'footerSolutionsEvents', path: '/solutions' },
       ],
     },
     resources: {
-      title: '資源',
+      titleKey: 'footerResources',
       links: [
-        { label: '使用教學', path: '/resources' },
-        { label: '案例研究', path: '/resources' },
-        { label: '開發文件', path: '/resources' },
-        { label: '部落格', path: '/resources' },
-        { label: '幫助中心', path: '/support' },
+        { labelKey: 'footerResourcesTutorials', path: '/resources' },
+        { labelKey: 'footerResourcesCaseStudies', path: '/resources' },
+        { labelKey: 'footerResourcesDocs', path: '/resources' },
+        { labelKey: 'footerResourcesBlog', path: '/resources' },
+        { labelKey: 'footerResourcesHelp', path: '/support' },
       ],
     },
     company: {
-      title: '公司',
+      titleKey: 'footerCompany',
       links: [
-        { label: '關於我們', path: '/support' },
-        { label: '職涯機會', path: '/support' },
-        { label: '新聞中心', path: '/resources' },
-        { label: '合作夥伴', path: '/solutions' },
-        { label: '聯絡我們', path: '/support' },
+        { labelKey: 'footerCompanyAbout', path: '/support' },
+        { labelKey: 'footerCompanyCareers', path: '/support' },
+        { labelKey: 'footerCompanyNews', path: '/resources' },
+        { labelKey: 'footerCompanyPartners', path: '/solutions' },
+        { labelKey: 'footerCompanyContact', path: '/support' },
       ],
     },
   };
@@ -66,24 +66,24 @@ export function Footer() {
 
           {Object.values(footerLinks).map((section, sectionIndex) => (
             <motion.div
-              key={section.title}
+              key={section.titleKey}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6, delay: sectionIndex * 0.1 }}
             >
-              <h4 className="mb-3 text-sm font-medium uppercase tracking-wide text-foreground">{section.title}</h4>
+              <h4 className="mb-3 text-sm font-medium uppercase tracking-wide text-foreground">{t(section.titleKey)}</h4>
               <ul className="space-y-2">
                 {section.links.map((link, linkIndex) => (
                   <motion.li
-                    key={link.label}
+                    key={link.labelKey}
                     initial={{ opacity: 0, x: -8 }}
                     whileInView={{ opacity: 1, x: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: sectionIndex * 0.08 + linkIndex * 0.04 }}
                   >
                     <Link to={link.path} className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                      {link.label}
+                      {t(link.labelKey)}
                     </Link>
                   </motion.li>
                 ))}
@@ -102,16 +102,16 @@ export function Footer() {
           <p className="text-xs text-muted-foreground">{t('copyright')}</p>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             {[
-              { label: '隱私權政策', path: '/support' },
-              { label: '服務條款', path: '/support' },
-              { label: 'Cookie政策', path: '/resources' },
+              { labelKey: 'footerPrivacy', path: '/support' },
+              { labelKey: 'footerTerms', path: '/support' },
+              { labelKey: 'footerCookie', path: '/resources' },
             ].map((item) => (
               <motion.div
-                key={item.label}
+                key={item.labelKey}
                 className="text-xs text-muted-foreground transition-colors hover:text-foreground"
                 whileHover={{ y: -1 }}
               >
-                <Link to={item.path}>{item.label}</Link>
+                <Link to={item.path}>{t(item.labelKey)}</Link>
               </motion.div>
             ))}
           </div>

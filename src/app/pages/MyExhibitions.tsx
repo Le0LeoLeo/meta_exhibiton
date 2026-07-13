@@ -54,7 +54,31 @@ const createTemplates = GALLERY_TEMPLATES.filter((template) =>
     template.title as (typeof CREATE_GALLERY_TEMPLATE_TITLES)[number],
   ),
 );
-const defaultTemplateTitle = createTemplates[0]?.title ?? '空白展覽';
+const defaultTemplateTitle = createTemplates[0]?.title ?? GALLERY_TEMPLATES[0]?.title ?? '';
+
+const TEMPLATE_I18N_KEYS = [
+  'vgTemplateBlank',
+  'vgTemplateModernArt',
+  'vgTemplateTech',
+  'vgTemplateMuseum',
+  'vgTemplateFashion',
+  'vgTemplatePhoto',
+  'vgTemplateCar',
+] as const;
+
+const templateKeyMap = new Map(
+  GALLERY_TEMPLATES.map((template, index) => [template.title, TEMPLATE_I18N_KEYS[index]]),
+);
+
+const tTitle = (t: (key: string) => string, title: string) => {
+  const key = templateKeyMap.get(title);
+  return key ? t(`${key}Title`) : title;
+};
+
+const tDesc = (t: (key: string) => string, title: string) => {
+  const key = templateKeyMap.get(title);
+  return key ? t(`${key}Desc`) : title;
+};
 
 export default function MyExhibitions() {
   const navigate = useNavigate();
@@ -467,7 +491,7 @@ export default function MyExhibitions() {
                 onClick={() => navigate('/admin/exhibitions')}
               >
                 <BarChart3 className="mr-2 size-4" />
-                數據後台
+                {t('eaBtnLabel')}
               </Button>
               <Button
                 variant="outline"
@@ -936,16 +960,16 @@ export default function MyExhibitions() {
                         <div className="h-28 bg-secondary">
                           <ImageWithFallback
                             src={template.image}
-                            alt={template.title}
+                            alt={tTitle(t, template.title)}
                             className="h-full w-full object-cover"
                           />
                         </div>
                         <div className="p-3">
-                          <p className="text-sm text-foreground">
-                            {template.title}
+                          <p className='text-sm text-foreground'>
+                            {tTitle(t, template.title)}
                           </p>
-                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                            {template.description}
+                          <p className='mt-1 line-clamp-2 text-xs text-muted-foreground'>
+                            {tDesc(t, template.title)}
                           </p>
                         </div>
                       </button>

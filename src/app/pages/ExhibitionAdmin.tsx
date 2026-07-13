@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
+import { useI18n } from '../components/I18nProvider';
 import {
   deleteGalleryComment,
   getGalleryAdminAnalytics,
@@ -42,19 +43,20 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat('zh-Hant').format(value);
 }
 
-function formatDuration(seconds: number) {
-  if (!seconds) return '0 分鐘';
+function formatDuration(seconds: number, t: (k: string) => string) {
+  if (!seconds) return t('eaZeroMinutes');
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} 分鐘`;
+  if (minutes < 60) return t('eaMinutes').replace('{count}', String(minutes));
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  return rest ? `${hours} 小時 ${rest} 分鐘` : `${hours} 小時`;
+  if (rest) return t('eaHoursMinutes').replace('{hours}', String(hours)).replace('{minutes}', String(rest));
+  return t('eaHours').replace('{hours}', String(hours));
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return '未有紀錄';
+function formatDate(value: string | null | undefined, t: (k: string) => string) {
+  if (!value) return t('eaNoRecord');
   const time = new Date(value);
-  if (Number.isNaN(time.getTime())) return '未有紀錄';
+  if (Number.isNaN(time.getTime())) return t('eaNoRecord');
   return time.toLocaleString('zh-Hant', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
@@ -85,7 +87,7 @@ function StatTile({
   );
 }
 
-function ChartAxis({ maxValue, label }: { maxValue: number; label: string }) {
+function ChartAxis({ maxValue, label, t }: { maxValue: number; label: string; t: (k: string) => string }) {
   return (
     <div className="grid grid-cols-[minmax(8rem,1fr),minmax(11rem,2fr),3.5rem] items-center gap-3 border-b border-slate-100 pb-2 text-xs text-slate-400 dark:border-stone-800">
       <span>{label}</span>
@@ -96,18 +98,18 @@ function ChartAxis({ maxValue, label }: { maxValue: number; label: string }) {
           </span>
         ))}
       </div>
-      <span className="text-right">分數</span>
+      <span className="text-right">{t('eaScore')}</span>
     </div>
   );
 }
 
-function GalleryBarChart({ galleries }: { galleries: GalleryAdminGallery[] }) {
+function GalleryBarChart({ galleries, t }: { galleries: GalleryAdminGallery[]; t: (k: string) => string }) {
   const rows = galleries.slice(0, 8);
   const maxScore = Math.max(1, ...rows.map((gallery) => gallery.popularityScore));
 
   return (
     <div className="mt-5 space-y-3">
-      <ChartAxis maxValue={maxScore} label="展覽" />
+      <ChartAxis maxValue={maxScore} label={t('eaGalleryLabel')} t={t} />
       {rows.map((gallery, index) => {
         const width = Math.max(4, Math.round((gallery.popularityScore / maxScore) * 100));
 
@@ -126,7 +128,10 @@ function GalleryBarChart({ galleries }: { galleries: GalleryAdminGallery[] }) {
                 </span>
               </div>
               <p className="mt-1 truncate text-xs text-slate-500 dark:text-stone-400">
-                {gallery.commentCount} 評論 / {gallery.visitorCount} 訪客 / {formatDuration(gallery.totalDwellSeconds)}
+                {t('eaCommentCountVisitorCount')
+                  .replace('{commentCount}', String(gallery.commentCount))
+                  .replace('{visitorCount}', String(gallery.visitorCount))
+                  .replace('{duration}', formatDuration(gallery.totalDwellSeconds, t))}
               </p>
             </div>
             <div className="relative h-8 overflow-hidden rounded-md bg-slate-100 dark:bg-stone-800">
@@ -147,13 +152,13 @@ function GalleryBarChart({ galleries }: { galleries: GalleryAdminGallery[] }) {
   );
 }
 
-function ItemBarChart({ items }: { items: GalleryAdminItem[] }) {
+function ItemBarChart({ items, t }: { items: GalleryAdminItem[]; t: (k: string) => string }) {
   const rows = items.slice(0, 8);
   const maxScore = Math.max(1, ...rows.map((item) => item.popularityScore));
 
   return (
     <div className="mt-5 space-y-3">
-      <ChartAxis maxValue={maxScore} label="作品" />
+      <ChartAxis maxValue={maxScore} label={t('eaItemLabel')} t={t} />
       {rows.map((item, index) => {
         const width = Math.max(4, Math.round((item.popularityScore / maxScore) * 100));
 
@@ -172,7 +177,10 @@ function ItemBarChart({ items }: { items: GalleryAdminItem[] }) {
                 </span>
               </div>
               <p className="mt-1 truncate text-xs text-slate-500 dark:text-stone-400">
-                {item.galleryTitle}{item.artist ? ` / ${item.artist}` : ''} / {item.commentCount} 評論
+                {t('eaItemInfo')
+                  .replace('{galleryTitle}', item.galleryTitle)
+                  .replace('{artist}', item.artist ? ` / ${item.artist}` : '')
+                  .replace('{commentCount}', String(item.commentCount))}
               </p>
             </div>
             <div className="relative h-8 overflow-hidden rounded-md bg-slate-100 dark:bg-stone-800">
@@ -190,13 +198,14 @@ function ItemBarChart({ items }: { items: GalleryAdminItem[] }) {
         );
       })}
       {rows.length === 0 ? (
-        <p className="py-6 text-sm text-slate-500 dark:text-stone-400">尚未有作品互動資料。</p>
+        <p className="py-6 text-sm text-slate-500 dark:text-stone-400">{t('eaNoItemData')}</p>
       ) : null}
     </div>
   );
 }
 
 export default function ExhibitionAdmin() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [analytics, setAnalytics] = useState<GalleryAdminAnalytics>(emptyAnalytics);
   const [loading, setLoading] = useState(true);
@@ -234,8 +243,8 @@ export default function ExhibitionAdmin() {
       const result = await getGalleryAdminAnalytics(token);
       setAnalytics(result);
     } catch (err) {
-      toast.error('無法載入展覽後台數據', {
-        description: err instanceof Error ? err.message : '請稍後再試',
+      toast.error(t('eaLoadFailed'), {
+        description: err instanceof Error ? err.message : t('eaRetryLater'),
       });
     } finally {
       setLoading(false);
@@ -275,10 +284,10 @@ export default function ExhibitionAdmin() {
           : item),
         comments: prev.comments.filter((item) => item.id !== comment.id),
       }));
-      toast.success('評論已刪除');
+      toast.success(t('eaCommentDeleted'));
     } catch (err) {
-      toast.error('刪除評論失敗', {
-        description: err instanceof Error ? err.message : '請稍後再試',
+      toast.error(t('eaDeleteCommentFailed'), {
+        description: err instanceof Error ? err.message : t('eaRetryLater'),
       });
     } finally {
       setDeletingCommentId(null);
@@ -290,9 +299,9 @@ export default function ExhibitionAdmin() {
       <div className="mx-auto max-w-7xl space-y-5 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 dark:border-stone-800 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">展覽數據後台</h1>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{t('eaTitle')}</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-stone-400">
-              集中查看展覽評論、熱門度、訪客停留與作品互動，方便你判斷哪個展區最吸引觀眾。
+              {t('eaDesc')}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -301,46 +310,46 @@ export default function ExhibitionAdmin() {
               onChange={(event) => setSelectedGalleryId(event.target.value)}
               className="h-10 min-w-44 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 dark:border-stone-700 dark:bg-stone-950 dark:text-white dark:focus:ring-violet-950/40"
             >
-              <option value="all">全部展覽</option>
+              <option value="all">{t('eaAllExhibitions')}</option>
               {analytics.galleries.map((gallery) => (
                 <option key={gallery.id} value={gallery.id}>{gallery.title}</option>
               ))}
             </select>
             <Button variant="outline" className="justify-center" onClick={() => void loadAnalytics()} disabled={loading}>
               {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
-              重新整理
+              {t('eaRefresh')}
             </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <StatTile label="總展覽" value={formatNumber(analytics.summary.totalGalleries)} detail={`${analytics.summary.publishedGalleries} 個已公開`} icon={BarChart3} />
-          <StatTile label="作品數" value={formatNumber(analytics.summary.totalItems)} detail="目前展覽場景內作品總量" icon={Star} />
-          <StatTile label="評論" value={formatNumber(analytics.summary.totalComments)} detail="所有作品收到的評論" icon={MessageSquare} />
-          <StatTile label="停留時間" value={formatDuration(analytics.summary.totalDwellSeconds)} detail={`${analytics.summary.totalVisitors} 位登入訪客紀錄`} icon={Clock3} />
+          <StatTile label={t('eaStatTotalExhibitions')} value={formatNumber(analytics.summary.totalGalleries)} detail={t('eaStatPublishedCount').replace('{count}', String(analytics.summary.publishedGalleries))} icon={BarChart3} />
+          <StatTile label={t('eaStatItems')} value={formatNumber(analytics.summary.totalItems)} detail={t('eaStatItemsDesc')} icon={Star} />
+          <StatTile label={t('eaStatComments')} value={formatNumber(analytics.summary.totalComments)} detail={t('eaStatCommentsDesc')} icon={MessageSquare} />
+          <StatTile label={t('eaStatDwellTime')} value={formatDuration(analytics.summary.totalDwellSeconds, t)} detail={t('eaStatVisitorsDesc').replace('{count}', String(analytics.summary.totalVisitors))} icon={Clock3} />
         </div>
 
         {loading ? (
           <div className="flex min-h-56 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm dark:border-stone-800 dark:bg-stone-900 dark:text-stone-400">
             <Loader2 className="mr-2 size-5 animate-spin" />
-            正在整理展覽數據
+            {t('eaLoading')}
           </div>
         ) : analytics.galleries.length === 0 ? (
           <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900">
             <div className="grid gap-5 md:grid-cols-[1fr,auto] md:items-center">
               <div>
-                <h2 className="text-lg font-semibold text-slate-950 dark:text-white">目前還沒有展覽資料</h2>
+                <h2 className="text-lg font-semibold text-slate-950 dark:text-white">{t('eaNoDataTitle')}</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-stone-400">
-                  建立第一個展覽後，這裡會開始累積評論、熱門度、訪客停留和作品互動數據。
+                  {t('eaNoDataDesc')}
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button onClick={() => navigate('/virtual-gallery/create')} className="justify-center">
                   <PlusCircle className="mr-2 size-4" />
-                  建立展覽
+                  {t('eaCreateExhibition')}
                 </Button>
                 <Button variant="outline" onClick={() => navigate('/virtual-gallery/my-exhibitions')} className="justify-center">
-                  我的展覽
+                  {t('eaMyExhibitions')}
                 </Button>
               </div>
             </div>
@@ -351,37 +360,37 @@ export default function ExhibitionAdmin() {
               <section className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-xl font-semibold">展覽熱門度棒形圖</h2>
+                    <h2 className="text-xl font-semibold">{t('eaGalleryPopularityChart')}</h2>
                     <p className="mt-1 text-sm text-slate-500 dark:text-stone-400">
-                      以評論、訪客、互動與停留時間綜合計算。
+                      {t('eaGalleryPopularityDesc')}
                     </p>
                   </div>
                   <Eye className="size-5 text-slate-400" />
                 </div>
-                <GalleryBarChart galleries={selectedGalleries} />
+                <GalleryBarChart galleries={selectedGalleries} t={t} />
               </section>
 
               <section className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-xl font-semibold">熱門作品棒形圖</h2>
+                    <h2 className="text-xl font-semibold">{t('eaItemPopularityChart')}</h2>
                     <p className="mt-1 text-sm text-slate-500 dark:text-stone-400">
-                      找出最常被觀看、評論或互動的作品。
+                      {t('eaItemPopularityDesc')}
                     </p>
                   </div>
                   <Users className="size-5 text-slate-400" />
                 </div>
-                <ItemBarChart items={selectedItems} />
+                <ItemBarChart items={selectedItems} t={t} />
               </section>
             </div>
 
             <section className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-stone-800 dark:bg-stone-900">
               <div className="flex flex-col gap-2 border-b border-slate-100 p-6 dark:border-stone-800 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold">評論管理</h2>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-stone-400">最新評論會優先顯示，可直接移除不合適內容。</p>
+                  <h2 className="text-xl font-semibold">{t('eaCommentManagement')}</h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-stone-400">{t('eaCommentManagementDesc')}</p>
                 </div>
-                <span className="text-sm text-slate-500 dark:text-stone-400">{visibleComments.length} 則</span>
+                <span className="text-sm text-slate-500 dark:text-stone-400">{t('eaCommentCount').replace('{count}', String(visibleComments.length))}</span>
               </div>
               <div className="divide-y divide-slate-100 dark:divide-stone-800">
                 {visibleComments.map((comment) => (
@@ -395,7 +404,7 @@ export default function ExhibitionAdmin() {
                         <span className="text-slate-500 dark:text-stone-400">{comment.itemTitle}</span>
                       </div>
                       <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-stone-300">{comment.content}</p>
-                      <p className="mt-2 text-xs text-slate-400">{formatDate(comment.createdAt)}</p>
+                      <p className="mt-2 text-xs text-slate-400">{formatDate(comment.createdAt, t)}</p>
                     </div>
                     <Button
                       variant="outline"
@@ -404,12 +413,12 @@ export default function ExhibitionAdmin() {
                       onClick={() => void handleDeleteComment(comment)}
                     >
                       {deletingCommentId === comment.id ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Trash2 className="mr-2 size-4" />}
-                      刪除
+                      {t('eaDelete')}
                     </Button>
                   </div>
                 ))}
                 {visibleComments.length === 0 ? (
-                  <p className="p-6 text-sm text-slate-500 dark:text-stone-400">目前沒有評論。</p>
+                  <p className="p-6 text-sm text-slate-500 dark:text-stone-400">{t('eaNoComments')}</p>
                 ) : null}
               </div>
             </section>

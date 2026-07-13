@@ -18,184 +18,50 @@ import {
   type EffectivePerformanceMode,
 } from "../performance/adaptivePerformance";
 import { defaultGalleryScene } from "./defaultGalleryScene";
-import { createDefaultAgentTourSession, defaultAgentState } from "./metaverseStoreUtils";
+import {
+  createDefaultAgentTourSession,
+  createSnapshot,
+  defaultAgentState,
+  normalizeImportedItemContent,
+  parseRotationVec3,
+  parseVec3,
+  sanitizeItemsForPersist,
+  sanitizeRoomSizeForPersist,
+  sanitizeWallOverridesForPersist,
+  withHistory,
+} from "./metaverseStoreUtils";
+import { createDefaultItem } from "./metaverseStoreItemHelpers";
+import { createDefaultFloorPlanElement, selectRoomTargetId } from "./metaverseStoreFloorPlanHelpers";
+import { addFloorPlanElementAction, createAppliedFloorPlan, createSyncedFloorPlan } from "./floorPlanActions";
+import { getNextSelectedIds, getSelectionAfterRemoval, getNextViewingItemId, getViewingItemById } from "./metaverseStoreSelectionHelpers";
+import { createImportedSceneSnapshot, createUndoRedoPatch } from "./metaverseStoreHistoryHelpers";
 
-interface SceneSnapshot {
-  roomSize: RoomSize;
-  items: ExhibitItem[];
-  floorPlanElements: FloorPlanElement[];
-  wallMaterialOverrides: Record<string, Partial<WallMaterialSettings>>;
+import type { SceneSnapshot, BaseMetaverseState, BaseMetaverseActions } from "./metaverseStoreTypes";
+
+export interface EditorThemePreset {
+  id: string;
+  name: string;
+  settings: Partial<RoomSize>;
 }
 
-const MAX_HISTORY = 100;
+const defaultEditorThemePresets: EditorThemePreset[] = [
+  { id: "nordic-gallery", name: "北歐畫廊", settings: { wallMaterialPreset: "paint", wallColor: "#f4f1ea", wallTextureUrl: "/textures/wall-paint.svg", wallTextureTiling: 2, wallRoughness: 0.58, wallMetalness: 0.03, wallBumpScale: 0.04, wallEnvIntensity: 0.45 } },
+  { id: "industrial", name: "工業風", settings: { wallMaterialPreset: "concrete", wallColor: "#9ca3af", wallTextureUrl: "/textures/wall-concrete.svg", wallTextureTiling: 3.5, wallRoughness: 0.88, wallMetalness: 0.08, wallBumpScale: 0.14, wallEnvIntensity: 0.22 } },
+  { id: "warm-wood", name: "木質藝廊", settings: { wallMaterialPreset: "wood", wallColor: "#b08968", wallTextureUrl: "/textures/wall-wood.svg", wallTextureTiling: 2.5, wallRoughness: 0.72, wallMetalness: 0.06, wallBumpScale: 0.1, wallEnvIntensity: 0.32 } },
+  { id: "future-metal", name: "未來金屬", settings: { wallMaterialPreset: "metal", wallColor: "#cbd5e1", wallTextureUrl: "/textures/wall-metal.svg", wallTextureTiling: 4, wallRoughness: 0.2, wallMetalness: 0.9, wallBumpScale: 0.03, wallEnvIntensity: 0.95, wallOpacity: 1, wallTransmission: 0, wallIor: 1.45 } },
+  { id: "glass-space", name: "玻璃空間", settings: { wallMaterialPreset: "glass", wallColor: "#e0f2fe", wallTextureUrl: "/textures/wall-paint.svg", wallTextureTiling: 2, wallRoughness: 0.08, wallMetalness: 0, wallBumpScale: 0, wallEnvIntensity: 1.1, wallOpacity: 0.45, wallTransmission: 0.92, wallIor: 1.5 } },
+];
 
-function createSnapshot(state: Pick<AppState, "roomSize" | "items" | "floorPlanElements" | "wallMaterialOverrides">): SceneSnapshot {
-  return structuredClone({
-    roomSize: state.roomSize,
-    items: state.items,
-    floorPlanElements: state.floorPlanElements,
-    wallMaterialOverrides: state.wallMaterialOverrides,
-  });
-}
+const MAX_HISTORY = 20;
 
-function withHistory(state: AppState, patch: Partial<AppState>): Partial<AppState> {
-  const prevSnapshot = createSnapshot(state);
-  const undoStack = state.undoStack ?? [];
-
-  return {
-    ...patch,
-    undoStack: [...undoStack, prevSnapshot].slice(-MAX_HISTORY),
-    redoStack: [],
-  };
-}
-
-function sanitizeAssetUrl(url?: string): string {
-  if (!url) return "";
-  if (url.startsWith("blob:")) return "";
-  if (url.startsWith("data:")) return "";
-  return url;
-}
-
-function sanitizeItemsForPersist(items: ExhibitItem[]): ExhibitItem[] {
-  return items.map((item) => {
-    if (item.type !== "pedestal" && item.type !== "painting") return item;
-
-    const content = typeof item.content === "string" ? item.content : "";
-    const sanitizedContent = sanitizeAssetUrl(content);
-    const sanitizedThumbnail = sanitizeAssetUrl(item.videoThumbnailUrl);
-
-    if (sanitizedContent === content && sanitizedThumbnail === item.videoThumbnailUrl) {
-      return item;
-    }
-
-    return {
-      ...item,
-      content: sanitizedContent,
-      videoThumbnailUrl: sanitizedThumbnail,
-    };
-  });
-}
-
-function isLikelyColor(value: string): boolean {
-  const v = value.trim();
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v);
-}
-
-function normalizeImportedItemContent(type: ExhibitItem["type"], rawContent: unknown): string {
-  const content = typeof rawContent === "string" ? rawContent.trim() : "";
-
-  if (type === "painting" || type === "pedestal" || type === "text") {
-    return content;
+const areUpdateValuesEqual = (left: unknown, right: unknown) => {
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return left.length === right.length && left.every((value, index) => Object.is(value, right[index]));
   }
+  return Object.is(left, right);
+};
 
-  if (isLikelyColor(content)) {
-    return content;
-  }
-
-  const defaults: Record<Exclude<ExhibitItem["type"], "painting" | "pedestal" | "text">, string> = {
-    partition: "#f3f4f6",
-    lightstrip: "#ffe08a",
-    flower: "#ec4899",
-    chandelier: "#fde68a",
-    bench: "#8b5e3c",
-    rug: "#1d4ed8",
-    vase: "#38bdf8",
-    sculpture: "#9ca3af",
-    spotlight: "#fff3b0",
-    plant: "#22c55e",
-    column: "#cbd5e1",
-    neon: "#22d3ee",
-  };
-
-  return defaults[type as keyof typeof defaults] ?? "#9ca3af";
-}
-
-function parseVec3(
-  value: unknown,
-  fallback: [number, number, number],
-): [number, number, number] {
-  if (Array.isArray(value) && value.length >= 3) {
-    return [
-      Number(value[0]) || fallback[0],
-      Number(value[1]) || fallback[1],
-      Number(value[2]) || fallback[2],
-    ];
-  }
-
-  if (typeof value === "string") {
-    const parts = value
-      .split(",")
-      .map((part) => Number(part.trim()))
-      .filter((n) => Number.isFinite(n));
-
-    if (parts.length >= 3) {
-      return [parts[0], parts[1], parts[2]];
-    }
-  }
-
-  if (value && typeof value === "object") {
-    const obj = value as { x?: unknown; y?: unknown; z?: unknown };
-    const x = Number(obj.x);
-    const y = Number(obj.y);
-    const z = Number(obj.z);
-    if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
-      return [x, y, z];
-    }
-  }
-
-  return fallback;
-}
-
-function parseRotationVec3(
-  value: unknown,
-  fallback: [number, number, number],
-): [number, number, number] {
-  const [x, y, z] = parseVec3(value, fallback);
-  const toRadians = (n: number) => {
-    const abs = Math.abs(n);
-    if (abs > Math.PI * 2 && abs <= 360) {
-      return (n * Math.PI) / 180;
-    }
-    return n;
-  };
-
-  return [toRadians(x), toRadians(y), toRadians(z)];
-}
-
-function sanitizeRoomSizeForPersist(roomSize: RoomSize): RoomSize {
-  return {
-    ...roomSize,
-    wallTextureUrl: sanitizeAssetUrl(roomSize.wallTextureUrl) || "/textures/wall-paint.svg",
-    floorTextureUrl: sanitizeAssetUrl(roomSize.floorTextureUrl) || "/textures/wall-concrete.svg",
-  };
-}
-
-function sanitizeWallOverridesForPersist(
-  overrides: Record<string, Partial<WallMaterialSettings>> | null | undefined,
-): Record<string, Partial<WallMaterialSettings>> {
-  if (!overrides || typeof overrides !== "object") {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(overrides)
-      .filter((entry): entry is [string, Partial<WallMaterialSettings>] => {
-        const [, value] = entry;
-        return !!value && typeof value === "object";
-      })
-      .map(([id, value]) => [
-        id,
-        {
-          ...value,
-          wallTextureUrl: value.wallTextureUrl
-            ? sanitizeAssetUrl(value.wallTextureUrl)
-            : value.wallTextureUrl,
-        },
-      ]),
-  );
-}
-
-interface AppState {
+interface AppState extends BaseMetaverseState, BaseMetaverseActions {
   mode: AppMode;
   roomSize: RoomSize;
   items: ExhibitItem[];
@@ -214,20 +80,9 @@ interface AppState {
   floorPlanIsTransforming: boolean;
   undoStack: SceneSnapshot[];
   redoStack: SceneSnapshot[];
+  pendingPlacement: unknown | null;
   performanceMode: PerformanceMode;
   effectivePerformanceMode: EffectivePerformanceMode;
-  agent: AgentState;
-  agentChat: AgentChatMessage[];
-  hasSelectedParticipationMode: boolean;
-  allowPointerLock: boolean;
-  setAgent: (updates: Partial<AgentState>) => void;
-  setAgentDialogue: (content: string) => void;
-  setAgentCurrentDialogue: (content: string) => void;
-  pushAgentMessage: (message: Omit<AgentChatMessage, "id" | "createdAt">) => void;
-  setAgentNearbyExhibit: (id: string | null) => void;
-  setAgentActiveExhibit: (item: AgentState["activeExhibit"]) => void;
-  setAgentRecommendedExhibit: (recommendation: AgentRecommendation | null) => void;
-  trackAgentDwell: (id: string, deltaSeconds: number) => void;
   startAgentTour: (routeExhibitIds: string[]) => void;
   pauseAgentTour: () => void;
   resumeAgentTour: () => void;
@@ -235,8 +90,7 @@ interface AppState {
   endAgentTour: () => void;
   markAgentTourArrived: (exhibitId: string) => void;
   markAgentTourExplained: (exhibitId: string) => void;
-  setHasSelectedParticipationMode: (value: boolean) => void;
-  setAllowPointerLock: (value: boolean) => void;
+  setPendingPlacement: (placement: unknown | null) => void;
   setPerformanceMode: (mode: PerformanceMode) => void;
   setEffectivePerformanceMode: (mode: EffectivePerformanceMode) => void;
   setMode: (mode: AppMode) => void;
@@ -245,9 +99,13 @@ interface AppState {
   updateItem: (id: string, updates: Partial<ExhibitItem>) => void;
   removeItem: (id: string) => void;
   duplicateItem: (id: string) => void;
+  setAllPartitionsLocked: (locked: boolean) => void;
   removeSelectedItems: () => void;
   duplicateSelectedItems: () => void;
   moveSelectedItems: (delta: [number, number, number]) => void;
+  snapSelectedItemsToGrid: () => void;
+  alignSelectedItems: (axis: "x" | "z") => void;
+  distributeSelectedItems: (axis: "x" | "z") => void;
   setSelectedItemId: (id: string | null) => void;
   toggleMultiSelectItem: (id: string) => void;
   clearSelectedItems: () => void;
@@ -264,6 +122,8 @@ interface AppState {
   setSelectedWallSegmentId: (id: string | null) => void;
   setWallMaterialForTarget: (updates: Partial<WallMaterialSettings>, segmentId?: string | null) => void;
   clearWallMaterialForTarget: (segmentId?: string | null) => void;
+  addCustomWallTexturePreset: (preset: { label: string; value: string }) => void;
+  removeCustomWallTexturePreset: (value: string) => void;
   addFloorPlanElement: (type: FloorPlanElementType) => void;
   updateFloorPlanElement: (id: string, updates: Partial<FloorPlanElement>) => void;
   removeFloorPlanElement: (id: string) => void;
@@ -280,6 +140,11 @@ interface AppState {
   applyBalancedLighting: () => void;
   setAllLightStripsIntensity: (intensity: number) => void;
   setAllPaintingFrameSize: (width: number, height: number) => void;
+  editorThemePresets: EditorThemePreset[];
+  setEditorThemePresets: (presets: EditorThemePreset[]) => void;
+  addEditorThemePreset: (preset: EditorThemePreset) => void;
+  removeEditorThemePreset: (presetId: string) => void;
+  applyEditorThemePreset: (presetId: string) => void;
 }
 
 export const useMetaverseStudioStore = create<AppState>()(
@@ -297,12 +162,42 @@ export const useMetaverseStudioStore = create<AppState>()(
       selectedWallAnchor: null,
       selectedWallSegmentId: null,
       wallMaterialOverrides: defaultGalleryScene.wallMaterialOverrides,
+      addCustomWallTexturePreset: (preset) =>
+        set((state) => {
+          const current = state.roomSize.wallTextureCustomPresets ?? [];
+          const next = current.some((item) => item.value === preset.value)
+            ? current.map((item) => (item.value === preset.value ? preset : item))
+            : [...current, preset];
+          return withHistory(state, {
+            roomSize: {
+              ...state.roomSize,
+              wallTextureCustomPresets: next,
+            },
+          });
+        }),
+      removeCustomWallTexturePreset: (value) =>
+        set((state) => ({
+          roomSize: {
+            ...state.roomSize,
+            wallTextureCustomPresets: (state.roomSize.wallTextureCustomPresets ?? []).filter((preset) => preset.value !== value),
+            wallTextureUrl: state.roomSize.wallTextureUrl === value ? "/textures/wall-paint.svg" : state.roomSize.wallTextureUrl,
+          },
+          wallMaterialOverrides: Object.fromEntries(
+            Object.entries(state.wallMaterialOverrides).map(([id, override]) => [
+              id,
+              override.wallTextureUrl === value
+                ? { ...override, wallTextureUrl: "/textures/wall-paint.svg", wallMaterialPreset: "paint" }
+                : override,
+            ]),
+          ),
+        })),
       floorPlanElements: defaultGalleryScene.floorPlanElements,
       selectedFloorPlanElementId: null,
       floorPlanEditTarget: "room",
       floorPlanIsTransforming: false,
       undoStack: [],
       redoStack: [],
+      pendingPlacement: null,
       performanceMode: "auto",
       effectivePerformanceMode: "balanced",
       agent: defaultAgentState,
@@ -323,6 +218,8 @@ export const useMetaverseStudioStore = create<AppState>()(
       setAgentActiveExhibit: (item) => set((state) => ({ agent: { ...state.agent, activeExhibit: item } })),
       setAgentRecommendedExhibit: (recommendation) =>
         set((state) => ({ agent: { ...state.agent, recommendedExhibit: recommendation } })),
+      clearAgentRecommendation: () =>
+        set((state) => ({ agent: { ...state.agent, recommendedExhibit: null } })),
       trackAgentDwell: (id, deltaSeconds) =>
         set((state) => ({
           agent: {
@@ -497,19 +394,69 @@ export const useMetaverseStudioStore = create<AppState>()(
         }),
       setHasSelectedParticipationMode: (value) => set({ hasSelectedParticipationMode: value }),
       setAllowPointerLock: (value) => set({ allowPointerLock: value }),
+      closeAgentChat: () => set((state) => ({ agent: { ...state.agent, isChatOpen: false } })),
+      openAgentChat: () => set((state) => ({ agent: { ...state.agent, isChatOpen: true, enabled: true } })),
+      appendAgentRecommendation: (recommendation) =>
+        set((state) => ({
+          agent: {
+            ...state.agent,
+            recommendedExhibit: recommendation,
+            currentDialogue: recommendation ? `下一站推薦：${recommendation.title}。${recommendation.reason}` : state.agent.currentDialogue,
+          },
+        })),
+      setAgentMode: (mode) => set((state) => ({ agent: { ...state.agent, mode } })),
+      setAgentFollowUser: (followUser) =>
+        set((state) => ({ agent: { ...state.agent, followUser, mode: followUser ? "follow" : "idle" } })),
+      setPendingPlacement: (placement) => set(() => ({ pendingPlacement: placement })),
       setMode: (mode) =>
-        set({
-          mode,
-          selectedItemId: null,
-          selectedItemIds: [],
-          viewingItem: null,
-          selectedWallFace: null,
-          selectedWallAnchor: null,
-          selectedWallSegmentId: null,
-          selectedFloorPlanElementId: null,
+        set((state) => {
+          const baseNextState = {
+            mode,
+            selectedItemId: null,
+            selectedItemIds: [],
+            viewingItem: null,
+            selectedWallFace: null,
+            selectedWallAnchor: null,
+            selectedWallSegmentId: null,
+            selectedFloorPlanElementId: null,
+            hasSelectedParticipationMode: mode === "view" ? state.hasSelectedParticipationMode : false,
+          };
+
+          if (mode === state.mode) {
+            return baseNextState;
+          }
+
+          if (mode === "floor-plan") {
+            const synced = createSyncedFloorPlan(state);
+            return withHistory(state, {
+              ...baseNextState,
+              ...synced,
+            });
+          }
+
+          if (mode === "edit" && state.mode === "floor-plan") {
+            const applied = createAppliedFloorPlan(state);
+            const syncedBack = createSyncedFloorPlan({
+              ...state,
+              ...applied,
+            });
+
+            return withHistory(state, {
+              ...baseNextState,
+              ...applied,
+              ...syncedBack,
+            });
+          }
+
+          return baseNextState;
         }),
       setRoomSize: (size) =>
         set((state) => {
+          const roomChanged = Object.entries(size).some(([key, value]) =>
+            !areUpdateValuesEqual(state.roomSize[key as keyof RoomSize], value),
+          );
+          if (!roomChanged) return {};
+
           const nextRoomSize = { ...state.roomSize, ...size };
 
           const hasLockedRoom = state.floorPlanElements.some(
@@ -532,113 +479,77 @@ export const useMetaverseStudioStore = create<AppState>()(
           return withHistory(state, {
             roomSize: nextRoomSize,
             floorPlanElements: nextFloorPlanElements,
+            ...(state.mode === "floor-plan"
+              ? createAppliedFloorPlan({
+                  ...state,
+                  roomSize: nextRoomSize,
+                  floorPlanElements: nextFloorPlanElements,
+                })
+              : {}),
           });
         }),
       addItem: (type, options) =>
         set((state) => {
-          const newItem: ExhibitItem = {
-            id: uuidv4(),
-            type,
-            position:
-              options?.position ||
-              (type === "partition" ? [0, state.roomSize.height / 2, 0] : [0, 1.5, 0]),
-            rotation: options?.rotation || [0, 0, 0],
-            scale:
-              type === "partition"
-                ? [5, state.roomSize.height, 0.2]
-                : type === "lightstrip"
-                  ? [2, 0.12, 0.12]
-                  : type === "flower"
-                    ? [0.8, 0.8, 0.8]
-                    : type === "chandelier"
-                      ? [0.9, 0.9, 0.9]
-                      : type === "bench"
-                        ? [2.4, 1.1, 1]
-                        : type === "rug"
-                          ? [2.4, 1, 1.6]
-                          : type === "vase"
-                            ? [0.9, 1.1, 0.9]
-                            : type === "sculpture"
-                              ? [1.3, 1.8, 1.3]
-                              : type === "spotlight"
-                                ? [0.9, 1.2, 0.9]
-                                : type === "plant"
-                                  ? [1.1, 1.4, 1.1]
-                                  : type === "column"
-                                    ? [1, 3, 1]
-                                    : type === "neon"
-                                      ? [1.8, 0.8, 0.22]
-                                      : [1, 1, 1],
-            content:
-              type === "painting"
-                ? "https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&q=80&w=800"
-                : type === "text"
-                  ? "新文字"
-                  : type === "partition"
-                    ? "#f3f4f6"
-                    : type === "lightstrip"
-                      ? "#ffe08a"
-                      : type === "flower"
-                        ? "#ec4899"
-                        : type === "chandelier"
-                          ? "#fde68a"
-                          : type === "bench"
-                            ? "#8b5e3c"
-                            : type === "rug"
-                              ? "#1d4ed8"
-                              : type === "vase"
-                                ? "#38bdf8"
-                                : type === "sculpture"
-                                  ? "#9ca3af"
-                                  : type === "spotlight"
-                                    ? "#fff3b0"
-                                    : type === "plant"
-                                      ? "#22c55e"
-                                      : type === "column"
-                                        ? "#cbd5e1"
-                                        : type === "neon"
-                                          ? "#22d3ee"
-                                          : "",
-            title: type === "painting" ? "新作品" : undefined,
-            artist: type === "painting" ? "未知作者" : undefined,
-            description: type === "painting" ? "作品描述。" : undefined,
-            externalUrl: type === "painting" ? "" : undefined,
-            frameWidth: type === "painting" ? 2 : undefined,
-            frameHeight: type === "painting" ? 1.5 : undefined,
-            textFontFamily: type === "text" ? "sans" : undefined,
-            textColor: type === "text" ? "#111827" : undefined,
-            textFontSize: type === "text" ? 0.5 : undefined,
-            textIsBold: type === "text" ? false : undefined,
-            textBackboardEnabled: type === "text" ? false : undefined,
-            textBackboardColor: type === "text" ? "#ffffff" : undefined,
-            lightIntensity: type === "lightstrip" ? 0.5 : undefined,
-          };
+          const newItem = createDefaultItem(type, state.roomSize, options);
+          const nextItems = [...state.items, newItem];
           return withHistory(state, {
-            items: [...state.items, newItem],
+            items: nextItems,
             selectedItemId: newItem.id,
             selectedItemIds: [newItem.id],
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
           });
         }),
       updateItem: (id, updates) =>
-        set((state) =>
-          withHistory(state, {
-            items: state.items.map((item) =>
-              item.id === id ? { ...item, ...updates } : item,
-            ),
-          }),
-        ),
+        set((state) => {
+          let changed = false;
+          const nextItems = state.items.map((item) => {
+            if (item.id !== id) return item;
+
+            const itemChanged = Object.entries(updates).some(([key, value]) =>
+              !areUpdateValuesEqual(item[key as keyof ExhibitItem], value),
+            );
+            if (!itemChanged) return item;
+
+            changed = true;
+            return { ...item, ...updates };
+          });
+
+          if (!changed) return {};
+
+          return withHistory(state, {
+            items: nextItems,
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
+          });
+        }),
       removeItem: (id) =>
-        set((state) =>
-          withHistory(state, {
-            items: state.items.filter((item) => item.id !== id),
-            selectedItemId: state.selectedItemId === id ? null : state.selectedItemId,
-            selectedItemIds: state.selectedItemIds.filter((selectedId) => selectedId !== id),
-          }),
-        ),
+        set((state) => {
+          const nextItems = state.items.filter((item) => item.id !== id);
+          return withHistory(state, {
+            items: nextItems,
+            ...getSelectionAfterRemoval(state.selectedItemId, state.selectedItemIds, id),
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
+          });
+        }),
       duplicateItem: (id) =>
         set((state) => {
           const source = state.items.find((item) => item.id === id);
           if (!source) return {};
+          if (source.type === "partition" && source.isLocked) return {};
 
           const duplicated: ExhibitItem = {
             ...source,
@@ -646,10 +557,39 @@ export const useMetaverseStudioStore = create<AppState>()(
             position: [source.position[0] + 0.5, source.position[1], source.position[2] + 0.5],
           };
 
+          const nextItems = [...state.items, duplicated];
+
           return withHistory(state, {
-            items: [...state.items, duplicated],
+            items: nextItems,
             selectedItemId: duplicated.id,
             selectedItemIds: [duplicated.id],
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
+          });
+        }),
+      setAllPartitionsLocked: (locked) =>
+        set((state) => {
+          let changed = false;
+          const nextItems = state.items.map((item) => {
+            if (item.type !== "partition" || Boolean(item.isLocked) === locked) return item;
+            changed = true;
+            return { ...item, isLocked: locked };
+          });
+
+          if (!changed) return {};
+
+          return withHistory(state, {
+            items: nextItems,
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
           });
         }),
       removeSelectedItems: () =>
@@ -657,10 +597,26 @@ export const useMetaverseStudioStore = create<AppState>()(
           const selectedIds = state.selectedItemIds ?? [];
           if (selectedIds.length === 0) return {};
 
+          const removableIds = new Set(
+            state.items
+              .filter((item) => selectedIds.includes(item.id) && !(item.type === "partition" && item.isLocked))
+              .map((item) => item.id),
+          );
+          if (removableIds.size === 0) return {};
+
+          const nextItems = state.items.filter((item) => !removableIds.has(item.id));
+          const retainedSelectedIds = selectedIds.filter((id) => nextItems.some((item) => item.id === id));
+
           return withHistory(state, {
-            items: state.items.filter((item) => !selectedIds.includes(item.id)),
-            selectedItemId: null,
-            selectedItemIds: [],
+            items: nextItems,
+            selectedItemId: retainedSelectedIds[0] ?? null,
+            selectedItemIds: retainedSelectedIds,
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
           });
         }),
       duplicateSelectedItems: () =>
@@ -668,7 +624,9 @@ export const useMetaverseStudioStore = create<AppState>()(
           const selectedIds = state.selectedItemIds ?? [];
           if (selectedIds.length === 0) return {};
 
-          const originals = state.items.filter((item) => selectedIds.includes(item.id));
+          const originals = state.items.filter(
+            (item) => selectedIds.includes(item.id) && !(item.type === "partition" && item.isLocked),
+          );
           if (originals.length === 0) return {};
 
           const clones: ExhibitItem[] = originals.map((source) => ({
@@ -677,12 +635,19 @@ export const useMetaverseStudioStore = create<AppState>()(
             position: [source.position[0] + 0.6, source.position[1], source.position[2] + 0.6],
           }));
 
+          const nextItems = [...state.items, ...clones];
           const cloneIds = clones.map((item) => item.id);
 
           return withHistory(state, {
-            items: [...state.items, ...clones],
+            items: nextItems,
             selectedItemId: cloneIds[cloneIds.length - 1] ?? null,
             selectedItemIds: cloneIds,
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
           });
         }),
       moveSelectedItems: (delta) =>
@@ -693,18 +658,141 @@ export const useMetaverseStudioStore = create<AppState>()(
           const [dx, dy, dz] = delta;
           if (!dx && !dy && !dz) return {};
 
+          let changed = false;
+          const nextItems = state.items.map((item) => {
+            if (!selectedIds.includes(item.id) || (item.type === "partition" && item.isLocked)) return item;
+            changed = true;
+            return {
+              ...item,
+              position: [
+                item.position[0] + dx,
+                item.position[1] + dy,
+                item.position[2] + dz,
+              ] as [number, number, number],
+            };
+          });
+
+          if (!changed) return {};
+
           return withHistory(state, {
-            items: state.items.map((item) => {
-              if (!selectedIds.includes(item.id)) return item;
-              return {
-                ...item,
-                position: [
-                  item.position[0] + dx,
-                  item.position[1] + dy,
-                  item.position[2] + dz,
-                ] as [number, number, number],
-              };
-            }),
+            items: nextItems,
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
+          });
+        }),
+      snapSelectedItemsToGrid: () =>
+        set((state) => {
+          const selectedIds = state.selectedItemIds ?? [];
+          if (selectedIds.length === 0) return {};
+
+          const snapStep = 0.5;
+          const snap = (value: number) => Math.round(value / snapStep) * snapStep;
+          let changed = false;
+          const nextItems = state.items.map((item) => {
+            if (!selectedIds.includes(item.id) || (item.type === "partition" && item.isLocked)) return item;
+
+            const nextPosition: [number, number, number] = [
+              snap(item.position[0]),
+              item.position[1],
+              snap(item.position[2]),
+            ];
+            if (nextPosition[0] === item.position[0] && nextPosition[2] === item.position[2]) return item;
+            changed = true;
+            return { ...item, position: nextPosition };
+          });
+
+          if (!changed) return {};
+
+          return withHistory(state, {
+            items: nextItems,
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
+          });
+        }),
+      alignSelectedItems: (axis) =>
+        set((state) => {
+          const selectedIds = state.selectedItemIds ?? [];
+          if (selectedIds.length < 2) return {};
+
+          const anchor =
+            state.items.find((item) => item.id === state.selectedItemId && selectedIds.includes(item.id)) ??
+            state.items.find((item) => selectedIds.includes(item.id));
+          if (!anchor) return {};
+
+          const axisIndex = axis === "x" ? 0 : 2;
+          const targetValue = anchor.position[axisIndex];
+          let changed = false;
+          const nextItems = state.items.map((item) => {
+            if (!selectedIds.includes(item.id) || (item.type === "partition" && item.isLocked)) return item;
+            if (item.position[axisIndex] === targetValue) return item;
+
+            const nextPosition = [...item.position] as [number, number, number];
+            nextPosition[axisIndex] = targetValue;
+            changed = true;
+            return { ...item, position: nextPosition };
+          });
+
+          if (!changed) return {};
+
+          return withHistory(state, {
+            items: nextItems,
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
+          });
+        }),
+      distributeSelectedItems: (axis) =>
+        set((state) => {
+          const selectedIds = state.selectedItemIds ?? [];
+          if (selectedIds.length < 3) return {};
+
+          const axisIndex = axis === "x" ? 0 : 2;
+          const movableItems = state.items
+            .filter((item) => selectedIds.includes(item.id) && !(item.type === "partition" && item.isLocked))
+            .sort((a, b) => a.position[axisIndex] - b.position[axisIndex]);
+          if (movableItems.length < 3) return {};
+
+          const min = movableItems[0].position[axisIndex];
+          const max = movableItems[movableItems.length - 1].position[axisIndex];
+          const step = (max - min) / (movableItems.length - 1);
+          if (!Number.isFinite(step) || step === 0) return {};
+
+          const nextValueById = new Map(
+            movableItems.map((item, index) => [item.id, min + step * index]),
+          );
+
+          let changed = false;
+          const nextItems = state.items.map((item) => {
+            const nextValue = nextValueById.get(item.id);
+            if (nextValue === undefined || item.position[axisIndex] === nextValue) return item;
+
+            const nextPosition = [...item.position] as [number, number, number];
+            nextPosition[axisIndex] = nextValue;
+            changed = true;
+            return { ...item, position: nextPosition };
+          });
+
+          if (!changed) return {};
+
+          return withHistory(state, {
+            items: nextItems,
+            ...(state.mode === "edit"
+              ? createSyncedFloorPlan({
+                  ...state,
+                  items: nextItems,
+                })
+              : {}),
           });
         }),
       setSelectedItemId: (id) =>
@@ -713,31 +801,7 @@ export const useMetaverseStudioStore = create<AppState>()(
           selectedItemIds: id ? [id] : [],
         }),
       toggleMultiSelectItem: (id) =>
-        set((state) => {
-          const target = state.items.find((item) => item.id === id);
-          if (!target) return {};
-
-          const currentIds = state.selectedItemIds ?? [];
-          const currentItems = state.items.filter((item) => currentIds.includes(item.id));
-          const baseType = currentItems[0]?.type ?? target.type;
-
-          if (target.type !== baseType) {
-            return {
-              selectedItemId: id,
-              selectedItemIds: [id],
-            };
-          }
-
-          const alreadySelected = currentIds.includes(id);
-          const nextIds = alreadySelected
-            ? currentIds.filter((selectedId) => selectedId !== id)
-            : [...currentIds, id];
-
-          return {
-            selectedItemIds: nextIds,
-            selectedItemId: nextIds.length > 0 ? nextIds[nextIds.length - 1] : null,
-          };
-        }),
+        set((state) => getNextSelectedIds(state.selectedItemIds ?? [], id, state.items)),
       clearSelectedItems: () => set({ selectedItemId: null, selectedItemIds: [] }),
       setViewingItem: (item) =>
         set((state) => {
@@ -755,43 +819,19 @@ export const useMetaverseStudioStore = create<AppState>()(
         }),
       openNextViewingItem: () =>
         set((state) => {
-          const paintings = state.items.filter((item) => item.type === "painting");
-          if (paintings.length === 0) return {};
-
-          if (!state.viewingItem) {
-            return { viewingItem: paintings[0] };
-          }
-
-          const currentIndex = paintings.findIndex(
-            (item) => item.id === state.viewingItem?.id,
-          );
-          const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % paintings.length;
-          return { viewingItem: paintings[nextIndex] };
+          const nextId = getNextViewingItemId(state.items, state.viewingItem?.id ?? null, "next");
+          if (!nextId) return {};
+          return { viewingItem: getViewingItemById(state.items, nextId) };
         }),
       openPrevViewingItem: () =>
         set((state) => {
-          const paintings = state.items.filter((item) => item.type === "painting");
-          if (paintings.length === 0) return {};
-
-          if (!state.viewingItem) {
-            return { viewingItem: paintings[paintings.length - 1] };
-          }
-
-          const currentIndex = paintings.findIndex(
-            (item) => item.id === state.viewingItem?.id,
-          );
-          const prevIndex =
-            currentIndex < 0
-              ? paintings.length - 1
-              : (currentIndex - 1 + paintings.length) % paintings.length;
-
-          return { viewingItem: paintings[prevIndex] };
+          const prevId = getNextViewingItemId(state.items, state.viewingItem?.id ?? null, "prev");
+          if (!prevId) return {};
+          return { viewingItem: getViewingItemById(state.items, prevId) };
         }),
       openViewingItemById: (id) =>
         set((state) => {
-          const target = state.items.find(
-            (item) => item.type === "painting" && item.id === id,
-          );
+          const target = getViewingItemById(state.items, id);
           if (!target) return {};
           return { viewingItem: target };
         }),
@@ -805,96 +845,9 @@ export const useMetaverseStudioStore = create<AppState>()(
         return createSnapshot(state);
       },
       importScene: (snapshot) =>
-        set((state) => {
-          const normalizedSnapshot = {
-            roomSize: {
-              wallColor: "#dbe7ff",
-              wallMaterialPreset: "paint" as const,
-              wallTextureUrl: "/textures/wall-paint.svg",
-              wallTextureTiling: 3,
-              wallRoughness: 0.35,
-              wallMetalness: 0.08,
-              wallBumpScale: 0.04,
-              wallEnvIntensity: 0.9,
-              wallOpacity: 0.98,
-              wallTransmission: 0,
-              wallIor: 1.45,
-              floorColor: "#0f172a",
-              floorTextureUrl: "/textures/wall-concrete.svg",
-              floorTextureTiling: 2.5,
-              floorRoughness: 0.55,
-              floorMetalness: 0.18,
-              environmentBrightness: 0.45,
-              ...snapshot.roomSize,
-            },
-            items: Array.isArray(snapshot.items)
-              ? snapshot.items.map((item: Partial<ExhibitItem>) => ({
-                  id: item.id || uuidv4(),
-                  type: (item.type as ExhibitItem["type"]) || "text",
-                  position: parseVec3(item.position, [0, 1.5, 0]),
-                  rotation: parseRotationVec3(item.rotation, [0, 0, 0]),
-                  scale: parseVec3(item.scale, [1, 1, 1]),
-                  content: normalizeImportedItemContent(
-                    ((item.type as ExhibitItem["type"]) || "text"),
-                    item.content,
-                  ),
-                  fileName: item.fileName,
-                  fileMimeType: item.fileMimeType,
-                  videoThumbnailUrl: item.videoThumbnailUrl,
-                  videoAutoplay: item.videoAutoplay,
-                  videoLoop: item.videoLoop,
-                  videoMuted: item.videoMuted,
-                  frameWidth: item.frameWidth,
-                  frameHeight: item.frameHeight,
-                  modelOffset: item.modelOffset,
-                  title: item.title,
-                  artist: item.artist,
-                  description: item.description,
-                  externalUrl: item.externalUrl,
-                  textFontFamily: item.textFontFamily,
-                  textColor: item.textColor,
-                  textFontSize: item.textFontSize,
-                  textIsBold: item.textIsBold,
-                  textBackboardEnabled: item.textBackboardEnabled,
-                  textBackboardColor: item.textBackboardColor,
-                  lightIntensity: item.lightIntensity,
-                  isLocked: item.isLocked,
-                }))
-              : [],
-            floorPlanElements: Array.isArray(snapshot.floorPlanElements)
-              ? snapshot.floorPlanElements.map((el: Partial<FloorPlanElement>) => ({
-                  id: el.id || uuidv4(),
-                  type: (el.type as FloorPlanElementType) || "wall",
-                  position: Array.isArray(el.position) && el.position.length === 3
-                    ? [Number(el.position[0]) || 0, Number(el.position[1]) || 0.1, Number(el.position[2]) || 0] as [number, number, number]
-                    : [0, 0.1, 0],
-                  rotation: Array.isArray(el.rotation) && el.rotation.length === 3
-                    ? [Number(el.rotation[0]) || 0, Number(el.rotation[1]) || 0, Number(el.rotation[2]) || 0] as [number, number, number]
-                    : [0, 0, 0],
-                  scale: Array.isArray(el.scale) && el.scale.length === 3
-                    ? [Number(el.scale[0]) || 1, Number(el.scale[1]) || 0.2, Number(el.scale[2]) || 1] as [number, number, number]
-                    : [1, 0.2, 1],
-                  color: el.color,
-                  isLocked: el.isLocked,
-                }))
-              : [],
-            wallMaterialOverrides:
-              snapshot.wallMaterialOverrides && typeof snapshot.wallMaterialOverrides === "object"
-                ? snapshot.wallMaterialOverrides
-                : {},
-          };
-
-          return withHistory(state, {
-            roomSize: normalizedSnapshot.roomSize,
-            items: normalizedSnapshot.items,
-            floorPlanElements: normalizedSnapshot.floorPlanElements,
-            wallMaterialOverrides: normalizedSnapshot.wallMaterialOverrides,
-            selectedItemId: null,
-            selectedItemIds: [],
-            selectedFloorPlanElementId: null,
-            viewingItem: null,
-          });
-        }),
+        set((state) => withHistory(state, createImportedSceneSnapshot(snapshot))),
+      syncSceneSnapshot: (snapshot) =>
+        set((state) => withHistory(state, createImportedSceneSnapshot(snapshot))),
       setSelectedWallFace: (face) =>
         set((state) => ({
           selectedWallFace: face,
@@ -917,6 +870,11 @@ export const useMetaverseStudioStore = create<AppState>()(
           const targetId = segmentId ?? state.selectedWallSegmentId;
           if (targetId) {
             const current = state.wallMaterialOverrides[targetId] || {};
+            const overrideChanged = Object.entries(updates).some(([key, value]) =>
+              !areUpdateValuesEqual(current[key as keyof WallMaterialSettings], value),
+            );
+            if (!overrideChanged) return {};
+
             return withHistory(state, {
               wallMaterialOverrides: {
                 ...state.wallMaterialOverrides,
@@ -927,6 +885,11 @@ export const useMetaverseStudioStore = create<AppState>()(
               },
             });
           }
+
+          const roomChanged = Object.entries(updates).some(([key, value]) =>
+            !areUpdateValuesEqual(state.roomSize[key as keyof RoomSize], value),
+          );
+          if (!roomChanged) return {};
 
           return withHistory(state, {
             roomSize: {
@@ -949,37 +912,34 @@ export const useMetaverseStudioStore = create<AppState>()(
         }),
       addFloorPlanElement: (type) =>
         set((state) => {
-          const sameTypeCount = state.floorPlanElements.filter((el) => el.type === type).length;
-
-          const position: [number, number, number] =
-            type === "room"
-              ? [state.roomSize.width / 2 + 6 + sameTypeCount * 3, 0.02, 0]
-              : [sameTypeCount * 1.5, 0.1, state.roomSize.length / 2 + 2];
-
-          const newElement: FloorPlanElement = {
-            id: uuidv4(),
-            type,
-            position,
-            rotation: [0, 0, 0],
-            scale: type === "room" ? [8, 0.04, 6] : [6, 0.2, 0.18],
-            color: type === "room" ? "#dbeafe" : "#9ca3af",
-            isLocked: type === "room" ? false : undefined,
-          };
-
+          const next = addFloorPlanElementAction(state)(type);
+          const nextFloorPlanElements = next.floorPlanElements ?? state.floorPlanElements;
           return withHistory(state, {
-            floorPlanElements: [...state.floorPlanElements, newElement],
-            selectedFloorPlanElementId: newElement.id,
-            floorPlanEditTarget: type === "room" ? "room" : "wall",
+            ...next,
+            ...(state.mode === "floor-plan"
+              ? createAppliedFloorPlan({
+                  ...state,
+                  floorPlanElements: nextFloorPlanElements,
+                })
+              : {}),
           });
         }),
       updateFloorPlanElement: (id, updates) =>
-        set((state) =>
-          withHistory(state, {
-            floorPlanElements: state.floorPlanElements.map((element) =>
-              element.id === id ? { ...element, ...updates } : element,
-            ),
-          }),
-        ),
+        set((state) => {
+          const nextFloorPlanElements = state.floorPlanElements.map((element) =>
+            element.id === id ? { ...element, ...updates } : element,
+          );
+
+          return withHistory(state, {
+            floorPlanElements: nextFloorPlanElements,
+            ...(state.mode === "floor-plan"
+              ? createAppliedFloorPlan({
+                  ...state,
+                  floorPlanElements: nextFloorPlanElements,
+                })
+              : {}),
+          });
+        }),
       removeFloorPlanElement: (id) =>
         set((state) => {
           const target = state.floorPlanElements.find((element) => element.id === id);
@@ -1001,12 +961,20 @@ export const useMetaverseStudioStore = create<AppState>()(
             }
           }
 
+          const nextFloorPlanElements = state.floorPlanElements.filter((element) => element.id !== id);
+
           return withHistory(state, {
-            floorPlanElements: state.floorPlanElements.filter((element) => element.id !== id),
+            floorPlanElements: nextFloorPlanElements,
             selectedFloorPlanElementId:
               state.selectedFloorPlanElementId === id
                 ? null
                 : state.selectedFloorPlanElementId,
+            ...(state.mode === "floor-plan"
+              ? createAppliedFloorPlan({
+                  ...state,
+                  floorPlanElements: nextFloorPlanElements,
+                })
+              : {}),
           });
         }),
       duplicateFloorPlanElement: (id) =>
@@ -1021,9 +989,17 @@ export const useMetaverseStudioStore = create<AppState>()(
             isLocked: false,
           };
 
+          const nextFloorPlanElements = [...state.floorPlanElements, duplicated];
+
           return withHistory(state, {
-            floorPlanElements: [...state.floorPlanElements, duplicated],
+            floorPlanElements: nextFloorPlanElements,
             selectedFloorPlanElementId: duplicated.id,
+            ...(state.mode === "floor-plan"
+              ? createAppliedFloorPlan({
+                  ...state,
+                  floorPlanElements: nextFloorPlanElements,
+                })
+              : {}),
           });
         }),
       setSelectedFloorPlanElementId: (id) => set({ selectedFloorPlanElementId: id }),
@@ -1032,163 +1008,35 @@ export const useMetaverseStudioStore = create<AppState>()(
           floorPlanEditTarget: target,
           selectedFloorPlanElementId:
             state.selectedFloorPlanElementId &&
-            state.floorPlanElements.some(
-              (el) => {
-                const normalizedType: "room" | "wall" =
-                  el.type === "room" ? "room" : "wall";
-                return (
-                  el.id === state.selectedFloorPlanElementId &&
-                  normalizedType === target
-                );
-              },
-            )
+            selectRoomTargetId(state.selectedFloorPlanElementId, state.floorPlanElements) === target
               ? state.selectedFloorPlanElementId
               : null,
         })),
       setFloorPlanIsTransforming: (transforming) =>
         set({ floorPlanIsTransforming: transforming }),
       applyFloorPlanToEdit: () =>
-        set((state) => {
-          const roomElements = state.floorPlanElements.filter((el) => el.type === "room");
-          const wallElements = state.floorPlanElements.filter(
-            (el) => el.type === "wall" || el.type === "partition",
-          );
-
-          let nextRoomSize = state.roomSize;
-
-          const anchorRoom =
-            roomElements.find((room) => room.isLocked) || roomElements[0] || null;
-
-          if (anchorRoom) {
-            nextRoomSize = {
-              ...state.roomSize,
-              width: Math.max(6, Math.round(Math.abs(anchorRoom.scale[0]) * 10) / 10),
-              length: Math.max(6, Math.round(Math.abs(anchorRoom.scale[2]) * 10) / 10),
-            };
-          }
-
-          const nonPartitionItems = state.items.filter((item) => item.type !== "partition");
-
-          const manualPartitionItems: ExhibitItem[] = wallElements.map((wall) => ({
-            id: uuidv4(),
-            type: "partition",
-            position: [wall.position[0], nextRoomSize.height / 2, wall.position[2]],
-            rotation: [0, wall.rotation[1] || 0, 0],
-            scale: [Math.max(0.1, Math.abs(wall.scale[0])), nextRoomSize.height, Math.max(0.1, Math.abs(wall.scale[2]))],
-            content: wall.color || "#f3f4f6",
-            isLocked: false,
-          }));
-
-          return withHistory(state, {
-            roomSize: nextRoomSize,
-            items: [...nonPartitionItems, ...manualPartitionItems],
-          });
-        }),
+        set((state) => withHistory(state, createAppliedFloorPlan(state))),
       syncEditToFloorPlan: () =>
         set((state) => {
-          const existingRooms = state.floorPlanElements.filter((el) => el.type === "room");
-          const existingWalls = state.floorPlanElements.filter((el) => el.type === "wall");
-
-          const roomElement: FloorPlanElement = {
-            id: existingRooms[0]?.id || uuidv4(),
-            type: "room",
-            position: [0, 0.02, 0],
-            rotation: [0, 0, 0],
-            scale: [state.roomSize.width, 0.04, state.roomSize.length],
-            color: existingRooms[0]?.color || "#dbeafe",
-            isLocked: true,
-          };
-
-          const partitions = state.items.filter((item) => item.type === "partition");
-          const usedWallIds = new Set<string>();
-
-          const wallElements: FloorPlanElement[] = partitions.map((item) => {
-            const targetX = item.position[0];
-            const targetZ = item.position[2];
-            const targetRY = item.rotation[1] || 0;
-            const targetSX = Math.max(0.1, Math.abs(item.scale[0]));
-            const targetSZ = Math.max(0.1, Math.abs(item.scale[2]));
-
-            let bestMatch: FloorPlanElement | undefined;
-            let bestScore = Number.POSITIVE_INFINITY;
-
-            for (const wall of existingWalls) {
-              if (usedWallIds.has(wall.id)) continue;
-              const dx = wall.position[0] - targetX;
-              const dz = wall.position[2] - targetZ;
-              const dr = (wall.rotation[1] || 0) - targetRY;
-              const dsx = Math.abs(Math.abs(wall.scale[0]) - targetSX);
-              const dsz = Math.abs(Math.abs(wall.scale[2]) - targetSZ);
-
-              const score = dx * dx + dz * dz + Math.abs(dr) * 0.3 + dsx * 0.2 + dsz * 0.2;
-              if (score < bestScore) {
-                bestScore = score;
-                bestMatch = wall;
-              }
-            }
-
-            if (bestMatch) {
-              usedWallIds.add(bestMatch.id);
-            }
-
-            return {
-              id: bestMatch?.id || uuidv4(),
-              type: "wall",
-              position: [targetX, 0.1, targetZ],
-              rotation: [0, targetRY, 0],
-              scale: [targetSX, 0.2, targetSZ],
-              color: item.content || bestMatch?.color || "#9ca3af",
-            };
-          });
-
+          const synced = createSyncedFloorPlan(state);
           return withHistory(state, {
-            floorPlanElements: [roomElement, ...wallElements],
-            selectedFloorPlanElementId:
-              state.selectedFloorPlanElementId &&
-              [roomElement, ...wallElements].some((el) => el.id === state.selectedFloorPlanElementId)
-                ? state.selectedFloorPlanElementId
-                : null,
+            ...synced,
+            floorPlanElements: synced.floorPlanElements,
           });
         }),
       undo: () =>
         set((state) => {
           const undoStack = state.undoStack ?? [];
           const redoStack = state.redoStack ?? [];
-          const previous = undoStack[undoStack.length - 1];
-          if (!previous) return {};
-
-          const current = createSnapshot(state);
-          return {
-            roomSize: previous.roomSize,
-            items: previous.items,
-            floorPlanElements: previous.floorPlanElements,
-            wallMaterialOverrides: previous.wallMaterialOverrides,
-            selectedItemId: null,
-            selectedItemIds: [],
-            selectedFloorPlanElementId: null,
-            undoStack: undoStack.slice(0, -1),
-            redoStack: [...redoStack, current].slice(-MAX_HISTORY),
-          };
+          const patch = createUndoRedoPatch(state, "undo", undoStack, redoStack);
+          return patch || {};
         }),
       redo: () =>
         set((state) => {
           const undoStack = state.undoStack ?? [];
           const redoStack = state.redoStack ?? [];
-          const next = redoStack[redoStack.length - 1];
-          if (!next) return {};
-
-          const current = createSnapshot(state);
-          return {
-            roomSize: next.roomSize,
-            items: next.items,
-            floorPlanElements: next.floorPlanElements,
-            wallMaterialOverrides: next.wallMaterialOverrides,
-            selectedItemId: null,
-            selectedItemIds: [],
-            selectedFloorPlanElementId: null,
-            undoStack: [...undoStack, current].slice(-MAX_HISTORY),
-            redoStack: redoStack.slice(0, -1),
-          };
+          const patch = createUndoRedoPatch(state, "redo", undoStack, redoStack);
+          return patch || {};
         }),
       applySciFiTheme: () =>
         set((state) =>
@@ -1248,28 +1096,66 @@ export const useMetaverseStudioStore = create<AppState>()(
       setAllLightStripsIntensity: (intensity) =>
         set((state) => {
           const clamped = Math.max(0.1, Math.min(1.2, intensity));
+          let changed = false;
+          const nextItems = state.items.map((item) => {
+            if (item.type !== "lightstrip" || item.lightIntensity === clamped) return item;
+            changed = true;
+            return { ...item, lightIntensity: clamped };
+          });
+          if (!changed) return {};
+
           return withHistory(state, {
-            items: state.items.map((item) =>
-              item.type === "lightstrip" ? { ...item, lightIntensity: clamped } : item,
-            ),
+            items: nextItems,
           });
         }),
       setAllPaintingFrameSize: (width, height) =>
         set((state) => {
           const clampedWidth = Math.max(0.8, Math.min(6, width));
           const clampedHeight = Math.max(0.6, Math.min(4, height));
+          let changed = false;
+          const nextItems = state.items.map((item) => {
+            if (
+              item.type !== "painting" ||
+              (item.frameWidth === clampedWidth && item.frameHeight === clampedHeight)
+            ) {
+              return item;
+            }
+
+            changed = true;
+            return { ...item, frameWidth: clampedWidth, frameHeight: clampedHeight };
+          });
+          if (!changed) return {};
+
           return withHistory(state, {
-            items: state.items.map((item) =>
-              item.type === "painting"
-                ? { ...item, frameWidth: clampedWidth, frameHeight: clampedHeight }
-                : item,
-            ),
+            items: nextItems,
+          });
+        }),
+      editorThemePresets: defaultEditorThemePresets,
+      setEditorThemePresets: (presets) => set({ editorThemePresets: presets }),
+      addEditorThemePreset: (preset) =>
+        set((state) => ({
+          editorThemePresets: [...state.editorThemePresets, preset],
+        })),
+      removeEditorThemePreset: (presetId) =>
+        set((state) => ({
+          editorThemePresets: state.editorThemePresets.filter((preset) => preset.id !== presetId),
+        })),
+      applyEditorThemePreset: (presetId) =>
+        set((state) => {
+          const preset = state.editorThemePresets.find((item) => item.id === presetId);
+          if (!preset) return {};
+          return withHistory(state, {
+            roomSize: {
+              ...state.roomSize,
+              ...preset.settings,
+            },
           });
         }),
     }),
     {
       name: "metaverse-exhibition-storage",
       version: 7,
+
       migrate: (persistedState: any, version) => {
         if (!persistedState || typeof persistedState !== "object") return persistedState;
 
@@ -1294,6 +1180,9 @@ export const useMetaverseStudioStore = create<AppState>()(
             floorMetalness: 0.18,
             ...(persistedState.roomSize || {}),
           },
+          editorThemePresets: Array.isArray(persistedState.editorThemePresets) && persistedState.editorThemePresets.length > 0
+            ? persistedState.editorThemePresets.filter((preset: any) => preset && typeof preset.id === "string" && typeof preset.name === "string" && preset.settings && typeof preset.settings === "object")
+            : defaultEditorThemePresets,
           performanceMode: normalizeStoredPerformanceMode(
             persistedState.performanceMode,
           ),
@@ -1347,18 +1236,6 @@ export const useMetaverseStudioStore = create<AppState>()(
         floorPlanElements: state.floorPlanElements,
         wallMaterialOverrides: sanitizeWallOverridesForPersist(state.wallMaterialOverrides),
         performanceMode: state.performanceMode,
-        undoStack: (state.undoStack ?? []).map((snapshot) => ({
-          ...snapshot,
-          roomSize: sanitizeRoomSizeForPersist(snapshot.roomSize),
-          items: sanitizeItemsForPersist(snapshot.items),
-          wallMaterialOverrides: sanitizeWallOverridesForPersist(snapshot.wallMaterialOverrides),
-        })),
-        redoStack: (state.redoStack ?? []).map((snapshot) => ({
-          ...snapshot,
-          roomSize: sanitizeRoomSizeForPersist(snapshot.roomSize),
-          items: sanitizeItemsForPersist(snapshot.items),
-          wallMaterialOverrides: sanitizeWallOverridesForPersist(snapshot.wallMaterialOverrides),
-        })),
       }),
     },
   ),

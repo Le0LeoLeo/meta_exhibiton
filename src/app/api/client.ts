@@ -6,6 +6,7 @@ export * from './growth';
 export * from './agent';
 export * from './tts';
 export * from './aiWriting';
+export * from './exhibitionScene';
 export * from './visitorMemory';
 
 function encodeWavSilence(durationSeconds = 0.75, sampleRate = 16000) {

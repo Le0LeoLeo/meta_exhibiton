@@ -67,7 +67,7 @@ export default function CompetitionAdmin() {
   const loadEntries = async (competitionId: string) => {
     const { token } = loadAuth();
     if (!token) {
-      toast.error('請先登入');
+      toast.error(t('caLoginFirst'));
       return;
     }
 
@@ -190,7 +190,7 @@ export default function CompetitionAdmin() {
 
         <div className="grid gap-8 lg:grid-cols-[320px,1fr]">
           <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="px-3 py-2 text-lg font-medium text-slate-900">我主辦的比賽</h2>
+            <h2 className="px-3 py-2 text-lg font-medium text-slate-900">{t('caMyCompetitions')}</h2>
             <div className="space-y-2">
               {competitions.map((competition) => (
                 <button
@@ -200,11 +200,11 @@ export default function CompetitionAdmin() {
                   className={`w-full rounded-2xl border px-4 py-3 text-left transition ${selectedCompetitionId === competition.id ? 'border-violet-400 bg-violet-50' : 'border-slate-200 hover:border-slate-300'}`}
                 >
                   <p className="font-medium text-slate-900">{competition.title}</p>
-                  <p className="mt-1 text-xs text-slate-500">{STATUS_LABELS[competition.status]} · {competition.isPublic ? '公開' : '私人'}</p>
-                  <p className="mt-1 text-xs text-slate-500">主場：{competition.hostGallery?.title || '未命名展覽'}</p>
+                  <p className="mt-1 text-xs text-slate-500">{t(STATUS_LABELS[competition.status])} · {competition.isPublic ? t('caPublic') : t('caPrivate')}</p>
+                  <p className="mt-1 text-xs text-slate-500">{t('caHomeGallery')}{competition.hostGallery?.title || t('caNoName')}</p>
                 </button>
               ))}
-              {competitions.length === 0 ? <p className="px-3 py-2 text-sm text-slate-500">你尚未主辦任何比賽。</p> : null}
+              {competitions.length === 0 ? <p className="px-3 py-2 text-sm text-slate-500">{t('caNoCompetitions')}</p> : null}
             </div>
           </div>
 
@@ -219,27 +219,27 @@ export default function CompetitionAdmin() {
                   <div className="flex flex-wrap gap-2">
                     {(['draft', 'open', 'closed', 'judging', 'completed'] as Competition['status'][]).map((status) => (
                       <Button key={status} variant={selectedCompetition.status === status ? 'default' : 'outline'} onClick={() => void handleUpdateStatus(selectedCompetition, status)}>
-                        {STATUS_LABELS[status]}
+                        {t(STATUS_LABELS[status])}
                       </Button>
                     ))}
                     <Button variant="outline" onClick={() => void handleTogglePublish(selectedCompetition)}>
-                      {selectedCompetition.isPublic ? '取消發佈' : '發佈比賽'}
+                      {selectedCompetition.isPublic ? t('caUnpublish') : t('caPublish')}
                     </Button>
                   </div>
                 </div>
                 <div className="mt-4 text-sm text-slate-500">
-                  <p>主場展覽：{selectedCompetition.hostGallery?.title || selectedCompetition.hostGalleryId}</p>
-                  <p>發佈狀態：{selectedCompetition.isPublic ? '公開中' : '已取消發佈'}</p>
-                  <p>報名截止：{new Date(selectedCompetition.registrationDeadline).toLocaleString('zh-TW')}</p>
-                  <p>投票截止：{selectedCompetition.votingDeadline ? new Date(selectedCompetition.votingDeadline).toLocaleString('zh-TW') : '未設定'}</p>
+                  <p>{t('caHostGallery')}{selectedCompetition.hostGallery?.title || selectedCompetition.hostGalleryId}</p>
+                  <p>{t('caPublishStatus')}{selectedCompetition.isPublic ? t('caPublicVisible') : t('caPublishedHidden')}</p>
+                  <p>{t('caRegDeadline')}{new Date(selectedCompetition.registrationDeadline).toLocaleString('zh-TW')}</p>
+                  <p>{t('caVoteDeadline')}{selectedCompetition.votingDeadline ? new Date(selectedCompetition.votingDeadline).toLocaleString('zh-TW') : t('caNotSet')}</p>
                 </div>
 
                 <div className="mt-6 rounded-2xl border border-slate-200 p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-lg font-semibold text-slate-900">投稿欄位設定</h3>
+                    <h3 className="text-lg font-semibold text-slate-900">{t('caFieldSettings')}</h3>
                     <div className="flex gap-2">
-                      <Button variant="outline" onClick={addField}><Plus className="mr-2 size-4" /> 新增欄位</Button>
-                      <Button onClick={() => void handleUpdateFields()} disabled={savingFields}>{savingFields ? '儲存中...' : '儲存欄位'}</Button>
+                      <Button variant="outline" onClick={addField}><Plus className="mr-2 size-4" /> {t('caAddField')}</Button>
+                      <Button onClick={() => void handleUpdateFields()} disabled={savingFields}>{savingFields ? t('caSaving') : t('caSaveFields')}</Button>
                     </div>
                   </div>
                   <div className="mt-4 grid gap-4 lg:grid-cols-[1.3fr,0.9fr]">
@@ -251,27 +251,27 @@ export default function CompetitionAdmin() {
                         >
                           <div className="flex items-center gap-2">
                             <div className="flex-1 grid gap-3 md:grid-cols-[1fr,1fr,140px,100px,auto]">
-                              <Input value={field.label} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, label: e.target.value } : item))} placeholder="顯示名稱" />
+                              <Input value={field.label} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, label: e.target.value } : item))} placeholder={t('caLabelPlaceholder')} />
                               <select value={field.type} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, type: e.target.value as 'text' | 'textarea' | 'file' } : item))} className="h-10 rounded-md border border-slate-200 px-3 text-sm">
-                                <option value="text">文字</option>
-                                <option value="textarea">多行文字</option>
-                                <option value="file">檔案上傳</option>
+                                <option value="text">{t('caTypeText')}</option>
+                                <option value="textarea">{t('caTypeTextarea')}</option>
+                                <option value="file">{t('caTypeFile')}</option>
                               </select>
-                              <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={field.required} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, required: e.target.checked } : item))} /> 必填</label>
+                              <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={field.required} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, required: e.target.checked } : item))} /> {t('caRequired')}</label>
                               <Button variant="outline" onClick={() => removeField(field.id)}><Trash2 className="size-4" /></Button>
-                              <div className="md:col-span-5 space-y-3"><Input value={field.placeholder} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, placeholder: e.target.value } : item))} placeholder="提示文字 / placeholder" />{field.type === 'file' ? <div className="grid gap-2 md:grid-cols-2"><Input value={field.accept} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, accept: e.target.value } : item))} placeholder="accept，例如 image/*,.pdf" /><label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={field.multiple} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, multiple: e.target.checked } : item))} /> 可多選</label></div> : null}</div>
+                              <div className="md:col-span-5 space-y-3"><Input value={field.placeholder} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, placeholder: e.target.value } : item))} placeholder={t('caPlaceholderLabel')} />{field.type === 'file' ? <div className="grid gap-2 md:grid-cols-2"><Input value={field.accept} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, accept: e.target.value } : item))} placeholder={t('caAcceptPlaceholder')} /><label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={field.multiple} onChange={(e) => setDraftFields((prev) => prev.map((item, idx) => idx === index ? { ...item, multiple: e.target.checked } : item))} /> {t('caMultiSelect')}</label></div> : null}</div>
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
                     <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
-                      <h4 className="text-sm font-semibold text-slate-900">投稿表單預覽</h4>
+                      <h4 className="text-sm font-semibold text-slate-900">{t('caFormPreview')}</h4>
                       <div className="mt-4 space-y-3">
                         {draftFields.map((field) => field.id === 'galleryId' ? null : (
                           <div key={field.id} className="space-y-1.5">
                             <div className="text-sm font-medium text-slate-700">{field.label} {field.required ? '*' : ''}</div>
-                            {field.type === 'textarea' ? <div className="min-h-[84px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400">{field.placeholder || field.label}</div> : field.type === 'file' ? <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400">檔案上傳</div> : <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400">{field.placeholder || field.label}</div>}
+                            {field.type === 'textarea' ? <div className="min-h-[84px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400">{field.placeholder || field.label}</div> : field.type === 'file' ? <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400">{t('caTypeFile')}</div> : <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400">{field.placeholder || field.label}</div>}
                           </div>
                         ))}
                       </div>
@@ -282,17 +282,17 @@ export default function CompetitionAdmin() {
             ) : null}
 
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-2xl font-semibold text-slate-950">參賽資料</h3>
+              <h3 className="text-2xl font-semibold text-slate-950">{t('caEntries')}</h3>
               <div className="mt-4 space-y-4">
                 {entries.map((entry) => (
                   <div key={entry.id} className="rounded-2xl border border-slate-200 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <p className="text-lg font-medium text-slate-900">{entry.gallery?.title || '未命名作品'}</p>
-                        <p className="mt-1 text-sm text-slate-500">參賽者：{entry.ownerName || '匿名'} · 票數：{entry.voteCount}</p>
+                        <p className="text-lg font-medium text-slate-900">{entry.gallery?.title || t('caNoName')}</p>
+                        <p className="mt-1 text-sm text-slate-500">{t('caEntryOwner')}{entry.ownerName || t('caAnonymous')} · {t('caVotes')}{entry.voteCount}</p>
                         {entry.statement ? <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{entry.statement}</p> : null}
                         <div className="mt-3 space-y-2 rounded-2xl bg-slate-50 p-4">
-                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">投稿內容</p>
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t('caSubmissionContent')}</p>
                           {entry.submission && Object.keys(entry.submission).length > 0 ? (
                             <div className="space-y-2 text-sm text-slate-700">
                               {Object.entries(entry.submission).map(([key, value]) => (
@@ -303,24 +303,24 @@ export default function CompetitionAdmin() {
                               ))}
                             </div>
                           ) : (
-                            <p className="text-sm text-slate-500">沒有額外投稿內容。</p>
+                            <p className="text-sm text-slate-500">{t('caNoSubmission')}</p>
                           )}
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => void handleReviewEntry(entry.id, { status: 'approved' })}>核准</Button>
-                        <Button size="sm" variant="outline" onClick={() => void handleReviewEntry(entry.id, { status: 'rejected' })}>退件</Button>
+                        <Button size="sm" variant="outline" onClick={() => void handleReviewEntry(entry.id, { status: 'approved' })}>{t('caApprove')}</Button>
+                        <Button size="sm" variant="outline" onClick={() => void handleReviewEntry(entry.id, { status: 'rejected' })}>{t('caReject')}</Button>
                         <Button size="sm" onClick={() => {
-                          const raw = window.prompt('設定名次', entry.rank ? String(entry.rank) : '');
+                          const raw = window.prompt(t('caSetRank'), entry.rank ? String(entry.rank) : '');
                           if (raw === null) return;
                           const rank = raw.trim() ? Number(raw) : null;
                           void handleReviewEntry(entry.id, { rank: Number.isFinite(rank as number) ? rank : null });
-                        }}>設定名次</Button>
+                        }}>{t('caSetRank')}</Button>
                       </div>
                     </div>
                   </div>
                 ))}
-                {entries.length === 0 ? <p className="text-sm text-slate-500">目前沒有參賽資料。</p> : null}
+                {entries.length === 0 ? <p className="text-sm text-slate-500">{t('caNoEntries')}</p> : null}
               </div>
             </div>
           </div>

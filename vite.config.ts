@@ -1,9 +1,10 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { getManualChunk } from './config/manualChunks'
 
-const apiTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:5175'
+const apiTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:5176'
 const wsTarget = process.env.VITE_WS_PROXY_TARGET || 'http://localhost:3001'
 
 export default defineConfig({
@@ -29,6 +30,18 @@ export default defineConfig({
         target: wsTarget,
         changeOrigin: true,
         ws: true,
+      },
+    },
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    restoreMocks: true,
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: getManualChunk,
       },
     },
   },

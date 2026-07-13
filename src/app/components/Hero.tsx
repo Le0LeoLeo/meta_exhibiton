@@ -11,9 +11,9 @@ export function Hero() {
   const { t } = useI18n();
   const [videoOpen, setVideoOpen] = useState(false);
   const quickStats = [
-    { icon: ImagePlus, label: '\u4f5c\u54c1\u7d20\u6750', value: 'PDF / IMG / Video' },
-    { icon: Boxes, label: '3D \u5c55\u9593', value: '\u62d6\u653e\u4f48\u7f6e' },
-    { icon: UsersRound, label: '\u5206\u4eab\u53c3\u89c0', value: '\u516c\u958b\u9023\u7d50' },
+    { icon: ImagePlus, label: t('heroQuickWork'), value: t('heroQuickWorkFormat') },
+    { icon: Boxes, label: t('heroQuickRoom'), value: t('heroQuickRoomAction') },
+    { icon: UsersRound, label: t('featureInteractTitle'), value: t('heroQuickShareAction') },
   ];
   const workflowChips = [t('featureSceneTitle'), t('featureMoveTitle'), t('featureInteractTitle')];
 

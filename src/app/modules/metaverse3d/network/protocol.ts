@@ -1,8 +1,16 @@
 export type Vec3 = { x: number; y: number; z: number };
 
+export type MultiplayerRole = "viewer" | "participant" | "editor" | "owner";
+
+export type RoomErrorPayload = {
+  code: string;
+  message: string;
+};
+
 export type RoomJoinPayload = {
   roomId: string;
   nickname: string;
+  shareToken?: string;
 };
 
 export type PlayerMovePayload = {
@@ -25,6 +33,7 @@ export type PlayerSnapshot = {
 export type RoomJoinedPayload = {
   selfId: string;
   roomId: string;
+  role: MultiplayerRole;
   players: PlayerSnapshot[];
 };
 
@@ -80,6 +89,8 @@ export type SceneSyncPayload = {
 
 export type SceneOp =
   | { kind: "set-room"; roomSize: any }
+  | { kind: "set-floor-plan"; floorPlanElements: any[] }
+  | { kind: "set-wall-material-overrides"; wallMaterialOverrides: Record<string, any> }
   | { kind: "add-item"; item: any }
   | { kind: "update-item"; id: string; updates: Record<string, any> }
   | { kind: "remove-item"; id: string };

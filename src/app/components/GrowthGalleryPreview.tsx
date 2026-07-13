@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
 import { ChevronRight, Move3d, Sparkles } from 'lucide-react';
 import type { GrowthAsset } from '../api/client';
+import { useI18n } from './I18nProvider';
 
 type FrameProps = {
   asset: GrowthAsset;
@@ -123,6 +124,7 @@ function useCoarsePointer() {
 }
 
 export function GrowthGalleryPreview({ assets, immersive = false, onSelectAsset }: GrowthGalleryPreviewProps) {
+  const { t } = useI18n();
   const [walkMode, setWalkMode] = useState(immersive);
   const visibility = useDocumentVisibility();
   const isCoarsePointer = useCoarsePointer();
@@ -148,13 +150,13 @@ export function GrowthGalleryPreview({ assets, immersive = false, onSelectAsset 
             <Sparkles className="size-4" />
           </span>
           <div>
-            <p className="text-sm font-medium text-slate-900">3D 自動佈展預覽</p>
-            <p className="text-xs text-slate-500">素材會自動成列於展牆，形成乾淨的沉浸式畫面</p>
+            <p className="text-sm font-medium text-slate-900">{t('ggp.title')}</p>
+            <p className="text-xs text-slate-500">{t('ggp.subtitle')}</p>
           </div>
         </div>
         <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 sm:flex">
           <Move3d className="size-3.5" />
-          <span>{walkMode ? 'WASD 移動' : '滑鼠旋轉'}</span>
+          <span>{walkMode ? t('ggp.wasd') : t('ggp.mouseRotate')}</span>
         </div>
       </div>
 
@@ -215,14 +217,14 @@ export function GrowthGalleryPreview({ assets, immersive = false, onSelectAsset 
 
         <div className="pointer-events-none absolute inset-x-4 bottom-4 flex items-end justify-between gap-4">
           <div className="pointer-events-auto max-w-sm rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-xs text-slate-600 shadow-lg backdrop-blur-xl">
-            {frames.length > 0 ? '點擊作品可查看大圖，使用滑鼠或 WASD 在展廳中移動。' : '目前沒有素材，加入照片後這裡會自動變成展覽牆。'}
+            {frames.length > 0 ? t('ggp.clickHint') : t('ggp.emptyHint')}
           </div>
           <button
             type="button"
             onClick={() => setWalkMode((v) => !v)}
             className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
-            切換 {walkMode ? '滑鼠旋轉' : 'WASD'}
+            {t(walkMode ? 'ggp.mouseRotate' : 'ggp.wasd')}
             <ChevronRight className="size-3.5" />
           </button>
         </div>

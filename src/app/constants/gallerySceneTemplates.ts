@@ -1,4 +1,4 @@
-import type { ExhibitItem, FloorPlanElement, RoomSize, WallMaterialSettings } from '../modules/metaverse3d/types';
+import type { ExhibitItem, FloorPlanElement, RoomSize, WallMaterialSettings } from '../features/metaverse-studio';
 
 type SceneSnapshot = {
   roomSize: RoomSize;

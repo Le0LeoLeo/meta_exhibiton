@@ -9,19 +9,24 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8, 'newPassword must be at least 8 characters'),
 });
 
+const noRateLimit = (_req, _res, next) => next();
+
 export function registerAuthRoutes(app, deps) {
   const {
     requireAuth,
     signToken,
+    authLimiter = noRateLimit,
     getUserByEmail,
     insertUser,
     getUserById,
     updateUserName,
     updateUserPasswordHash,
     deleteUserById,
+    listGrowthAssetContentUrlsByOwnerId,
+    deleteGrowthAssetFiles,
   } = deps;
 
-  app.post('/api/auth/register', async (req, res) => {
+  app.post('/api/auth/register', authLimiter, async (req, res) => {
     try {
       const { email, password, name } = req.body || {};
 
@@ -60,7 +65,7 @@ export function registerAuthRoutes(app, deps) {
     }
   });
 
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', authLimiter, async (req, res) => {
     try {
       const { email, password } = req.body || {};
 
@@ -166,7 +171,13 @@ export function registerAuthRoutes(app, deps) {
     if (!payload) return;
 
     try {
+      const growthAssetUrls = await listGrowthAssetContentUrlsByOwnerId(payload.sub);
       await deleteUserById(payload.sub);
+      try {
+        await deleteGrowthAssetFiles(growthAssetUrls);
+      } catch (cleanupError) {
+        console.error('[auth] failed to clean up deleted user growth media', cleanupError);
+      }
       res.json({ ok: true });
     } catch (err) {
       console.error(err);
