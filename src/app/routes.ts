@@ -22,6 +22,7 @@ export const router = createBrowserRouter([
       { path: 'support', lazy: lazyPage(() => import('./pages/Support')) },
       { path: 'login', lazy: lazyPage(() => import('./pages/Login')) },
       { path: 'register', lazy: lazyPage(() => import('./pages/Register')) },
+      { path: 'avatar', lazy: lazyPage(() => import('./pages/AvatarCustomizer')) },
       { path: 'solutions', lazy: lazyPage(() => import('./pages/Solutions')) },
       { path: 'resources', lazy: lazyPage(() => import('./pages/Resources')) },
       { path: 'competitions', lazy: lazyPage(() => import('./pages/Competitions')) },

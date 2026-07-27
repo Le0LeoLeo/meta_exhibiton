@@ -227,6 +227,23 @@ export default function Profile() {
                 </div>
 
                 {/* 編輯姓名 */}
+                <div className="flex flex-col gap-4 rounded-md border border-border bg-secondary p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">
+                      {t('avatarCustomizerTitle')}
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {t('avatarCustomizerDescription')}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {me.avatarAppearance.hair} · {me.avatarAppearance.top} · {me.avatarAppearance.accessory}
+                    </p>
+                  </div>
+                  <Button type="button" onClick={() => navigate('/avatar')}>
+                    {t('avatarCustomizeAction')}
+                  </Button>
+                </div>
+
                 <div className="border-t border-border pt-6">
                   <h2 className="mb-3 text-lg font-semibold text-foreground">{t('profileEditName')}</h2>
                   <p className="mb-3 text-sm text-muted-foreground">
