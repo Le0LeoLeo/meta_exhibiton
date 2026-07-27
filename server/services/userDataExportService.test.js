@@ -14,7 +14,10 @@ describe('exportUserData', () => {
   beforeEach(async () => {
     database = new sqlite3.Database(':memory:');
     await exec(database, `
-      CREATE TABLE users (id TEXT, email TEXT, name TEXT, password_hash TEXT, created_at TEXT);
+      CREATE TABLE users (
+        id TEXT, email TEXT, name TEXT, password_hash TEXT, created_at TEXT,
+        avatar_appearance_json TEXT
+      );
       CREATE TABLE galleries (
         id TEXT, owner_id TEXT, title TEXT, description TEXT, template_title TEXT,
         template_image TEXT, category TEXT, scene_json TEXT, created_at TEXT, updated_at TEXT,
@@ -66,8 +69,11 @@ describe('exportUserData', () => {
       );
 
       INSERT INTO users VALUES
-        ('owner-1', 'owner@example.com', 'Owner', 'password-secret', '2026-01-01'),
-        ('other-1', 'other@example.com', 'Other', 'other-password', '2026-01-02');
+        (
+          'owner-1', 'owner@example.com', 'Owner', 'password-secret', '2026-01-01',
+          '{"version":1,"body":"body01","head":"head01","hair":"hair02","top":"top03","bottom":"bottom01","shoes":"shoes01","accessory":"glasses01","colors":{"skin":"skin02","hair":"hairBrown","top":"violet","bottom":"charcoal","shoes":"black"}}'
+        ),
+        ('other-1', 'other@example.com', 'Other', 'other-password', '2026-01-02', NULL);
       INSERT INTO galleries VALUES
         ('gallery-1', 'owner-1', 'Mine', 'Description', 'Template', 'image.jpg', 'school',
          '{"assetUrl":"/api/media/1?accessToken=scene-secret","accessToken":"nested-secret"}',
@@ -101,6 +107,12 @@ describe('exportUserData', () => {
 
     expect(result.profile).toEqual({
       id: 'owner-1', email: 'owner@example.com', name: 'Owner', created_at: '2026-01-01',
+      avatarAppearance: expect.objectContaining({
+        version: 1,
+        hair: 'hair02',
+        top: 'top03',
+        accessory: 'glasses01',
+      }),
     });
     expect(result.galleries.map(({ id }) => id)).toEqual(['gallery-1']);
     expect(result.mediaAssets.map(({ id }) => id)).toEqual(['media-1']);

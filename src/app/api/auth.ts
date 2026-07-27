@@ -1,10 +1,15 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from './base';
 import { apiFetch } from './request';
+import {
+  normalizeAvatarAppearance,
+  type AvatarAppearanceV1,
+} from '../modules/metaverse3d/avatar/avatarAppearance';
 
 export type AuthUser = {
   id: string;
   email: string;
   name: string;
+  avatarAppearance: AvatarAppearanceV1;
 };
 
 export type AuthResponse = {
@@ -14,6 +19,33 @@ export type AuthResponse = {
 
 let inMemoryAuth: AuthResponse | null = null;
 const authListeners = new Set<() => void>();
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeAuthResponse(value: unknown): AuthResponse {
+  if (!isRecord(value) || typeof value.token !== 'string' || !isRecord(value.user)) {
+    throw new Error('Invalid authentication response');
+  }
+  const { user } = value;
+  if (
+    typeof user.id !== 'string'
+    || typeof user.email !== 'string'
+    || typeof user.name !== 'string'
+  ) {
+    throw new Error('Invalid authentication response');
+  }
+  return {
+    token: value.token,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatarAppearance: normalizeAvatarAppearance(user.avatarAppearance),
+    },
+  };
+}
 
 function notifyAuthListeners() {
   for (const listener of authListeners) listener();
@@ -33,7 +65,7 @@ export async function registerUser(payload: { name: string; email: string; passw
 
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '註冊失敗');
-  return data as AuthResponse;
+  return normalizeAuthResponse(data);
 }
 
 export async function loginUser(payload: { email: string; password: string }): Promise<AuthResponse> {
@@ -45,7 +77,7 @@ export async function loginUser(payload: { email: string; password: string }): P
 
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '登入失敗');
-  return data as AuthResponse;
+  return normalizeAuthResponse(data);
 }
 
 export function saveAuth(auth: AuthResponse, opts?: { remember?: boolean }) {
@@ -89,7 +121,7 @@ export async function getMe(token?: string | null): Promise<AuthResponse> {
     error.status = res.status;
     throw error;
   }
-  return data as AuthResponse;
+  return normalizeAuthResponse(data);
 }
 
 export async function updateMyName(token: string, name: string): Promise<AuthResponse> {
@@ -100,7 +132,7 @@ export async function updateMyName(token: string, name: string): Promise<AuthRes
   });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '更新姓名失敗');
-  return data as AuthResponse;
+  return normalizeAuthResponse(data);
 }
 
 export async function changePassword(token: string, payload: { currentPassword: string; newPassword: string }): Promise<{ ok: true }> {
@@ -122,6 +154,21 @@ export async function deleteMyAccount(token: string): Promise<{ ok: true }> {
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '刪除帳號失敗');
   return data as { ok: true };
+}
+
+export async function updateMyAvatar(
+  token: string,
+  appearance: AvatarAppearanceV1,
+): Promise<{ avatarAppearance: AvatarAppearanceV1 }> {
+  const res = await apiFetch(apiUrl('/api/users/me/avatar'), {
+    method: 'PUT',
+    headers: authHeaders(token),
+    body: JSON.stringify(appearance),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) throw errorFromResponse(data, '無法儲存角色外觀');
+  if (!isRecord(data)) throw new Error('Invalid avatar response');
+  return { avatarAppearance: normalizeAvatarAppearance(data.avatarAppearance) };
 }
 
 export async function exportMyData(token: string): Promise<Blob> {

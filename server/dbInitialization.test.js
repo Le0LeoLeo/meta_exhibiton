@@ -42,6 +42,14 @@ describe('database initialization', () => {
       'updated_at',
     ]);
 
+    const userColumns = await new Promise((resolve, reject) => {
+      database.all('PRAGMA table_info(users)', (error, rows) => {
+        if (error) reject(error);
+        else resolve(rows);
+      });
+    });
+    expect(userColumns.map(({ name }) => name)).toContain('avatar_appearance_json');
+
     const indexes = await new Promise((resolve, reject) => {
       database.all(
         "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'media_assets'",

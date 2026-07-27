@@ -53,6 +53,15 @@ export function initDb(database = db) {
       );
     `);
 
+    db.run('ALTER TABLE users ADD COLUMN avatar_appearance_json TEXT', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column name')) {
+        migrationError ??= new Error(
+          `[db] failed to add avatar appearance column: ${err.message}`,
+          { cause: err },
+        );
+      }
+    });
+
     db.run(`
       CREATE TABLE IF NOT EXISTS galleries (
         id TEXT PRIMARY KEY,
@@ -403,6 +412,10 @@ export function getUserById(id) {
 
 export function updateUserName(id, name) {
   return userRepository.updateUserName(id, name, db);
+}
+
+export function updateUserAvatarAppearance(id, appearanceJson) {
+  return userRepository.updateUserAvatarAppearance(id, appearanceJson, db);
 }
 
 export function updateUserPasswordHash(id, passwordHash) {

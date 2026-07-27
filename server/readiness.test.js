@@ -77,7 +77,7 @@ describe('database readiness', () => {
     const database = new sqlite3.Database(':memory:');
     databases.push(database);
     await exec(database, `
-      CREATE TABLE users (id TEXT);
+      CREATE TABLE users (id TEXT, avatar_appearance_json TEXT);
       CREATE TABLE galleries (scene_json TEXT);
       CREATE TABLE competitions (submission_fields_json TEXT);
       CREATE TABLE competition_entries (submission_json TEXT);

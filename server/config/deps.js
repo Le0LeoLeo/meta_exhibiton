@@ -4,6 +4,7 @@ import {
   insertUser,
   getUserById,
   updateUserName,
+  updateUserAvatarAppearance,
   updateUserPasswordHash,
   deleteUserAndCreateFileCleanupJobs,
   markFileCleanupJobCompleted,
@@ -128,6 +129,7 @@ export function buildAppDependencies({
       insertUser,
       getUserById,
       updateUserName,
+      updateUserAvatarAppearance,
       updateUserPasswordHash,
       deleteAccountWithCleanup: ({ ownerId, growthAssetUrls, mediaFileNames }) => deleteAccountWithCleanup({
         ownerId,

@@ -1,6 +1,7 @@
 const REQUIRED_SCHEMA_QUERY = `
   SELECT
     users.id,
+    users.avatar_appearance_json,
     galleries.scene_json,
     competitions.submission_fields_json,
     competition_entries.submission_json,

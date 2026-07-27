@@ -41,6 +41,14 @@ export function updateUserName(id, name, database) {
   });
 }
 
+export function updateUserAvatarAppearance(id, appearanceJson, database) {
+  return runStatement(
+    database,
+    'UPDATE users SET avatar_appearance_json = ? WHERE id = ?',
+    [appearanceJson, id],
+  );
+}
+
 export function updateUserPasswordHash(id, passwordHash, database) {
   return new Promise((resolve, reject) => {
     database.run('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id], (err) => {

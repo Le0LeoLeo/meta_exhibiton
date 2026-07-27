@@ -7,6 +7,10 @@ import {
   setCsrfCookie,
   setSessionCookie,
 } from '../auth/sessionCookie.js';
+import {
+  avatarAppearanceSchema,
+  parseStoredAvatarAppearance,
+} from '../schemas/avatarAppearanceSchema.js';
 
 const nameSchema = z.string().trim().min(1, 'name is required').max(100, 'name too long');
 
@@ -16,6 +20,15 @@ const changePasswordSchema = z.object({
 });
 
 const noRateLimit = (_req, _res, next) => next();
+
+function serializeAuthUser(row) {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    avatarAppearance: parseStoredAvatarAppearance(row.avatar_appearance_json),
+  };
+}
 
 export function registerAuthRoutes(app, deps) {
   const {
@@ -27,6 +40,7 @@ export function registerAuthRoutes(app, deps) {
     insertUser,
     getUserById,
     updateUserName,
+    updateUserAvatarAppearance,
     updateUserPasswordHash,
     deleteAccountWithCleanup,
     exportUserData,
@@ -64,12 +78,13 @@ export function registerAuthRoutes(app, deps) {
 
       await insertUser(user);
 
-      const token = signToken(user);
+      const authUser = serializeAuthUser(user);
+      const token = signToken(authUser);
       setSessionCookie(res, token);
       setCsrfCookie(res, createCsrfToken());
       res.status(201).json({
         token,
-        user: { id: user.id, email: user.email, name: user.name },
+        user: authUser,
       });
     } catch (err) {
       console.error(err);
@@ -96,7 +111,7 @@ export function registerAuthRoutes(app, deps) {
         return res.status(401).json({ message: 'invalid email or password' });
       }
 
-      const user = { id: row.id, email: row.email, name: row.name };
+      const user = serializeAuthUser(row);
       const token = signToken(user);
       setSessionCookie(res, token);
       setCsrfCookie(res, createCsrfToken());
@@ -117,7 +132,7 @@ export function registerAuthRoutes(app, deps) {
         return res.status(401).json({ message: 'user not found' });
       }
 
-      const user = { id: row.id, email: row.email, name: row.name };
+      const user = serializeAuthUser(row);
       const token = signToken(user);
       setSessionCookie(res, token);
       setCsrfCookie(res, createCsrfToken());
@@ -151,7 +166,7 @@ export function registerAuthRoutes(app, deps) {
       const row = await getUserById(payload.sub);
       if (!row) return res.status(404).json({ message: 'user not found' });
 
-      const user = { id: row.id, email: row.email, name: row.name };
+      const user = serializeAuthUser(row);
       const token = signToken(user);
       setSessionCookie(res, token);
       setCsrfCookie(res, createCsrfToken());
@@ -159,6 +174,33 @@ export function registerAuthRoutes(app, deps) {
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'internal error' });
+    }
+  });
+
+  app.put('/api/users/me/avatar', async (req, res) => {
+    const payload = requireAuth(req, res);
+    if (!payload) return;
+
+    try {
+      const parsed = avatarAppearanceSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: parsed.error.issues[0]?.message ?? 'invalid avatar appearance',
+        });
+      }
+
+      const result = await updateUserAvatarAppearance(
+        payload.sub,
+        JSON.stringify(parsed.data),
+      );
+      if (result.changes !== 1) {
+        return res.status(404).json({ message: 'user not found' });
+      }
+
+      return res.json({ avatarAppearance: parsed.data });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: 'internal error' });
     }
   });
 

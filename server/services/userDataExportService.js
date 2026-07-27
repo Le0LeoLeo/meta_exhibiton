@@ -1,3 +1,5 @@
+import { parseStoredAvatarAppearance } from '../schemas/avatarAppearanceSchema.js';
+
 function get(database, sql, params) {
   return new Promise((resolve, reject) => {
     database.get(sql, params, (error, row) => {
@@ -56,12 +58,20 @@ function sanitize(value) {
 }
 
 export async function exportUserData(database, ownerId) {
-  const profile = await get(
+  const profileRow = await get(
     database,
-    'SELECT id, email, name, created_at FROM users WHERE id = ?',
+    'SELECT id, email, name, created_at, avatar_appearance_json FROM users WHERE id = ?',
     [ownerId],
   );
-  if (!profile) return null;
+  if (!profileRow) return null;
+  const {
+    avatar_appearance_json: storedAvatarAppearance,
+    ...profileFields
+  } = profileRow;
+  const profile = {
+    ...profileFields,
+    avatarAppearance: parseStoredAvatarAppearance(storedAvatarAppearance),
+  };
 
   const [
     galleries,
