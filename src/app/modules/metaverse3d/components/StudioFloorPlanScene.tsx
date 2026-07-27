@@ -56,8 +56,8 @@ export function StudioFloorPlanScene() {
       const deltaX = currentPoint.x - edgeDrag.startPoint.x;
       const deltaZ = currentPoint.z - edgeDrag.startPoint.z;
 
-      let nextPos = [...edgeDrag.startPosition] as [number, number, number];
-      let nextScale = [...edgeDrag.startScale] as [number, number, number];
+      const nextPos = [...edgeDrag.startPosition] as [number, number, number];
+      const nextScale = [...edgeDrag.startScale] as [number, number, number];
 
       if (edgeDrag.edge === "left") {
         const width = Math.max(minSize, edgeDrag.startScale[0] - deltaX);

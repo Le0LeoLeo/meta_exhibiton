@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
-import { ArrowRight, BarChart3, Compass, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { ArrowRight, Sparkles, SlidersHorizontal } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from 'sonner';
 import { getMyGrowthRecommendations, loadAuth, type GrowthRecommendation } from '../api/client';
 import { useI18n } from '../components/I18nProvider';

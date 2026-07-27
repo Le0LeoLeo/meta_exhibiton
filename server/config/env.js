@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 const DEVELOPMENT_JWT_SECRET = 'dev_secret_change_me';
 const DEVELOPMENT_FRONTEND_ORIGIN = 'http://localhost:5173';
 const DEVELOPMENT_MULTIPLAYER_ORIGIN = '*';
+const DEFAULT_MULTIPLAYER_SCENE_TTL_SECONDS = 3_600;
+const MIN_MULTIPLAYER_SCENE_TTL_SECONDS = 60;
+const MAX_MULTIPLAYER_SCENE_TTL_SECONDS = 86_400;
 const PLACEHOLDER_SECRETS = new Set([
   'change-me',
   'dev_secret_change_me',
@@ -44,12 +47,51 @@ function validateProductionOrigin(value, variableName) {
   return normalized;
 }
 
+function readInstanceCount(value) {
+  const normalized = String(value ?? '1');
+  if (!/^[1-9]\d*$/.test(normalized) || !Number.isSafeInteger(Number(normalized))) {
+    throw new Error('INSTANCE_COUNT must be a positive integer');
+  }
+  return Number(normalized);
+}
+
+function readMultiplayerSceneTtlSeconds(value) {
+  const normalized = String(value ?? DEFAULT_MULTIPLAYER_SCENE_TTL_SECONDS);
+  const parsed = Number(normalized);
+  if (
+    !/^[1-9]\d*$/.test(normalized)
+    || !Number.isSafeInteger(parsed)
+    || parsed < MIN_MULTIPLAYER_SCENE_TTL_SECONDS
+    || parsed > MAX_MULTIPLAYER_SCENE_TTL_SECONDS
+  ) {
+    throw new Error(
+      `MULTIPLAYER_SCENE_TTL_SECONDS must be an integer from ${MIN_MULTIPLAYER_SCENE_TTL_SECONDS} to ${MAX_MULTIPLAYER_SCENE_TTL_SECONDS}`,
+    );
+  }
+  return parsed;
+}
+
 export function validateSecurityEnv(env) {
   const isProduction = String(env.NODE_ENV || '').trim() === 'production';
   let JWT_SECRET = String(env.JWT_SECRET || '').trim();
   const ADMIN_SECRET = String(env.ADMIN_SECRET || '').trim();
   let FRONTEND_ORIGIN = String(env.FRONTEND_ORIGIN || '').trim();
   let MULTIPLAYER_CORS_ORIGIN = String(env.MULTIPLAYER_CORS_ORIGIN || '').trim();
+  const REDIS_URL = String(env.REDIS_URL || '').trim();
+  const INSTANCE_COUNT = readInstanceCount(env.INSTANCE_COUNT);
+  const MULTIPLAYER_SHARED_STATE = String(
+    env.MULTIPLAYER_SHARED_STATE || 'memory',
+  ).trim().toLowerCase();
+  const MULTIPLAYER_SCENE_TTL_SECONDS = readMultiplayerSceneTtlSeconds(
+    env.MULTIPLAYER_SCENE_TTL_SECONDS,
+  );
+
+  if (!new Set(['memory', 'redis']).has(MULTIPLAYER_SHARED_STATE)) {
+    throw new Error('MULTIPLAYER_SHARED_STATE must be memory or redis');
+  }
+  if (MULTIPLAYER_SHARED_STATE === 'redis' && !REDIS_URL) {
+    throw new Error('REDIS_URL is required for Redis multiplayer shared state');
+  }
 
   if (isProduction) {
     if (
@@ -78,6 +120,14 @@ export function validateSecurityEnv(env) {
       MULTIPLAYER_CORS_ORIGIN,
       'MULTIPLAYER_CORS_ORIGIN',
     );
+    if (INSTANCE_COUNT > 1 && MULTIPLAYER_SHARED_STATE !== 'redis') {
+      throw new Error(
+        'MULTIPLAYER_SHARED_STATE=redis is required when INSTANCE_COUNT is greater than 1 in production',
+      );
+    }
+    if (INSTANCE_COUNT === 1 && !REDIS_URL) {
+      console.warn('[security] production rate limiting is using in-memory storage');
+    }
   } else {
     if (!JWT_SECRET) {
       JWT_SECRET = DEVELOPMENT_JWT_SECRET;
@@ -98,6 +148,10 @@ export function validateSecurityEnv(env) {
     ADMIN_SECRET,
     FRONTEND_ORIGIN,
     MULTIPLAYER_CORS_ORIGIN,
+    REDIS_URL,
+    INSTANCE_COUNT,
+    MULTIPLAYER_SHARED_STATE,
+    MULTIPLAYER_SCENE_TTL_SECONDS,
   };
 }
 

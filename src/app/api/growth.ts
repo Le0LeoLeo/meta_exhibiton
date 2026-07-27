@@ -1,4 +1,5 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from './base';
+import { apiFetch, UPLOAD_API_TIMEOUT_MS } from './request';
 
 export type GrowthChild = {
   id: string;
@@ -79,7 +80,7 @@ export async function createGrowthChild(
   token: string,
   payload: { name: string; birthday: string; avatarUrl?: string },
 ): Promise<{ child: GrowthChild }> {
-  const res = await fetch(apiUrl('/api/growth/children'), {
+  const res = await apiFetch(apiUrl('/api/growth/children'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -90,7 +91,7 @@ export async function createGrowthChild(
 }
 
 export async function getMyGrowthChildren(token: string): Promise<{ children: GrowthChild[] }> {
-  const res = await fetch(apiUrl('/api/growth/children/mine'), {
+  const res = await apiFetch(apiUrl('/api/growth/children/mine'), {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
@@ -102,7 +103,7 @@ export async function createGrowthExhibit(
   token: string,
   payload: { childId: string; title: string; templateId: string; introStory: string; isPrivate?: boolean },
 ): Promise<{ exhibit: Omit<GrowthExhibit, 'child'> }> {
-  const res = await fetch(apiUrl('/api/growth/exhibits'), {
+  const res = await apiFetch(apiUrl('/api/growth/exhibits'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -113,7 +114,7 @@ export async function createGrowthExhibit(
 }
 
 export async function getMyGrowthExhibits(token: string): Promise<{ exhibits: GrowthExhibit[] }> {
-  const res = await fetch(apiUrl('/api/growth/exhibits/mine'), {
+  const res = await apiFetch(apiUrl('/api/growth/exhibits/mine'), {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
@@ -129,7 +130,7 @@ export async function getMyGrowthRecommendations(
   if (params?.mode) query.set('mode', params.mode);
   if (params?.interest) query.set('interest', params.interest);
   if (params?.depth) query.set('depth', params.depth);
-  const res = await fetch(apiUrl(`/api/growth/recommendations/mine${query.toString() ? `?${query.toString()}` : ''}`), {
+  const res = await apiFetch(apiUrl(`/api/growth/recommendations/mine${query.toString() ? `?${query.toString()}` : ''}`), {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
@@ -148,7 +149,7 @@ export async function createGrowthAsset(
     capturedAt?: string;
   },
 ): Promise<{ asset: GrowthAsset }> {
-  const res = await fetch(apiUrl('/api/growth/assets'), {
+  const res = await apiFetch(apiUrl('/api/growth/assets'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -171,11 +172,11 @@ export async function uploadGrowthAsset(
     dataBase64: string;
   },
 ): Promise<{ asset: GrowthAsset }> {
-  const res = await fetch(apiUrl('/api/growth/assets/upload'), {
+  const res = await apiFetch(apiUrl('/api/growth/assets/upload'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  });
+  }, { timeoutMs: UPLOAD_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '上傳成長素材失敗');
   const result = data as { asset: GrowthAsset };
@@ -183,7 +184,7 @@ export async function uploadGrowthAsset(
 }
 
 export async function getGrowthAssetsByExhibit(token: string, exhibitId: string): Promise<{ assets: GrowthAsset[] }> {
-  const res = await fetch(apiUrl(`/api/growth/exhibits/${encodeURIComponent(exhibitId)}/assets`), {
+  const res = await apiFetch(apiUrl(`/api/growth/exhibits/${encodeURIComponent(exhibitId)}/assets`), {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
@@ -195,7 +196,7 @@ export async function createGrowthComment(
   token: string,
   payload: { exhibitId: string; userName: string; content: string },
 ): Promise<{ comment: GrowthComment }> {
-  const res = await fetch(apiUrl('/api/growth/comments'), {
+  const res = await apiFetch(apiUrl('/api/growth/comments'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -206,7 +207,7 @@ export async function createGrowthComment(
 }
 
 export async function getGrowthCommentsByExhibit(token: string, exhibitId: string): Promise<{ comments: GrowthComment[] }> {
-  const res = await fetch(apiUrl(`/api/growth/exhibits/${encodeURIComponent(exhibitId)}/comments`), {
+  const res = await apiFetch(apiUrl(`/api/growth/exhibits/${encodeURIComponent(exhibitId)}/comments`), {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
@@ -219,7 +220,7 @@ export async function createGrowthShareLink(
   exhibitId: string,
   payload?: { role?: 'viewer' | 'editor'; expiresInHours?: number },
 ): Promise<{ share: { url: string; token: string; role: 'viewer' | 'editor'; expiresAt: string | null } }> {
-  const res = await fetch(apiUrl(`/api/growth/exhibits/${encodeURIComponent(exhibitId)}/share-link`), {
+  const res = await apiFetch(apiUrl(`/api/growth/exhibits/${encodeURIComponent(exhibitId)}/share-link`), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload || {}),
@@ -230,21 +231,21 @@ export async function createGrowthShareLink(
 }
 
 export async function getSharedGrowthExhibit(token: string): Promise<{ exhibit: GrowthExhibit; access: { viaShare: true; role: 'viewer' | 'editor' } }> {
-  const res = await fetch(apiUrl(`/api/share/growth/exhibits/${encodeURIComponent(token)}`));
+  const res = await apiFetch(apiUrl(`/api/share/growth/exhibits/${encodeURIComponent(token)}`));
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '載入分享展館失敗');
   return data as { exhibit: GrowthExhibit; access: { viaShare: true; role: 'viewer' | 'editor' } };
 }
 
 export async function getSharedGrowthAssets(token: string): Promise<{ assets: GrowthAsset[] }> {
-  const res = await fetch(apiUrl(`/api/share/growth/exhibits/${encodeURIComponent(token)}/assets`));
+  const res = await apiFetch(apiUrl(`/api/share/growth/exhibits/${encodeURIComponent(token)}/assets`));
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '載入分享素材失敗');
   return normalizeGrowthAssetsResponse(data as { assets: GrowthAsset[] });
 }
 
 export async function getSharedGrowthComments(token: string): Promise<{ comments: GrowthComment[] }> {
-  const res = await fetch(apiUrl(`/api/share/growth/exhibits/${encodeURIComponent(token)}/comments`));
+  const res = await apiFetch(apiUrl(`/api/share/growth/exhibits/${encodeURIComponent(token)}/comments`));
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '載入分享留言失敗');
   return data as { comments: GrowthComment[] };
@@ -254,7 +255,7 @@ export async function postSharedGrowthComment(
   token: string,
   payload: { userName: string; content: string },
 ): Promise<{ comment: GrowthComment }> {
-  const res = await fetch(apiUrl(`/api/share/growth/exhibits/${encodeURIComponent(token)}/comments`), {
+  const res = await apiFetch(apiUrl(`/api/share/growth/exhibits/${encodeURIComponent(token)}/comments`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

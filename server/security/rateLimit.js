@@ -100,32 +100,79 @@ export function createRateTokenConsumer(options = {}) {
   return consume;
 }
 
+export function createInMemoryRateLimitStore({ maxKeys = DEFAULT_MAX_KEYS } = {}) {
+  const consumers = new Map();
+
+  return {
+    consume({ namespace, key, limit, windowMs, now }) {
+      const storeNamespace = String(namespace || 'default');
+      let entry = consumers.get(storeNamespace);
+
+      if (!entry) {
+        let currentTime = now;
+        entry = {
+          limit,
+          windowMs,
+          consume: createRateTokenConsumer({
+            limit,
+            windowMs,
+            maxKeys,
+            now: () => currentTime,
+          }),
+          setCurrentTime(value) {
+            currentTime = value;
+          },
+        };
+        consumers.set(storeNamespace, entry);
+      } else if (entry.limit !== limit || entry.windowMs !== windowMs) {
+        throw new Error(`rate limit namespace "${storeNamespace}" has conflicting settings`);
+      }
+
+      entry.setCurrentTime(now);
+      return entry.consume(key);
+    },
+    async checkReadiness() {},
+    async close() {
+      consumers.clear();
+    },
+  };
+}
+
 export function createFixedWindowLimiter(options = {}) {
   const {
     limit,
     windowMs,
     now = Date.now,
     maxKeys = DEFAULT_MAX_KEYS,
+    namespace = 'default',
+    store = createInMemoryRateLimitStore({ maxKeys }),
     key = (req) => req.ip,
     message = 'too many requests',
   } = options;
 
+  validateOptions({ limit, windowMs, now, maxKeys });
   if (typeof key !== 'function') {
     throw new TypeError('key must be a function');
   }
+  if (!store || typeof store.consume !== 'function') {
+    throw new TypeError('store.consume must be a function');
+  }
 
-  const consume = createRateTokenConsumer({
-    limit,
-    windowMs,
-    now,
-    maxKeys,
-  });
+  return async function fixedWindowLimiter(req, res, next) {
+    try {
+      const result = await store.consume({
+        namespace,
+        key: key(req),
+        limit,
+        windowMs,
+        now: now(),
+      });
+      if (result.allowed) return next();
 
-  return function fixedWindowLimiter(req, res, next) {
-    const result = consume(key(req));
-    if (result.allowed) return next();
-
-    res.set('Retry-After', String(Math.ceil(result.retryAfterMs / 1000)));
-    return res.status(429).json({ message });
+      res.set('Retry-After', String(Math.ceil(result.retryAfterMs / 1000)));
+      return res.status(429).json({ message });
+    } catch (error) {
+      return next(error);
+    }
   };
 }

@@ -1,19 +1,23 @@
 import express from 'express';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { registerAgentRoutes } from '../routes/agentRoutes.js';
 import { registerAuthRoutes } from '../routes/authRoutes.js';
 import { registerCompetitionRoutes } from '../routes/competitionRoutes.js';
 import { registerGrowthRoutes } from '../routes/growthRoutes.js';
 import { registerTtsRoutes } from '../routes/ttsRoutes.js';
+import { createJsonErrorMiddleware } from '../config/errorHandling.js';
+import { createRequestContextMiddleware } from '../config/requestContext.js';
 import { createFixedWindowLimiter } from './rateLimit.js';
 
 const servers = [];
 
-async function startApp(registerRoutes) {
+async function startApp(registerRoutes, { errorLogger } = {}) {
   const app = express();
+  if (errorLogger) app.use(createRequestContextMiddleware({ logger: errorLogger }));
   app.use(express.json());
   registerRoutes(app);
+  if (errorLogger) app.use(createJsonErrorMiddleware({ logger: errorLogger }));
 
   const server = await new Promise((resolve) => {
     const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
@@ -41,6 +45,79 @@ afterEach(async () => {
 });
 
 describe('route rate limiter integration', () => {
+  it('returns stable JSON with a request ID when the shared store rejects', async () => {
+    const storeError = new Error('Redis password=private connection failed');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const authLimiter = createFixedWindowLimiter({
+      limit: 2,
+      windowMs: 60_000,
+      store: { consume: async () => { throw storeError; } },
+    });
+    const baseUrl = await startApp(
+      (app) => registerAuthRoutes(app, { authLimiter }),
+      { errorLogger: logger },
+    );
+
+    const response = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-request-id': 'redis-failure-1',
+      },
+      body: JSON.stringify({ email: 'person@example.com', password: 'password123' }),
+    });
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      code: 'INTERNAL_ERROR',
+      message: 'internal error',
+      requestId: 'redis-failure-1',
+    });
+    expect(logger.error).toHaveBeenCalledWith('internal_error', storeError, {
+      code: 'INTERNAL_ERROR',
+      requestId: 'redis-failure-1',
+    });
+  });
+
+  it('enforces one combined limit across apps using the same async store', async () => {
+    const counts = new Map();
+    const sharedStore = {
+      async consume({ namespace, key, limit, windowMs, now }) {
+        const bucketKey = `${namespace}:${key}`;
+        let bucket = counts.get(bucketKey);
+        if (!bucket || bucket.startedAt + windowMs <= now) {
+          bucket = { count: 0, startedAt: now };
+          counts.set(bucketKey, bucket);
+        }
+        bucket.count += 1;
+        return {
+          allowed: bucket.count <= limit,
+          retryAfterMs: bucket.count <= limit
+            ? 0
+            : bucket.startedAt + windowMs - now,
+        };
+      },
+    };
+    const limiterOptions = {
+      namespace: 'auth',
+      store: sharedStore,
+      limit: 2,
+      windowMs: 60_000,
+      now: () => 0,
+    };
+    const register = (app) => registerAuthRoutes(app, {
+      authLimiter: createFixedWindowLimiter(limiterOptions),
+      getUserByEmail: async () => null,
+    });
+    const firstApp = await startApp(register);
+    const secondApp = await startApp(register);
+    const body = { email: 'person@example.com', password: 'password123' };
+
+    expect((await postJson(firstApp, '/api/auth/login', body)).status).toBe(401);
+    expect((await postJson(secondApp, '/api/auth/login', body)).status).toBe(401);
+    expect((await postJson(firstApp, '/api/auth/login', body)).status).toBe(429);
+  });
+
   it('returns 429 before a third registration reaches the handler', async () => {
     let lookups = 0;
     const authLimiter = createFixedWindowLimiter({

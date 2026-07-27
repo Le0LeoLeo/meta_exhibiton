@@ -1,4 +1,5 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from './base';
+import { apiFetch, LONG_API_TIMEOUT_MS } from './request';
 
 export type AgentSceneExhibitPayload = {
   id: string;
@@ -61,11 +62,11 @@ export async function requestAgentReply(
     userPreferences?: AgentUserPreferencesPayload | null;
   },
 ): Promise<{ answer: string; source: 'qwen' | 'fallback'; recommendedExhibit: AgentRecommendationPayload | null }> {
-  const res = await fetch(apiUrl('/api/agent/reply'), {
+  const res = await apiFetch(apiUrl('/api/agent/reply'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  });
+  }, { timeoutMs: LONG_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, 'Agent 回答失敗');
   return data as { answer: string; source: 'qwen' | 'fallback'; recommendedExhibit: AgentRecommendationPayload | null };

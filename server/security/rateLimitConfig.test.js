@@ -56,7 +56,7 @@ describe('createRateLimitKey', () => {
     return subject ? { sub: subject } : null;
   }
 
-  it('keeps one authenticated subject limited across IP changes', () => {
+  it('keeps one authenticated subject limited across IP changes', async () => {
     const limiter = createFixedWindowLimiter({
       limit: 1,
       windowMs: 60_000,
@@ -70,11 +70,11 @@ describe('createRateLimitKey', () => {
       json() { return this; },
     };
 
-    limiter({
+    await limiter({
       ip: '203.0.113.1',
       headers: { authorization: 'Bearer user-1' },
     }, response, () => nextCalls.push('allowed'));
-    limiter({
+    await limiter({
       ip: '203.0.113.2',
       headers: { authorization: 'Bearer user-1' },
     }, response, () => nextCalls.push('allowed'));
@@ -83,7 +83,7 @@ describe('createRateLimitKey', () => {
     expect(response.statusCode).toBe(429);
   });
 
-  it('isolates authenticated subjects and limits anonymous requests by IP', () => {
+  it('isolates authenticated subjects and limits anonymous requests by IP', async () => {
     const limiter = createFixedWindowLimiter({
       limit: 1,
       windowMs: 60_000,
@@ -99,21 +99,21 @@ describe('createRateLimitKey', () => {
       };
     }
 
-    limiter({
+    await limiter({
       ip: '203.0.113.1',
       headers: { authorization: 'Bearer user-1' },
     }, response(), () => allowed.push('user-1'));
-    limiter({
+    await limiter({
       ip: '203.0.113.1',
       headers: { authorization: 'Bearer user-2' },
     }, response(), () => allowed.push('user-2'));
-    limiter(
+    await limiter(
       { ip: '203.0.113.1', headers: {} },
       response(),
       () => allowed.push('anonymous'),
     );
     const deniedAnonymous = response();
-    limiter({ ip: '203.0.113.1', headers: {} }, deniedAnonymous, () => {});
+    await limiter({ ip: '203.0.113.1', headers: {} }, deniedAnonymous, () => {});
 
     expect(allowed).toEqual(['user-1', 'user-2', 'anonymous']);
     expect(deniedAnonymous.statusCode).toBe(429);

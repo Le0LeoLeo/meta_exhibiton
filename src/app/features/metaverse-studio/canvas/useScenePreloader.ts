@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGLTF, useTexture } from "@react-three/drei";
 
 import type { AppMode, ExhibitItem, RoomSize } from "../../../modules/metaverse3d/types";
@@ -151,6 +151,16 @@ export function useScenePreloader({
   const [canEnter, setCanEnter] = useState(!shouldPreloadScene);
   const [backgroundComplete, setBackgroundComplete] = useState(!shouldPreloadScene);
   const [failedAssets, setFailedAssets] = useState(0);
+  const previousShouldPreloadScene = useRef(shouldPreloadScene);
+  const preloadCycle = useRef(shouldPreloadScene ? 1 : 0);
+  if (shouldPreloadScene && !previousShouldPreloadScene.current) {
+    preloadCycle.current += 1;
+  }
+  previousShouldPreloadScene.current = shouldPreloadScene;
+  const currentPreloadCycle = preloadCycle.current;
+  const [completedPreloadCycle, setCompletedPreloadCycle] = useState<number | null>(
+    shouldPreloadScene ? null : currentPreloadCycle,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -162,6 +172,7 @@ export function useScenePreloader({
       setCanEnter(true);
       setBackgroundComplete(true);
       setFailedAssets(0);
+      setCompletedPreloadCycle(currentPreloadCycle);
       return () => {
         cancelled = true;
       };
@@ -174,6 +185,7 @@ export function useScenePreloader({
       setCanEnter(false);
       setBackgroundComplete(false);
       setFailedAssets(0);
+      setCompletedPreloadCycle(null);
 
       const coreFailures = await preloadAssets({
         assets: coreAssets,
@@ -190,6 +202,7 @@ export function useScenePreloader({
       if (backgroundAssets.length === 0) {
         setStage("complete");
         setBackgroundComplete(true);
+        setCompletedPreloadCycle(currentPreloadCycle);
         return;
       }
 
@@ -205,6 +218,7 @@ export function useScenePreloader({
       setStage("complete");
       setProgress(100);
       setBackgroundComplete(true);
+      setCompletedPreloadCycle(currentPreloadCycle);
     }
 
     void preload();
@@ -215,19 +229,24 @@ export function useScenePreloader({
   }, [
     backgroundAssetKey,
     coreAssetKey,
+    currentPreloadCycle,
     loadAsset,
     shouldPreloadScene,
   ]);
+
+  const currentBackgroundComplete =
+    !shouldPreloadScene ||
+    (backgroundComplete && completedPreloadCycle === currentPreloadCycle);
 
   return {
     stage,
     progress,
     coreReady,
     canEnter,
-    backgroundComplete,
+    backgroundComplete: currentBackgroundComplete,
     failedAssets,
     shouldPreloadScene,
-    preloadComplete: backgroundComplete,
+    preloadComplete: currentBackgroundComplete,
     preloadProgress: progress,
     preloadStage: stage,
   };

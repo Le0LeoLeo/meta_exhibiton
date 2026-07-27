@@ -25,7 +25,7 @@ vi.mock("../../../../api/client", async () => {
   return {
     ...actual,
     loadAuth: () => ({ token: "jwt-token", user: { id: "user-1" } }),
-    generateGuideTts: vi.fn(),
+    requestQwenTts: vi.fn(),
   };
 });
 
@@ -165,7 +165,7 @@ describe("EditUI AI builder", () => {
     expect(screen.getByText("城市記憶展")).toBeInTheDocument();
     expect(screen.getByText("從街巷紋理走向未來想像。")).toBeInTheDocument();
     expect(screen.getByText("來源")).toBeInTheDocument();
-    expect(screen.getByText("qwen")).toBeInTheDocument();
+    expect(screen.getByText("AI 生成")).toBeInTheDocument();
     expect(screen.getByText("提醒")).toBeInTheDocument();
     expect(screen.getByText("已使用示範展品補足空間。")).toBeInTheDocument();
 
@@ -211,10 +211,102 @@ describe("EditUI AI builder", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "生成展覽" }));
 
-    fireEvent.click(await screen.findByRole("button", { name: "VL 自檢" }));
+    fireEvent.click(await screen.findByRole("button", { name: "檢查場景" }));
 
     await waitFor(() => expect(requestBuilderReview).toHaveBeenCalled());
     expect(importScene).toHaveBeenCalledWith(generatedScene);
     expect(importScene).toHaveBeenLastCalledWith(originalScene);
+  }, 15_000);
+
+  it("sends reusable artwork assets with the complete current scene", async () => {
+    const artwork = {
+      id: "painting-user-1",
+      type: "painting",
+      position: [0, 2, -4],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      content: "data:image/png;base64,local-preview",
+      assetId: "asset-user-1",
+      assetUrl: "/api/media/assets/asset-user-1",
+      title: "Macau Memory",
+      artist: "Student A",
+      description: "A user-owned artwork",
+      fileMimeType: "image/png",
+    };
+    renderEditUI([artwork]);
+
+    fireEvent.click(screen.getByRole("button", { name: "更多" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI 建展" }));
+    fireEvent.change(document.querySelector("textarea") as HTMLTextAreaElement, {
+      target: { value: "改善展品動線" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "生成展覽" }));
+
+    await waitFor(() => expect(requestBuilderSession).toHaveBeenCalledWith(
+      "jwt-token",
+      expect.objectContaining({
+        currentScene: expect.objectContaining({ items: [expect.objectContaining({ id: "painting-user-1" })] }),
+        assets: [{
+          title: "Macau Memory",
+          artist: "Student A",
+          description: "A user-owned artwork",
+          imageUrl: "/api/media/assets/asset-user-1",
+          type: "image",
+        }],
+      }),
+    ));
+  }, 15_000);
+
+  it("blocks apply when the preview does not preserve an existing artwork", async () => {
+    const importScene = vi.spyOn(useStore.getState(), "importScene");
+    renderEditUI([{
+      id: "painting-user-1",
+      type: "painting",
+      position: [0, 2, -4],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      content: "/api/media/assets/asset-user-1",
+      assetId: "asset-user-1",
+      assetUrl: "/api/media/assets/asset-user-1",
+    }]);
+
+    fireEvent.click(screen.getByRole("button", { name: "更多" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI 建展" }));
+    fireEvent.change(document.querySelector("textarea") as HTMLTextAreaElement, {
+      target: { value: "重新安排展覽" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "生成展覽" }));
+
+    const applyButton = await screen.findByRole("button", { name: "套用生成展覽" });
+    expect(screen.getByText("部分原有展品或素材未保留，建議放棄此結果")).toBeInTheDocument();
+    expect(applyButton).toBeDisabled();
+    fireEvent.click(applyButton);
+    expect(importScene).not.toHaveBeenCalled();
+  }, 15_000);
+
+  it("keeps the preview available when the scene check is unavailable", async () => {
+    vi.mocked(requestBuilderReview).mockResolvedValueOnce({
+      sessionId: "builder-1",
+      versionId: "version-1",
+      status: "unavailable",
+      source: "fallback",
+      review: null,
+      errorCode: "VISION_PROVIDER_FAILED",
+      message: "場景檢查服務暫時無法連線。",
+    });
+    renderEditUI();
+
+    fireEvent.click(screen.getByRole("button", { name: "更多" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI 建展" }));
+    fireEvent.change(document.querySelector("textarea") as HTMLTextAreaElement, {
+      target: { value: "建立城市記憶展覽" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "生成展覽" }));
+    fireEvent.click(await screen.findByRole("button", { name: "檢查場景" }));
+
+    expect(await screen.findByText("場景檢查暫時不可用")).toBeInTheDocument();
+    expect(screen.getByText("你仍可檢視預覽，但建議自行確認動線與展示效果。")).toBeInTheDocument();
+    expect(screen.queryByText("場景檢查服務暫時無法連線。")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "套用生成展覽" })).toBeEnabled();
   }, 15_000);
 });

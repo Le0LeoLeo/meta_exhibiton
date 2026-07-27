@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SceneSnapshot } from "../modules/metaverse3d/store/metaverseStoreTypes";
 import {
   requestBuilderRevision,
   requestBuilderReview,
@@ -26,14 +27,15 @@ describe("exhibition scene API", () => {
       style: "white-box",
     });
 
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    const headers = new Headers(init?.headers);
+    expect(url).toEqual(expect.stringContaining("/api/ai/exhibition-scene"));
+    expect(headers.get("Authorization")).toBe("Bearer jwt-token");
+    expect(headers.get("Content-Type")).toBe("application/json");
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/ai/exhibition-scene"),
+      url,
       expect.objectContaining({
         method: "POST",
-        headers: expect.objectContaining({
-          Authorization: "Bearer jwt-token",
-          "Content-Type": "application/json",
-        }),
         body: JSON.stringify({
           prompt: "澳門城市記憶",
           exhibitCount: 6,
@@ -50,11 +52,13 @@ describe("exhibition scene API", () => {
       style: "warm-museum",
     });
 
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toEqual(expect.stringContaining("/api/ai/exhibition-builder/start"));
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer jwt-token");
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/ai/exhibition-builder/start"),
+      url,
       expect.objectContaining({
         method: "POST",
-        headers: expect.objectContaining({ Authorization: "Bearer jwt-token" }),
         body: JSON.stringify({
           prompt: "Macau memory",
           exhibitCount: 6,
@@ -68,7 +72,7 @@ describe("exhibition scene API", () => {
     const payload = {
       sessionId: "builder-1",
       versionId: "version-1",
-      scene: { roomSize: {}, items: [], floorPlanElements: [], wallMaterialOverrides: {} } as any,
+      scene: { roomSize: {}, items: [], floorPlanElements: [], wallMaterialOverrides: {} } as SceneSnapshot,
       screenshots: [
         { viewId: "entrance", label: "Entrance", dataUrl: "data:image/png;base64,aaa" },
         { viewId: "left", label: "Left wall", dataUrl: "data:image/png;base64,bbb" },
@@ -78,11 +82,13 @@ describe("exhibition scene API", () => {
 
     await requestBuilderReview("jwt-token", payload);
 
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toEqual(expect.stringContaining("/api/ai/exhibition-builder/review"));
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer jwt-token");
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/ai/exhibition-builder/review"),
+      url,
       expect.objectContaining({
         method: "POST",
-        headers: expect.objectContaining({ Authorization: "Bearer jwt-token" }),
         body: JSON.stringify(payload),
       }),
     );
@@ -94,7 +100,7 @@ describe("exhibition scene API", () => {
       versionId: "version-1",
       revisionCount: 1,
       prompt: "Original brief",
-      scene: { roomSize: {}, items: [], floorPlanElements: [], wallMaterialOverrides: {} } as any,
+      scene: { roomSize: {}, items: [], floorPlanElements: [], wallMaterialOverrides: {} } as SceneSnapshot,
       review: {
         technicalScore: 60,
         curatorialScore: 70,
@@ -107,11 +113,13 @@ describe("exhibition scene API", () => {
 
     await requestBuilderRevision("jwt-token", payload);
 
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toEqual(expect.stringContaining("/api/ai/exhibition-builder/revise"));
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer jwt-token");
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/ai/exhibition-builder/revise"),
+      url,
       expect.objectContaining({
         method: "POST",
-        headers: expect.objectContaining({ Authorization: "Bearer jwt-token" }),
         body: JSON.stringify(payload),
       }),
     );

@@ -1,6 +1,4 @@
 import { lazy, memo, Suspense, useMemo, type MutableRefObject } from "react";
-import { Physics } from "@react-three/rapier";
-import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 
 import { Room } from "./Room";
 import { ExhibitItem } from "./ExhibitItem";
@@ -10,6 +8,9 @@ import { useStore } from "../store/useStore";
 import type { ExhibitItem as ExhibitItemType } from "../types";
 import { useRenderPerformanceProfile } from "../performanceProfile";
 import type { PlayerInputState } from "../input/playerInput";
+import { GalleryPostprocessing } from "./GalleryPostprocessing";
+import { GalleryVisitors } from "./GalleryVisitors";
+import { GalleryGrounding } from "./GalleryGrounding";
 
 const AgentSystem = lazy(() => import("./AgentSystem").then((mod) => ({ default: mod.AgentSystem })));
 
@@ -30,9 +31,13 @@ export const ViewCanvas = memo(function ViewCanvas({
 
   return (
     <>
-      <Physics updateLoop={performanceProfile.physicsUpdateLoop} timeStep={performanceProfile.physicsTimeStep} interpolation={false}>
+      <>
         <Room />
         {visibleItems.map((item) => <ExhibitItem key={item.id} item={item} />)}
+        <GalleryVisitors
+          mode={performanceProfile.effectiveMode}
+          allowMotion={allowMotion}
+        />
         {performanceProfile.enableRemotePlayers && (
           <RemotePlayers allowMotion={allowMotion} />
         )}
@@ -46,13 +51,9 @@ export const ViewCanvas = memo(function ViewCanvas({
             <AgentSystem allowMotion={allowMotion} />
           </Suspense>
         )}
-      </Physics>
-      {performanceProfile.enablePostprocessing && (
-        <EffectComposer multisampling={0}>
-          <Bloom intensity={0.08} luminanceThreshold={0.96} luminanceSmoothing={0.18} mipmapBlur />
-          <Vignette eskil={false} offset={0.2} darkness={0.3} />
-        </EffectComposer>
-      )}
+      </>
+      <GalleryGrounding mode={performanceProfile.effectiveMode} />
+      <GalleryPostprocessing profile={performanceProfile} />
     </>
   );
 });

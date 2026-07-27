@@ -1,7 +1,7 @@
 import { Image, Square, Type, Columns, Volume2, Loader2, Square as StopIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useMetaverseStudioStore } from "../store/useMetaverseStudioStore";
-import { generateGuideTts } from "../../../api/client";
+import { buildGuideTtsText, loadAuth, requestQwenTts } from "../../../api/client";
 
 export function StudioEditPanel() {
   const mode = useMetaverseStudioStore((s) => s.mode);
@@ -57,11 +57,15 @@ export function StudioEditPanel() {
     setIsGenerating(true);
 
     try {
-      const blob = await generateGuideTts({
+      const { token } = loadAuth();
+      if (!token) throw new Error("請先登入再產生語音導覽");
+      const text = buildGuideTtsText({
         title: selectedItem.title || "",
         artist: selectedItem.artist || "",
         description: selectedItem.description || selectedItem.content || "",
       });
+      if (!text) throw new Error("沒有可朗讀的作品內容");
+      const blob = await requestQwenTts(token, { text });
 
       if (audioRef.current) {
         audioRef.current.pause();

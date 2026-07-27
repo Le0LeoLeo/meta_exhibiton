@@ -8,17 +8,21 @@ afterEach(() => {
   while (servers.length) servers.pop().close();
 });
 
-async function startApp() {
+async function startApp(frontendOrigin = 'http://localhost:5173') {
   const app = express();
   applyAppMiddleware(app, {
+    frontendOrigin,
     requestBodyLimit: '1kb',
     growthUploadBodyLimit: '4kb',
     aiReviewBodyLimit: '5kb',
     verifyToken: (token) => token === 'valid-token' ? { sub: 'user-1' } : null,
+    logger: { info: () => {}, warn: () => {} },
   });
   app.post('/api/ordinary', (req, res) => res.json({ size: req.body.data.length }));
   app.post('/api/growth/assets/upload', (req, res) => res.json({ size: req.body.data.length }));
+  app.post('/api/media/upload', (req, res) => res.json({ size: req.body.data.length }));
   app.post('/api/ai/exhibition-builder/review', (req, res) => res.json({ size: req.body.data.length }));
+  app.get('/api/cors-probe', (_req, res) => res.json({ ok: true }));
 
   const server = await new Promise((resolve) => {
     const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
@@ -26,6 +30,40 @@ async function startApp() {
   servers.push(server);
   return `http://127.0.0.1:${server.address().port}`;
 }
+
+describe('applyAppMiddleware CORS', () => {
+  it('adds baseline browser security headers', async () => {
+    const baseUrl = await startApp();
+    const res = await fetch(`${baseUrl}/api/cors-probe`);
+
+    expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+    expect(res.headers.get('permissions-policy')).toContain('microphone=()');
+  });
+
+  it('allows the configured frontend origin', async () => {
+    const frontendOrigin = 'https://app.example.com';
+    const baseUrl = await startApp(frontendOrigin);
+    const res = await fetch(`${baseUrl}/api/cors-probe`, {
+      headers: { origin: frontendOrigin },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBe(frontendOrigin);
+  });
+
+  it('does not allow a different frontend origin', async () => {
+    const baseUrl = await startApp('https://app.example.com');
+    const res = await fetch(`${baseUrl}/api/cors-probe`, {
+      headers: { origin: 'https://attacker.example.com' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  });
+});
 
 function jsonRequest(dataLength, token) {
   const headers = { 'content-type': 'application/json' };
@@ -50,6 +88,17 @@ describe('applyAppMiddleware body limits', () => {
     const baseUrl = await startApp();
     const res = await fetch(
       `${baseUrl}/api/growth/assets/upload`,
+      jsonRequest(2500, 'valid-token'),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ size: 2500 });
+  });
+
+  it('allows an authenticated media upload within its dedicated limit', async () => {
+    const baseUrl = await startApp();
+    const res = await fetch(
+      `${baseUrl}/api/media/upload`,
       jsonRequest(2500, 'valid-token'),
     );
 

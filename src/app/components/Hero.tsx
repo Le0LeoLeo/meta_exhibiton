@@ -8,8 +8,28 @@ import { Gallery3D } from './Gallery3D';
 import { useI18n } from './I18nProvider';
 
 export function Hero() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [videoOpen, setVideoOpen] = useState(false);
+  const corePromise = {
+    'zh-TW': {
+      title: '教師和學生，30 分鐘內',
+      titleAccent: '用 AI 建立並發布多人 3D 成果展',
+      description: '上傳課堂作品、選擇展廳風格，讓 AI 完成排展，再預覽並發布給全班多人參觀。',
+      cta: '開始 AI 建展',
+    },
+    'zh-CN': {
+      title: '教师和学生，30 分钟内',
+      titleAccent: '用 AI 创建并发布多人 3D 成果展',
+      description: '上传课堂作品、选择展厅风格，让 AI 完成布展，再预览并发布给全班多人参观。',
+      cta: '开始 AI 建展',
+    },
+    en: {
+      title: 'Teachers and students: build in 30 minutes',
+      titleAccent: 'Create and publish a multiplayer 3D showcase with AI',
+      description: 'Upload classwork, choose a gallery style, let AI arrange the exhibition, then preview and publish it for the whole class to visit together.',
+      cta: 'Start building with AI',
+    },
+  }[locale];
   const quickStats = [
     { icon: ImagePlus, label: t('heroQuickWork'), value: t('heroQuickWorkFormat') },
     { icon: Boxes, label: t('heroQuickRoom'), value: t('heroQuickRoomAction') },
@@ -37,8 +57,8 @@ export function Hero() {
             transition={{ duration: 0.65, delay: 0.08 }}
             className="mt-6 max-w-2xl text-4xl font-semibold leading-tight text-foreground sm:text-5xl lg:text-6xl"
           >
-            {t('heroTitle1')}
-            <span className="mt-1 block text-curator-brass">{t('heroTitle2')}</span>
+            {corePromise.title}
+            <span className="mt-1 block text-curator-brass">{corePromise.titleAccent}</span>
           </motion.h1>
 
           <motion.p
@@ -47,7 +67,7 @@ export function Hero() {
             transition={{ duration: 0.55, delay: 0.18 }}
             className="mt-5 max-w-xl text-base leading-8 text-muted-foreground sm:text-lg"
           >
-            {t('heroDescription')}
+            {corePromise.description}
           </motion.p>
 
           <motion.div
@@ -56,9 +76,9 @@ export function Hero() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="mt-7 flex flex-col gap-3 sm:flex-row"
           >
-            <Link to="/register">
+            <Link to="/virtual-gallery/create">
               <Button className="h-12 w-full rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-curator-brass sm:w-auto">
-                {t('freeStart')}
+                {corePromise.cta}
                 <ArrowRight className="ml-2 size-4" />
               </Button>
             </Link>
@@ -123,7 +143,7 @@ export function Hero() {
           <DialogHeader>
             <DialogTitle>{t('videoTutorial')}</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              {t('heroDescription')}
+              {corePromise.description}
             </DialogDescription>
           </DialogHeader>
           <div className="flex aspect-video items-center justify-center rounded-md border border-border bg-secondary">

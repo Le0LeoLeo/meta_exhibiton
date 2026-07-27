@@ -31,6 +31,7 @@ export function FloorPlanUI() {
   const undoCount = undoStack?.length ?? 0;
   const redoCount = redoStack?.length ?? 0;
   const [resizeMode, setResizeMode] = useState<"stretch" | "shrink">("stretch");
+  const [floorPlanHistoryBaseline, setFloorPlanHistoryBaseline] = useState(undoCount);
 
   const selectedElement = floorPlanElements.find((element) => element.id === selectedFloorPlanElementId);
   const roomElements = floorPlanElements.filter((element) => element.type === "room");
@@ -39,6 +40,25 @@ export function FloorPlanUI() {
   const roomCount = roomElements.length;
   const canDeleteSelected = !(selectedElement?.type === "room" && (roomCount <= 1 || selectedElement.isLocked));
   const targetElements = floorPlanEditTarget === "room" ? roomElements : wallElements;
+  const floorPlanUndoCount = Math.max(0, undoCount - floorPlanHistoryBaseline);
+
+  const selectEditTarget = (target: "room" | "wall") => {
+    setFloorPlanEditTarget(target);
+    const nextElement = floorPlanElements.find((element) =>
+      target === "room" ? element.type === "room" : element.type !== "room",
+    );
+    setSelectedFloorPlanElementId(nextElement?.id ?? null);
+  };
+
+  const addElement = (type: "room" | "wall") => {
+    setFloorPlanEditTarget(type);
+    addFloorPlanElement(type);
+  };
+
+  const syncFrom3D = () => {
+    syncEditToFloorPlan();
+    setFloorPlanHistoryBaseline(useStore.getState().undoStack.length);
+  };
 
   const modeSummary = useMemo(() => {
     const targetCount = floorPlanEditTarget === "room" ? roomElements.length : wallElements.length;
@@ -156,25 +176,21 @@ export function FloorPlanUI() {
     });
   };
 
-  const distributeTargetElements = (axis: "horizontal" | "vertical") => {
-    if (targetElements.length < 3) return;
-
-    const sorted = [...targetElements].sort((a, b) =>
-      axis === "horizontal" ? a.position[0] - b.position[0] : a.position[2] - b.position[2],
+  useEffect(() => {
+    if (mode !== "floor-plan") return;
+    const selectionMatchesTarget = selectedElement && (
+      floorPlanEditTarget === "room"
+        ? selectedElement.type === "room"
+        : selectedElement.type !== "room"
     );
+    if (selectionMatchesTarget) return;
 
-    const positions = sorted.map((element) => (axis === "horizontal" ? element.position[0] : element.position[2]));
-    const min = positions[0];
-    const max = positions[positions.length - 1];
-    const step = (max - min) / (sorted.length - 1);
+    setSelectedFloorPlanElementId(targetElements[0]?.id ?? null);
+  }, [mode, floorPlanEditTarget, selectedElement, targetElements, setSelectedFloorPlanElementId]);
 
-    sorted.forEach((element, index) => {
-      const next = [...element.position] as [number, number, number];
-      if (axis === "horizontal") next[0] = snapToGrid(min + step * index);
-      else next[2] = snapToGrid(min + step * index);
-      updateFloorPlanElement(element.id, { position: next });
-    });
-  };
+  useEffect(() => {
+    if (mode === "floor-plan") setFloorPlanHistoryBaseline(undoCount);
+  }, [mode]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -186,8 +202,8 @@ export function FloorPlanUI() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         if (!isTyping) {
           e.preventDefault();
-          if (e.shiftKey) redo();
-          else undo();
+          if (e.shiftKey && redoCount > 0) redo();
+          else if (!e.shiftKey && floorPlanUndoCount > 0) undo();
         }
         return;
       }
@@ -201,7 +217,7 @@ export function FloorPlanUI() {
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r") {
         e.preventDefault();
-        syncEditToFloorPlan();
+        syncFrom3D();
         return;
       }
 
@@ -308,7 +324,7 @@ export function FloorPlanUI() {
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [mode, selectedElement, canDeleteSelected, resizeMode, removeFloorPlanElement, duplicateFloorPlanElement, setFloorPlanEditTarget, applyFloorPlanToEdit, undo, redo, undoCount, redoCount, setMode, syncEditToFloorPlan, setSelectedFloorPlanElementId]);
+  }, [mode, selectedElement, canDeleteSelected, resizeMode, removeFloorPlanElement, duplicateFloorPlanElement, setFloorPlanEditTarget, applyFloorPlanToEdit, undo, redo, floorPlanUndoCount, redoCount, setMode, syncFrom3D, setSelectedFloorPlanElementId]);
 
   if (mode !== "floor-plan") return null;
 
@@ -322,21 +338,21 @@ export function FloorPlanUI() {
           targetCount={modeSummary.targetCount}
           accentClass={modeSummary.accentClass}
           floorPlanEditTarget={floorPlanEditTarget}
-          undoCount={undoCount}
+          undoCount={floorPlanUndoCount}
           redoCount={redoCount}
           selectedElementExists={Boolean(selectedElement)}
           resizeMode={resizeMode}
-          onSetEditTarget={setFloorPlanEditTarget}
+          onSetEditTarget={selectEditTarget}
           onUndo={undo}
           onRedo={redo}
-          onSyncFrom3D={syncEditToFloorPlan}
+          onSyncFrom3D={syncFrom3D}
           onDuplicateSelected={() => selectedElement && duplicateFloorPlanElement(selectedElement.id)}
           onApplyAndReturn={() => {
             applyFloorPlanToEdit();
             setMode("edit");
           }}
-          onAddRoom={() => addFloorPlanElement("room")}
-          onAddWall={() => addFloorPlanElement("wall")}
+          onAddRoom={() => addElement("room")}
+          onAddWall={() => addElement("wall")}
         />
 
         <FloorPlanSpacePanel
@@ -354,11 +370,11 @@ export function FloorPlanUI() {
           roomCount={roomCount}
           wallCount={wallElements.length}
           selectedElementExists={Boolean(selectedElement)}
-          undoCount={undoCount}
+          undoCount={floorPlanUndoCount}
           redoCount={redoCount}
         />
 
-        <FloorPlanTipsPanel onSyncFrom3D={syncEditToFloorPlan} />
+        <FloorPlanTipsPanel />
       </div>
 
       {selectedElement && (

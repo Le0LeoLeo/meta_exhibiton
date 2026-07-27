@@ -1,6 +1,7 @@
-import type { ComponentType } from 'react';
+import { createElement, type ComponentType } from 'react';
 import { createBrowserRouter } from 'react-router';
 import { Layout } from './components/Layout';
+import { RouteErrorPage } from './components/RouteErrorPage';
 import { RequireAuth } from './auth';
 
 const lazyPage = (loader: () => Promise<{ default: ComponentType }>) => async () => {
@@ -12,6 +13,7 @@ export const router = createBrowserRouter([
   {
     path: '/',
     Component: Layout,
+    errorElement: createElement(RouteErrorPage),
     HydrateFallback: () => null,
     children: [
       { index: true, lazy: lazyPage(() => import('./pages/Home')) },
@@ -25,6 +27,7 @@ export const router = createBrowserRouter([
       { path: 'competitions', lazy: lazyPage(() => import('./pages/Competitions')) },
       { path: 'competitions/:competitionId', lazy: lazyPage(() => import('./pages/CompetitionDetail')) },
       { path: 'exhibitions/:exhibitionId', lazy: lazyPage(() => import('./pages/ExhibitionView')), handle: { layout: 'fullscreen' } },
+      { path: 'souvenirs/:token', lazy: lazyPage(() => import('./pages/ExhibitionSouvenir')) },
       { path: 'virtual-gallery/share/:token', lazy: lazyPage(() => import('./pages/VirtualGalleryCreate')), handle: { layout: 'fullscreen' } },
       { path: 'growth-memories/share/:token', lazy: lazyPage(() => import('./pages/GrowthMemoriesShare')), handle: { layout: 'fullscreen' } },
       { path: 'growth-memories/share/:token/summary', lazy: lazyPage(() => import('./pages/GrowthMemoriesShare')), handle: { layout: 'fullscreen' } },

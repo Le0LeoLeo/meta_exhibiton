@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useShallow } from "zustand/react/shallow";
 import { useMultiplayerStore } from "../../network/multiplayerStore";
-import { generateGuideTts, loadAuth } from "../../../../api/client";
+import { buildGuideTtsText, loadAuth, requestQwenTts } from "../../../../api/client";
 import {
   requestBuilderRevision,
   requestBuilderReview,
@@ -30,6 +30,10 @@ import { AiCuratorPanel } from "./AiCuratorPanel";
 import { toast } from "sonner";
 import { captureBuilderInspectionScreenshots } from "../../aiBuilder/captureInspectionScreenshots";
 import { runExhibitionBuilderAgent } from "../../aiBuilder/runExhibitionBuilderAgent";
+import { buildBuilderInput } from "../../aiBuilder/buildBuilderInput";
+import { summarizeSceneDiff } from "../../aiBuilder/summarizeSceneDiff";
+import { isBuilderPreviewUnsafe } from "../../aiBuilder/isBuilderPreviewUnsafe";
+import type { SceneSnapshot } from "../../store/metaverseStoreTypes";
 
 const exhibitItemTypes = new Set(["painting", "sculpture"]);
 
@@ -45,7 +49,6 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
     roomSize,
     setRoomSize,
     items,
-    addItem,
     pendingPlacement,
     setPendingPlacement,
     selectedItemId,
@@ -87,7 +90,6 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
       roomSize: state.roomSize,
       setRoomSize: state.setRoomSize,
       items: state.items,
-      addItem: state.addItem,
       pendingPlacement: state.pendingPlacement,
       setPendingPlacement: state.setPendingPlacement,
       selectedItemId: state.selectedItemId,
@@ -137,7 +139,7 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
   const multiplayerRemoteCount = useMultiplayerStore((state) => Object.keys(state.remotePlayers).length);
   const multiplayerChatMessages = useMultiplayerStore((state) => state.chatMessages);
 
-  const [spawnLocation, setSpawnLocation] = useState<"center" | "north" | "south" | "east" | "west">("center");
+  const [spawnLocation] = useState<"center" | "north" | "south" | "east" | "west">("center");
   const [wallBatchCount, setWallBatchCount] = useState(1);
   const [wallBatchSpacing, setWallBatchSpacing] = useState(1.2);
   const [partitionAttachSide, setPartitionAttachSide] = useState<"front" | "back">("front");
@@ -158,6 +160,16 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
   const [aiBuilderError, setAiBuilderError] = useState<string | null>(null);
   const [aiBuilderPreview, setAiBuilderPreview] = useState<BuilderSessionResponse | null>(null);
   const [aiBuilderReview, setAiBuilderReview] = useState<BuilderReviewResponse | null>(null);
+  const [aiBuilderBaseline, setAiBuilderBaseline] = useState<SceneSnapshot | null>(null);
+  const [aiBuilderProgress, setAiBuilderProgress] = useState<{
+    phase: "generating" | "capturing" | "reviewing" | "revising" | "completed" | "stopped";
+    attempt: number;
+    maxRevisions: number;
+    message?: string;
+  } | null>(null);
+  const [aiBuilderStopReason, setAiBuilderStopReason] = useState<
+    "passed" | "revision_limit" | "no_improvement" | "review_unavailable" | null
+  >(null);
   const [keepFrameAspectRatio, setKeepFrameAspectRatio] = useState(true);
   const [chatInput, setChatInput] = useState("");
   const [isTtsGenerating, setIsTtsGenerating] = useState(false);
@@ -203,11 +215,14 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
   const unlockAllPartitions = () => setAllPartitionsLocked(false);
   const lockAllPartitions = () => setAllPartitionsLocked(true);
   const selectedItemIdsCount = selectedItemIds.length;
-  const selectedItemsAreMultiple = selectedItemIdsCount > 1;
   const hasSelection = selectedItemIdsCount > 0;
   const canEditSelectedItem = Boolean(selectedItem);
   const selectedIsLockedPartition = selectedItem?.type === "partition" && Boolean(selectedItem.isLocked);
   const exhibitItemsCount = items.filter((item) => exhibitItemTypes.has(item.type)).length;
+  const aiBuilderDiff = aiBuilderBaseline && aiBuilderPreview
+    ? summarizeSceneDiff(aiBuilderBaseline, aiBuilderPreview.scene)
+    : null;
+  const aiBuilderPreviewUnsafe = isBuilderPreviewUnsafe(aiBuilderReview);
   const maxPaintingUploadSizeMB = 20;
   const selectedItemIsVideo = selectedItem?.type === "painting" && ((selectedItem.fileMimeType || "").startsWith("video/") || /^data:video\//.test(selectedItem.content || ""));
   const selectedItemTypeLabel = selectedItem ? selectedItemTypeLabelMap[selectedItem.type] ?? selectedItem.type : null;
@@ -215,6 +230,7 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
   useTopBarHeight({ topBarRef, active: mode === "edit" });
 
   const glassPanelClass = "border border-white/35 bg-white/20 backdrop-blur-2xl shadow-[0_18px_48px_rgba(15,23,42,0.12)] ring-1 ring-white/18";
+  const moreToolsPanelClass = "border border-slate-700/80 bg-slate-950/85 backdrop-blur-2xl shadow-[0_20px_56px_rgba(2,6,23,0.38)] ring-1 ring-white/10";
   const glassButtonClass = "border border-white/28 bg-white/20 text-white shadow-[0_10px_28px_rgba(15,23,42,0.08)] hover:bg-white/30 hover:text-white active:scale-[0.98]";
   const glassInputClass = "border border-white/28 bg-white/18 text-white placeholder:text-white/55 shadow-inner shadow-white/10 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-200/70";
   const sectionCardClass = "rounded-2xl border border-white/30 bg-white/24 backdrop-blur-md p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.34)] text-white";
@@ -249,7 +265,15 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
     setIsTtsGenerating(true);
     const guideItem = selectedItem;
     try {
-      const blob = await generateGuideTts({ title: guideItem.title || "", artist: guideItem.artist || "", description: guideItem.description || guideItem.content || "" });
+      const { token } = loadAuth();
+      if (!token) throw new Error(t('editorVoiceGuideFailed'));
+      const text = buildGuideTtsText({
+        title: guideItem.title,
+        artist: guideItem.artist,
+        description: guideItem.description || guideItem.content,
+      });
+      if (!text) throw new Error(t('editorVoiceGuideFailed'));
+      const blob = await requestQwenTts(token, { text });
       if (!isMountedRef.current || ttsRequestIdRef.current !== requestId) return;
       stopGuideAudio(false);
       const url = URL.createObjectURL(blob);
@@ -328,15 +352,19 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
     setAiBuilderError(null);
     setAiBuilderPreview(null);
     setAiBuilderReview(null);
+    setAiBuilderProgress({ phase: "generating", attempt: 0, maxRevisions: 0 });
+    setAiBuilderStopReason(null);
     setIsAiBuilding(true);
     try {
-      const result = await requestBuilderSession(token, {
+      const baseline = useStore.getState().exportScene();
+      setAiBuilderBaseline(baseline);
+      const result = await requestBuilderSession(token, buildBuilderInput(baseline, {
         prompt,
         style: aiBuilderStyle,
         exhibitCount: aiBuilderExhibitCount,
-        currentScene: useStore.getState().exportScene(),
-      });
+      }));
       setAiBuilderPreview(result);
+      setAiBuilderProgress({ phase: "completed", attempt: 0, maxRevisions: 0 });
     } catch (err) {
       const message = err instanceof Error ? err.message : t("editorAiBuilderFailed");
       setAiBuilderError(message);
@@ -359,32 +387,44 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
     setAiBuilderError(null);
     setAiBuilderPreview(null);
     setAiBuilderReview(null);
+    setAiBuilderStopReason(null);
     setIsAiAgentRunning(true);
     try {
+      const baseline = useStore.getState().exportScene();
+      setAiBuilderBaseline(baseline);
       const result = await runExhibitionBuilderAgent({
         token,
-        input: {
+        input: buildBuilderInput(baseline, {
           prompt,
           style: aiBuilderStyle,
           exhibitCount: aiBuilderExhibitCount,
-          currentScene: useStore.getState().exportScene(),
-        },
+        }),
         exportScene: () => useStore.getState().exportScene(),
         importScene: (scene) => useStore.getState().importScene(scene),
         requestBuilderSession,
         requestBuilderReview,
         requestBuilderRevision,
         captureScreenshots: captureBuilderInspectionScreenshots,
-        onStep: ({ session, review }) => {
-          if (session) setAiBuilderPreview(session);
-          if (review) setAiBuilderReview(review);
+        onStep: (step) => {
+          setAiBuilderProgress(step);
+          if (step.session) setAiBuilderPreview(step.session);
+          if (step.review) setAiBuilderReview(step.review);
         },
       });
       setAiBuilderPreview(result.session);
       setAiBuilderReview(result.review);
-      toast.success("AI Exhibition Builder Agent 完成", {
-        description: result.review.review.overallStatus,
-      });
+      setAiBuilderStopReason(result.stopReason);
+      if (result.stopReason === "review_unavailable") {
+        toast.warning(t("editorAiBuilderStop_review_unavailable"), {
+          description: t("editorAiBuilderReviewUnavailableDetail"),
+        });
+      } else {
+        toast.success(t("editorAiBuilderAgentComplete"), {
+          description: result.review.review
+            ? t(`editorAiBuilderReview_${result.review.review.overallStatus}`)
+            : undefined,
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "AI exhibition builder agent failed";
       setAiBuilderError(message);
@@ -429,7 +469,7 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
   };
 
   const handleReviseAiExhibition = async () => {
-    if (!aiBuilderPreview || !aiBuilderReview || isAiRevising) return;
+    if (!aiBuilderPreview || !aiBuilderReview?.review || isAiRevising) return;
 
     const { token } = loadAuth();
     if (!token) {
@@ -461,6 +501,14 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
 
   const handleApplyAiExhibition = () => {
     if (!aiBuilderPreview) return;
+    if (aiBuilderPreviewUnsafe) {
+      setAiBuilderError(t("editorAiBuilderUnsafeApplyBlocked"));
+      return;
+    }
+    if (aiBuilderDiff && !aiBuilderDiff.protectedItemsPreserved) {
+      setAiBuilderError(t("editorAiBuilderProtectedApplyBlocked"));
+      return;
+    }
     useStore.getState().importScene(aiBuilderPreview.scene);
     setIsAiBuilderOpen(false);
     setIsMorePanelOpen(false);
@@ -472,6 +520,9 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
   const handleDiscardAiExhibition = () => {
     setAiBuilderPreview(null);
     setAiBuilderReview(null);
+    setAiBuilderBaseline(null);
+    setAiBuilderProgress(null);
+    setAiBuilderStopReason(null);
   };
 
   useEffect(() => {
@@ -673,7 +724,7 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
       />
 
       {isMorePanelOpen && (
-        <div className={`absolute left-3 right-3 top-[calc(var(--top-bar-height,6rem)+0.55rem)] z-30 max-h-[calc(100dvh-var(--top-bar-height,6rem)-1rem)] space-y-2 overflow-y-auto rounded-2xl p-3 pointer-events-auto text-white sm:left-auto sm:right-4 sm:w-72 ${glassPanelClass}`}>
+        <div className={`fixed left-3 right-3 top-[calc(var(--top-bar-height,6rem)+0.55rem)] z-30 max-h-[calc(100dvh-var(--top-bar-height,6rem)-1rem)] space-y-2 overflow-y-auto rounded-2xl p-3 pointer-events-auto text-white sm:absolute sm:left-auto sm:right-4 sm:w-72 ${moreToolsPanelClass}`}>
           <h3 className="text-xs font-semibold text-white">{t('editorMoreTools')}</h3>
           <PerformanceModeControl />
           <button onClick={() => setIsAiCuratorOpen((prev) => !prev)} className={`w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-white transition-colors ${glassButtonClass}`}>AI 策展助手</button>
@@ -730,6 +781,35 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
                   />
                 </label>
               </div>
+              {aiBuilderProgress && (
+                <div
+                  className="rounded-xl border border-sky-200/35 bg-sky-500/12 px-3 py-2"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <p className="text-[11px] font-semibold text-sky-50">
+                    {t(`editorAiBuilderPhase_${aiBuilderProgress.phase}`)}
+                  </p>
+                  {aiBuilderProgress.phase === "revising" && (
+                    <p className="mt-1 text-[11px] text-white/70">
+                      {t("editorAiBuilderRevisionProgress", {
+                        current: aiBuilderProgress.attempt,
+                        total: aiBuilderProgress.maxRevisions,
+                      })}
+                    </p>
+                  )}
+                </div>
+              )}
+              {aiBuilderStopReason && aiBuilderStopReason !== "passed" && (
+                <div className="rounded-xl border border-amber-200/40 bg-amber-500/15 px-3 py-2" role="alert">
+                  <p className="text-[11px] font-semibold text-amber-50">
+                    {t(`editorAiBuilderStop_${aiBuilderStopReason}`)}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-white/70">
+                    {t("editorAiBuilderStopPreviewSafe")}
+                  </p>
+                </div>
+              )}
               {aiBuilderError && <p className="rounded-xl border border-rose-200/40 bg-rose-500/15 px-2 py-1.5 text-[11px] text-rose-50">{aiBuilderError}</p>}
               {aiBuilderPreview && (
                 <div className="space-y-2 rounded-xl border border-emerald-200/35 bg-emerald-500/12 p-3 text-xs text-white">
@@ -742,8 +822,26 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
                   </div>
                   <div className="flex items-center justify-between gap-2 rounded-lg border border-white/15 bg-white/10 px-2 py-1.5">
                     <span className="text-[11px] text-white/70">{t('editorAiBuilderPreviewSource')}</span>
-                    <span className="text-[11px] font-semibold text-white">{aiBuilderPreview.source}</span>
+                    <span className="text-[11px] font-semibold text-white">
+                      {t(`editorAiBuilderSource_${aiBuilderPreview.source}`)}
+                    </span>
                   </div>
+                  {aiBuilderDiff && (
+                    <div className="rounded-lg border border-white/15 bg-white/10 px-2 py-2">
+                      <p className="text-[11px] font-semibold text-white">{t("editorAiBuilderDiffTitle")}</p>
+                      <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px] text-white/75">
+                        <span>{t("editorAiBuilderDiffMoved", { count: aiBuilderDiff.movedItemIds.length })}</span>
+                        <span>{t("editorAiBuilderDiffCopy", { count: aiBuilderDiff.copyUpdatedItemIds.length })}</span>
+                        <span>{t("editorAiBuilderDiffAdded", { count: aiBuilderDiff.addedItemIds.length })}</span>
+                        <span>{t("editorAiBuilderDiffRemoved", { count: aiBuilderDiff.removedGeneratedItemIds.length })}</span>
+                      </div>
+                      <p className={`mt-2 text-[11px] font-semibold ${aiBuilderDiff.protectedItemsPreserved ? "text-emerald-100" : "text-rose-100"}`}>
+                        {t(aiBuilderDiff.protectedItemsPreserved
+                          ? "editorAiBuilderProtectedPreserved"
+                          : "editorAiBuilderProtectedChanged")}
+                      </p>
+                    </div>
+                  )}
                   {aiBuilderPreview.warnings.length > 0 && (
                     <div className="rounded-lg border border-amber-200/35 bg-amber-500/12 px-2 py-1.5">
                       <p className="text-[11px] font-semibold text-amber-50">{t('editorAiBuilderPreviewWarnings')}</p>
@@ -754,7 +852,7 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
                       </ul>
                     </div>
                   )}
-                  {aiBuilderReview && (
+                  {aiBuilderReview?.review && (
                     <div className="space-y-2 rounded-lg border border-sky-200/35 bg-sky-500/12 px-2 py-2">
                       <div className="grid grid-cols-2 gap-2">
                         <div className="rounded-lg border border-white/15 bg-white/10 px-2 py-1.5">
@@ -766,7 +864,9 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
                           <p className="text-sm font-semibold text-white">{aiBuilderReview.review.curatorialScore}/100</p>
                         </div>
                       </div>
-                      <p className="text-[11px] font-semibold text-sky-50">VL status: {aiBuilderReview.review.overallStatus}</p>
+                      <p className="text-[11px] font-semibold text-sky-50">
+                        {t("editorAiBuilderReviewStatus")}: {t(`editorAiBuilderReview_${aiBuilderReview.review.overallStatus}`)}
+                      </p>
                       {aiBuilderReview.review.blockingIssues.length > 0 && (
                         <ul className="space-y-1 text-[11px] leading-relaxed text-white/75">
                           {aiBuilderReview.review.blockingIssues.slice(0, 3).map((issue, index) => (
@@ -778,29 +878,40 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
                       )}
                     </div>
                   )}
+                  {aiBuilderReview?.status === "unavailable" && (
+                    <div className="rounded-lg border border-amber-200/35 bg-amber-500/12 px-2 py-2" role="alert">
+                      <p className="text-[11px] font-semibold text-amber-50">{t("editorAiBuilderReviewUnavailable")}</p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-white/70">
+                        {t("editorAiBuilderReviewUnavailableDetail")}
+                      </p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={handleReviewAiExhibition}
                       disabled={isAiReviewing}
+                      aria-label={isAiReviewing ? t("editorAiBuilderReviewing") : t("editorAiBuilderReviewAction")}
                       className="rounded-xl border border-sky-200/45 bg-sky-500/25 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-500/35 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {isAiReviewing ? "VL 檢查中" : "VL 自檢"}
+                      <span className="text-xs">{isAiReviewing ? t("editorAiBuilderReviewing") : t("editorAiBuilderReviewAction")}</span>
                     </button>
                     <button
                       type="button"
                       onClick={handleReviseAiExhibition}
-                      disabled={!aiBuilderReview || isAiRevising || (aiBuilderPreview.revisionCount ?? 0) >= 3}
+                      disabled={!aiBuilderReview?.review || isAiRevising || (aiBuilderPreview.revisionCount ?? 0) >= 3}
+                      aria-label={isAiRevising ? t("editorAiBuilderRevising") : t("editorAiBuilderReviseAction")}
                       className="rounded-xl border border-violet-200/45 bg-violet-500/25 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-violet-500/35 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {isAiRevising ? "修正中" : "依報告修正"}
+                      <span className="text-xs">{isAiRevising ? t("editorAiBuilderRevising") : t("editorAiBuilderReviseAction")}</span>
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={handleApplyAiExhibition}
-                      className="rounded-xl border border-emerald-200/45 bg-emerald-500/30 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-500/40"
+                      disabled={aiBuilderPreviewUnsafe || aiBuilderDiff?.protectedItemsPreserved === false}
+                      className="rounded-xl border border-emerald-200/45 bg-emerald-500/30 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {t('editorAiBuilderApply')}
                     </button>

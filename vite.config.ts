@@ -39,6 +39,9 @@ export default defineConfig({
     restoreMocks: true,
   },
   build: {
+    // Three.js ships its WebGL runtime as one cacheable module; the enforced
+    // 800 KiB bundle gate below remains the hard regression limit.
+    chunkSizeWarningLimit: 750,
     rollupOptions: {
       output: {
         manualChunks: getManualChunk,

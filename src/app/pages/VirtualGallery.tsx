@@ -93,7 +93,12 @@ export default function VirtualGallery() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       if (videoRef.current) videoRef.current.srcObject = stream;
 
-      const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      const BarcodeDetectorClass = (window as Window & {
+        BarcodeDetector: new (options: { formats: string[] }) => {
+          detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+        };
+      }).BarcodeDetector;
+      const detector = new BarcodeDetectorClass({ formats: ['qr_code'] });
       const tick = async () => {
         if (!videoRef.current || !isScanning) return;
         try {

@@ -13,7 +13,6 @@ const navItems = [
   { labelKey: 'navVirtualGallery', path: '/virtual-gallery' },
   { labelKey: 'navExhibitions', path: '/exhibitions' },
   { labelKey: 'navSolutions', path: '/solutions' },
-  { labelKey: 'navCompetitions', path: '/competitions' },
   { labelKey: 'navSupport', path: '/support' },
   { labelKey: 'navResources', path: '/resources' },
 ];

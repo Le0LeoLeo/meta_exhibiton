@@ -1,4 +1,5 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from './base';
+import { apiFetch } from './request';
 
 export type GallerySummary = {
   id: string;
@@ -95,7 +96,7 @@ export type GalleryShareLink = {
 };
 
 export async function getMyGalleries(token: string): Promise<{ galleries: GallerySummary[] }> {
-  const res = await fetch(apiUrl('/api/galleries/mine'), {
+  const res = await apiFetch(apiUrl('/api/galleries/mine'), {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
@@ -104,7 +105,7 @@ export async function getMyGalleries(token: string): Promise<{ galleries: Galler
 }
 
 export async function getPublishedGalleries(): Promise<{ galleries: GallerySummary[] }> {
-  const res = await fetch(apiUrl('/api/galleries/published'), {
+  const res = await apiFetch(apiUrl('/api/galleries/published'), {
     headers: { 'Content-Type': 'application/json' },
   });
   const data = await parseJsonSafe(res);
@@ -113,7 +114,7 @@ export async function getPublishedGalleries(): Promise<{ galleries: GallerySumma
 }
 
 export async function getPublishedGalleryById(id: string): Promise<{ gallery: GalleryDetail }> {
-  const res = await fetch(apiUrl(`/api/galleries/published/${encodeURIComponent(id)}`));
+  const res = await apiFetch(apiUrl(`/api/galleries/published/${encodeURIComponent(id)}`));
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '載入公開展覽失敗');
   return data as { gallery: GalleryDetail };
@@ -130,7 +131,7 @@ export async function createGallery(
     sceneJson?: string;
   },
 ): Promise<{ gallery: GalleryDetail }> {
-  const res = await fetch(apiUrl('/api/galleries'), {
+  const res = await apiFetch(apiUrl('/api/galleries'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -141,7 +142,7 @@ export async function createGallery(
 }
 
 export async function getGalleryById(token: string, id: string): Promise<{ gallery: GalleryDetail }> {
-  const res = await fetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}`), {
+  const res = await apiFetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}`), {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
@@ -150,7 +151,7 @@ export async function getGalleryById(token: string, id: string): Promise<{ galle
 }
 
 export async function getGalleryAdminAnalytics(token: string): Promise<GalleryAdminAnalytics> {
-  const res = await fetch(apiUrl('/api/galleries/admin/analytics'), {
+  const res = await apiFetch(apiUrl('/api/galleries/admin/analytics'), {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
@@ -162,7 +163,7 @@ export async function deleteGalleryComment(
   token: string,
   payload: { galleryId: string; itemId: string; commentId: string },
 ): Promise<{ ok: true }> {
-  const res = await fetch(
+  const res = await apiFetch(
     apiUrl(`/api/galleries/${encodeURIComponent(payload.galleryId)}/items/${encodeURIComponent(payload.itemId)}/comments/${encodeURIComponent(payload.commentId)}`),
     {
       method: 'DELETE',
@@ -177,7 +178,7 @@ export async function deleteGalleryComment(
 export async function getSharedGallery(
   shareToken: string,
 ): Promise<{ gallery: GalleryDetail; access: GalleryShareAccess }> {
-  const res = await fetch(apiUrl('/api/share/galleries'), {
+  const res = await apiFetch(apiUrl('/api/share/galleries'), {
     headers: { 'x-gallery-share-token': shareToken },
   });
   const data = await parseJsonSafe(res);
@@ -186,7 +187,7 @@ export async function getSharedGallery(
 }
 
 export async function deleteGalleryById(token: string, id: string): Promise<{ ok: true }> {
-  const res = await fetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}`), {
+  const res = await apiFetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}`), {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -200,7 +201,7 @@ export async function updateGalleryById(
   id: string,
   payload: Partial<Pick<GalleryDetail, 'title' | 'description' | 'templateTitle' | 'templateImage' | 'category' | 'sceneJson'>>,
 ): Promise<{ gallery: GalleryDetail }> {
-  const res = await fetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}`), {
+  const res = await apiFetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}`), {
     method: 'PATCH',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -214,7 +215,7 @@ export async function updateSharedGallery(
   shareToken: string,
   payload: Partial<Pick<GalleryDetail, 'title' | 'description' | 'templateTitle' | 'templateImage' | 'category' | 'sceneJson'>>,
 ): Promise<{ gallery: GalleryDetail }> {
-  const res = await fetch(apiUrl('/api/share/galleries'), {
+  const res = await apiFetch(apiUrl('/api/share/galleries'), {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -232,7 +233,7 @@ export async function createGalleryShareLink(
   id: string,
   payload: { role: 'viewer' | 'editor'; expiresInHours?: number },
 ): Promise<{ share: GalleryShareLink }> {
-  const res = await fetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}/share-link`), {
+  const res = await apiFetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}/share-link`), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -247,7 +248,7 @@ export async function publishGalleryById(
   id: string,
   competitionEntry?: { competitionId: string; statement: string; assets?: Array<{ name: string; url: string }> },
 ): Promise<{ gallery: GalleryDetail }> {
-  const res = await fetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}/publish`), {
+  const res = await apiFetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}/publish`), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify({ competitionEntry }),
@@ -262,7 +263,7 @@ export async function createGalleryUploadLink(
   id: string,
   payload: { itemId: string; canEditMetadata?: boolean; expiresInHours?: number },
 ): Promise<{ uploadLink: { url: string; token: string; galleryId: string; itemId: string; canEditMetadata: boolean; expiresAt: string | null } }> {
-  const res = await fetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}/upload-link`), {
+  const res = await apiFetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}/upload-link`), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -273,7 +274,7 @@ export async function createGalleryUploadLink(
 }
 
 export async function getGalleryUploadLink(token: string): Promise<{ uploadLink: GalleryUploadLink; gallery: GalleryDetail; item?: unknown }> {
-  const res = await fetch(apiUrl(`/api/upload-links/${encodeURIComponent(token)}`));
+  const res = await apiFetch(apiUrl(`/api/upload-links/${encodeURIComponent(token)}`));
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '載入上傳連結失敗');
   return data as { uploadLink: GalleryUploadLink; gallery: GalleryDetail; item?: unknown };
@@ -292,7 +293,7 @@ export async function saveGalleryUploadLink(
     videoThumbnailUrl?: string;
   },
 ): Promise<{ gallery: GalleryDetail | null; item: unknown }> {
-  const res = await fetch(apiUrl(`/api/upload-links/${encodeURIComponent(uploadToken)}`), {
+  const res = await apiFetch(apiUrl(`/api/upload-links/${encodeURIComponent(uploadToken)}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -303,7 +304,7 @@ export async function saveGalleryUploadLink(
 }
 
 export async function revokeGalleryUploadLink(token: string, uploadToken: string): Promise<{ ok: true }> {
-  const res = await fetch(apiUrl(`/api/upload-links/${encodeURIComponent(uploadToken)}`), {
+  const res = await apiFetch(apiUrl(`/api/upload-links/${encodeURIComponent(uploadToken)}`), {
     method: 'DELETE',
     headers: authHeaders(token),
   });
@@ -313,7 +314,7 @@ export async function revokeGalleryUploadLink(token: string, uploadToken: string
 }
 
 export async function unpublishGalleryById(token: string, id: string): Promise<{ gallery: GalleryDetail }> {
-  const res = await fetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}/publish`), {
+  const res = await apiFetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}/publish`), {
     method: 'DELETE',
     headers: authHeaders(token),
   });

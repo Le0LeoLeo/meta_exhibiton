@@ -5,10 +5,13 @@ import type { AppMode, ExhibitItem, RoomSize } from "../../../modules/metaverse3
 import { useMetaverseStudioStore } from "../../../modules/metaverse3d/store/useMetaverseStudioStore";
 import { StudioCanvasRoot } from "./StudioCanvasRoot";
 
+const { canvasSceneProps } = vi.hoisted(() => ({ canvasSceneProps: vi.fn() }));
+
 vi.mock("../../../modules/metaverse3d/components/CanvasScene", () => ({
-  CanvasScene: ({ items }: { items: ExhibitItem[] }) => (
-    <div data-testid="canvas-scene">{items.length}</div>
-  ),
+  CanvasScene: (props: { items: ExhibitItem[]; onUse2D?: () => void }) => {
+    canvasSceneProps(props);
+    return <div data-testid="canvas-scene">{props.items.length}</div>;
+  },
 }));
 
 vi.mock("../../../modules/metaverse3d/components/UI/AgentChatPanel", () => ({
@@ -102,7 +105,7 @@ describe("StudioCanvasRoot", () => {
     expect(screen.getByTestId("canvas-scene")).toHaveTextContent("0");
   });
 
-  it("does not auto-enter from stale floor-plan completion state on the first 3D render", async () => {
+  it("auto-enters when a cached return preload completes without an intermediate loading render", async () => {
     const { rerender } = render(<StudioCanvasRoot />);
 
     preloadState.shouldPreloadScene = true;
@@ -117,14 +120,16 @@ describe("StudioCanvasRoot", () => {
       await Promise.resolve();
     });
 
-    preloadState.backgroundComplete = false;
-    preloadState.canEnter = false;
-    preloadState.progress = 0;
-    preloadState.stage = "core";
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByTestId("canvas-scene")).toHaveTextContent("1");
+  });
 
-    rerender(<StudioCanvasRoot />);
+  it("passes the public 2D recovery action to the canvas", () => {
+    const onUse2D = vi.fn();
+    render(<StudioCanvasRoot onUse2D={onUse2D} />);
 
-    expect(screen.getByRole("dialog")).toHaveTextContent("建立展館與操作空間");
-    expect(screen.getByTestId("canvas-scene")).toHaveTextContent("0");
+    expect(canvasSceneProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ onUse2D }),
+    );
   });
 });

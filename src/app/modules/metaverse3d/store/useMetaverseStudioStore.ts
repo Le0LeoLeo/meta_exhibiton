@@ -12,7 +12,6 @@ import {
   FloorPlanElementType,
   WallMaterialSettings,
 } from "../types";
-import type { AgentChatMessage, AgentRecommendation, AgentState } from "../agent/types";
 import {
   normalizeStoredPerformanceMode,
   type EffectivePerformanceMode,
@@ -22,16 +21,13 @@ import {
   createDefaultAgentTourSession,
   createSnapshot,
   defaultAgentState,
-  normalizeImportedItemContent,
-  parseRotationVec3,
-  parseVec3,
   sanitizeItemsForPersist,
   sanitizeRoomSizeForPersist,
   sanitizeWallOverridesForPersist,
   withHistory,
 } from "./metaverseStoreUtils";
 import { createDefaultItem } from "./metaverseStoreItemHelpers";
-import { createDefaultFloorPlanElement, selectRoomTargetId } from "./metaverseStoreFloorPlanHelpers";
+import { selectRoomTargetId } from "./metaverseStoreFloorPlanHelpers";
 import { addFloorPlanElementAction, createAppliedFloorPlan, createSyncedFloorPlan } from "./floorPlanActions";
 import { getNextSelectedIds, getSelectionAfterRemoval, getNextViewingItemId, getViewingItemById } from "./metaverseStoreSelectionHelpers";
 import { createImportedSceneSnapshot, createUndoRedoPatch } from "./metaverseStoreHistoryHelpers";
@@ -51,8 +47,6 @@ const defaultEditorThemePresets: EditorThemePreset[] = [
   { id: "future-metal", name: "未來金屬", settings: { wallMaterialPreset: "metal", wallColor: "#cbd5e1", wallTextureUrl: "/textures/wall-metal.svg", wallTextureTiling: 4, wallRoughness: 0.2, wallMetalness: 0.9, wallBumpScale: 0.03, wallEnvIntensity: 0.95, wallOpacity: 1, wallTransmission: 0, wallIor: 1.45 } },
   { id: "glass-space", name: "玻璃空間", settings: { wallMaterialPreset: "glass", wallColor: "#e0f2fe", wallTextureUrl: "/textures/wall-paint.svg", wallTextureTiling: 2, wallRoughness: 0.08, wallMetalness: 0, wallBumpScale: 0, wallEnvIntensity: 1.1, wallOpacity: 0.45, wallTransmission: 0.92, wallIor: 1.5 } },
 ];
-
-const MAX_HISTORY = 20;
 
 const areUpdateValuesEqual = (left: unknown, right: unknown) => {
   if (Array.isArray(left) && Array.isArray(right)) {
@@ -428,10 +422,10 @@ export const useMetaverseStudioStore = create<AppState>()(
 
           if (mode === "floor-plan") {
             const synced = createSyncedFloorPlan(state);
-            return withHistory(state, {
+            return {
               ...baseNextState,
               ...synced,
-            });
+            };
           }
 
           if (mode === "edit" && state.mode === "floor-plan") {
@@ -1156,11 +1150,12 @@ export const useMetaverseStudioStore = create<AppState>()(
       name: "metaverse-exhibition-storage",
       version: 7,
 
-      migrate: (persistedState: any, version) => {
+      migrate: (persistedState: unknown, version) => {
         if (!persistedState || typeof persistedState !== "object") return persistedState;
+        const persisted = persistedState as Partial<AppState>;
 
         const baseState = {
-          ...persistedState,
+          ...persisted,
           roomSize: {
             wallColor: "#dbe7ff",
             wallMaterialPreset: "paint",
@@ -1178,13 +1173,13 @@ export const useMetaverseStudioStore = create<AppState>()(
             floorTextureTiling: 2.5,
             floorRoughness: 0.55,
             floorMetalness: 0.18,
-            ...(persistedState.roomSize || {}),
+            ...(persisted.roomSize || {}),
           },
-          editorThemePresets: Array.isArray(persistedState.editorThemePresets) && persistedState.editorThemePresets.length > 0
-            ? persistedState.editorThemePresets.filter((preset: any) => preset && typeof preset.id === "string" && typeof preset.name === "string" && preset.settings && typeof preset.settings === "object")
+          editorThemePresets: Array.isArray(persisted.editorThemePresets) && persisted.editorThemePresets.length > 0
+            ? persisted.editorThemePresets.filter((preset) => preset && typeof preset.id === "string" && typeof preset.name === "string" && preset.settings && typeof preset.settings === "object")
             : defaultEditorThemePresets,
           performanceMode: normalizeStoredPerformanceMode(
-            persistedState.performanceMode,
+            persisted.performanceMode,
           ),
         };
 

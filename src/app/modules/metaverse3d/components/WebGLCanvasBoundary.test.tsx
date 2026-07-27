@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../components/I18nProvider";
 import { WebGLCanvasBoundary } from "./WebGLCanvasBoundary";
@@ -30,6 +30,28 @@ describe("WebGLCanvasBoundary", () => {
 
       expect(screen.getByRole("alert")).toBeInTheDocument();
       expect(screen.getByText("3D 畫面暫時無法載入")).toBeInTheDocument();
+    } finally {
+      window.removeEventListener("error", suppressExpectedWebGLError);
+      consoleError.mockRestore();
+    }
+  });
+
+  it("passes the optional 2D action to recovery", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const onUse2D = vi.fn();
+    const suppressExpectedWebGLError = (event: ErrorEvent) => event.preventDefault();
+    window.addEventListener("error", suppressExpectedWebGLError);
+
+    try {
+      render(
+        <I18nProvider>
+          <WebGLCanvasBoundary onReload={vi.fn()} onUse2D={onUse2D}>
+            <BrokenCanvas />
+          </WebGLCanvasBoundary>
+        </I18nProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "使用 2D 圖文模式" }));
+      expect(onUse2D).toHaveBeenCalledOnce();
     } finally {
       window.removeEventListener("error", suppressExpectedWebGLError);
       consoleError.mockRestore();

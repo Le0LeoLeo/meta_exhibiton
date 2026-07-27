@@ -9,7 +9,7 @@ type RemotePlayerProps = {
   player: RemotePlayerState;
 };
 
-const REMOTE_AVATAR_GLB = ((import.meta as any)?.env?.VITE_REMOTE_AVATAR_GLB as string | undefined)?.trim() || "";
+const REMOTE_AVATAR_GLB = import.meta.env.VITE_REMOTE_AVATAR_GLB?.trim() || "";
 const TARGET_AVATAR_HEIGHT = 1.75;
 
 function normalizeAvatar(root: THREE.Object3D) {
@@ -25,8 +25,8 @@ function normalizeAvatar(root: THREE.Object3D) {
   }
 
   root.traverse((obj) => {
-    if ((obj as any).isMesh) {
-      const mesh = obj as THREE.Mesh;
+    if (obj instanceof THREE.Mesh) {
+      const mesh = obj;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 

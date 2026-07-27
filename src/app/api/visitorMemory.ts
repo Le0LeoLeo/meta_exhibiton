@@ -1,4 +1,5 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from './base';
+import { apiFetch } from './request';
 
 export type VisitorMemoryPayload = {
   visitedExhibitIds?: string[];
@@ -24,7 +25,7 @@ export async function loadVisitorMemory(
   token: string,
   galleryId: string,
 ): Promise<{ memory: VisitorMemoryResponse | null }> {
-  const res = await fetch(apiUrl(`/api/visitor-memory/${encodeURIComponent(galleryId)}`), {
+  const res = await apiFetch(apiUrl(`/api/visitor-memory/${encodeURIComponent(galleryId)}`), {
     method: 'GET',
     headers: authHeaders(token),
   });
@@ -38,7 +39,7 @@ export async function saveVisitorMemory(
   galleryId: string,
   payload: VisitorMemoryPayload,
 ): Promise<{ ok: boolean }> {
-  const res = await fetch(apiUrl(`/api/visitor-memory/${encodeURIComponent(galleryId)}`), {
+  const res = await apiFetch(apiUrl(`/api/visitor-memory/${encodeURIComponent(galleryId)}`), {
     method: 'PUT',
     headers: authHeaders(token),
     body: JSON.stringify(payload),

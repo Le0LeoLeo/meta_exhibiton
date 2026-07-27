@@ -7,11 +7,10 @@ import { useI18n } from './I18nProvider';
 import { canCreateWebGLContext } from '../modules/metaverse3d/components/webglSupport';
 
 const artworkPalettes = [
-  ['#ff6b6b', '#ffd166', '#fef3c7'],
-  ['#38bdf8', '#2dd4bf', '#ecfeff'],
-  ['#a78bfa', '#60a5fa', '#f5f3ff'],
-  ['#34d399', '#bef264', '#fef08a'],
-  ['#fb7185', '#fdba74', '#fff7ed'],
+  ['#9f4d3f', '#d9a441', '#efe4cf'],
+  ['#315c6d', '#79a89c', '#e4ddd0'],
+  ['#746058', '#c97b5a', '#d9c8a4'],
+  ['#3e6257', '#c5a46d', '#e8dfcf'],
 ] as const;
 
 function canRunDecorativeMotion() {
@@ -57,49 +56,57 @@ type ArtworkProps = {
 function Artwork({ palette, position, rotation = [0, 0, 0], scale = [1, 1, 1] }: ArtworkProps) {
   return (
     <group position={position} rotation={rotation} scale={scale}>
-      <mesh castShadow receiveShadow position={[0, 0, -0.015]}>
-        <boxGeometry args={[0.82, 1.08, 0.07]} />
-        <meshStandardMaterial color="#f8fafc" roughness={0.45} metalness={0.04} />
+      <mesh castShadow position={[0, 0, -0.055]}>
+        <boxGeometry args={[1.08, 1.42, 0.1]} />
+        <meshStandardMaterial color="#3b332d" roughness={0.34} metalness={0.12} />
       </mesh>
-      <mesh position={[0, 0, 0.03]}>
-        <planeGeometry args={[0.66, 0.84]} />
-        <meshStandardMaterial color={palette[0]} roughness={0.38} emissive={palette[1]} emissiveIntensity={0.08} />
+      <mesh position={[0, 0, 0.004]}>
+        <planeGeometry args={[0.94, 1.28]} />
+        <meshStandardMaterial color="#eee9df" roughness={0.92} />
       </mesh>
-      <mesh position={[-0.13, 0.12, 0.04]}>
-        <circleGeometry args={[0.2, 28]} />
-        <meshStandardMaterial color={palette[1]} roughness={0.35} emissive={palette[1]} emissiveIntensity={0.12} />
+      <mesh position={[0, 0, 0.012]}>
+        <planeGeometry args={[0.78, 1.1]} />
+        <meshStandardMaterial color={palette[2]} roughness={0.78} />
       </mesh>
-      <mesh position={[0.18, -0.18, 0.05]} rotation={[0, 0, 0.45]}>
-        <planeGeometry args={[0.42, 0.18]} />
-        <meshStandardMaterial color={palette[2]} roughness={0.5} transparent opacity={0.9} />
+      <mesh position={[-0.13, 0.16, 0.024]} rotation={[0, 0, -0.18]}>
+        <circleGeometry args={[0.27, 48]} />
+        <meshStandardMaterial color={palette[0]} roughness={0.7} />
+      </mesh>
+      <mesh position={[0.15, -0.12, 0.027]} rotation={[0, 0, 0.46]}>
+        <planeGeometry args={[0.57, 0.19]} />
+        <meshStandardMaterial color={palette[1]} roughness={0.64} />
+      </mesh>
+      <mesh position={[0, -0.86, 0.01]}>
+        <boxGeometry args={[0.34, 0.07, 0.025]} />
+        <meshStandardMaterial color="#d8d1c5" roughness={0.9} />
       </mesh>
     </group>
   );
 }
 
-function Pedestal({ position, accent }: { position: [number, number, number]; accent: string }) {
+function Pedestal({ position, children }: { position: [number, number, number]; children: React.ReactNode }) {
   return (
     <group position={position}>
-      <mesh castShadow receiveShadow position={[0, 0.35, 0]}>
-        <cylinderGeometry args={[0.36, 0.43, 0.7, 32]} />
-        <meshStandardMaterial color="#e7e5e4" roughness={0.5} metalness={0.08} />
+      <mesh castShadow receiveShadow position={[0, 0.45, 0]}>
+        <boxGeometry args={[0.78, 0.9, 0.78]} />
+        <meshStandardMaterial color="#d8d1c4" roughness={0.82} metalness={0.02} />
       </mesh>
-      <mesh castShadow position={[0, 0.88, 0]}>
-        <icosahedronGeometry args={[0.28, 1]} />
-        <meshStandardMaterial color={accent} roughness={0.25} metalness={0.25} emissive={accent} emissiveIntensity={0.12} />
-      </mesh>
+      {children}
     </group>
   );
 }
 
-function LightStrip({ position, rotation = [0, 0, 0] }: { position: [number, number, number]; rotation?: [number, number, number] }) {
+function TrackLight({ position, rotation = [0, 0, 0] }: { position: [number, number, number]; rotation?: [number, number, number] }) {
   return (
     <group position={position} rotation={rotation}>
-      <mesh>
-        <boxGeometry args={[1.45, 0.035, 0.035]} />
-        <meshStandardMaterial color="#fff7cc" emissive="#facc15" emissiveIntensity={1.9} toneMapped={false} />
+      <mesh castShadow>
+        <cylinderGeometry args={[0.07, 0.09, 0.25, 24]} />
+        <meshStandardMaterial color="#282521" roughness={0.28} metalness={0.72} />
       </mesh>
-      <pointLight color="#ffe6a3" intensity={0.52} distance={3.3} />
+      <mesh position={[0, -0.135, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.064, 24]} />
+        <meshBasicMaterial color="#fff2cc" toneMapped={false} />
+      </mesh>
     </group>
   );
 }
@@ -107,59 +114,121 @@ function LightStrip({ position, rotation = [0, 0, 0] }: { position: [number, num
 function GalleryScene() {
   return (
     <>
-      <color attach="background" args={['#f8fbff']} />
-      <fog attach="fog" args={['#f8fbff', 8.5, 14]} />
-      <ambientLight intensity={0.55} />
-      <hemisphereLight args={['#e0f2fe', '#fef3c7', 0.8]} />
-      <directionalLight position={[3.8, 6, 4.2]} intensity={1.15} castShadow shadow-mapSize={[1024, 1024]} />
-      <spotLight position={[-3.2, 4.4, 2.7]} angle={0.42} penumbra={0.55} intensity={1.2} color="#fff2cc" castShadow />
-      <pointLight position={[2.6, 1.8, -2.2]} intensity={0.8} color="#67e8f9" distance={5} />
+      <color attach="background" args={['#e8e4dc']} />
+      <fog attach="fog" args={['#e8e4dc', 10, 18]} />
+      <ambientLight intensity={0.26} color="#fff7ea" />
+      <hemisphereLight args={['#f7f4ed', '#7d7368', 0.78]} />
+      <directionalLight
+        position={[4.5, 7, 5.2]}
+        intensity={1.75}
+        color="#fff4df"
+        castShadow
+        shadow-mapSize={[1024, 1024]}
+        shadow-camera-left={-5}
+        shadow-camera-right={5}
+        shadow-camera-top={5}
+        shadow-camera-bottom={-5}
+        shadow-normalBias={0.025}
+      />
+      <spotLight position={[-2.25, 3.45, 0.7]} intensity={22} distance={7} angle={0.3} penumbra={0.72} decay={2} color="#ffe7bd" />
+      <spotLight position={[0, 3.45, 0.65]} intensity={26} distance={7} angle={0.28} penumbra={0.75} decay={2} color="#fff0d3" />
+      <spotLight position={[2.25, 3.45, 0.7]} intensity={22} distance={7} angle={0.3} penumbra={0.72} decay={2} color="#ffe7bd" />
 
       <group>
         <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-          <planeGeometry args={[6.4, 5.4]} />
-          <meshStandardMaterial color="#e8edf3" roughness={0.62} metalness={0.05} />
+          <planeGeometry args={[8, 7.2]} />
+          <meshStandardMaterial color="#d5cfc4" roughness={0.72} metalness={0.04} />
         </mesh>
 
-        <gridHelper args={[6.4, 16, '#9fb2c8', '#d6dee8']} position={[0, 0.012, 0]} />
-
-        <mesh receiveShadow position={[0, 1.45, -2.6]}>
-          <boxGeometry args={[6.4, 2.9, 0.12]} />
-          <meshStandardMaterial color="#f8fafc" roughness={0.58} metalness={0.02} />
+        <mesh receiveShadow position={[0, 1.8, -3.55]}>
+          <boxGeometry args={[8, 3.6, 0.18]} />
+          <meshStandardMaterial color="#f1eee7" roughness={0.84} metalness={0.01} />
         </mesh>
-        <mesh receiveShadow position={[-3.2, 1.45, -1.15]} rotation={[0, Math.PI / 2, 0]}>
-          <boxGeometry args={[2.9, 2.9, 0.12]} />
-          <meshStandardMaterial color="#eef8f4" roughness={0.58} metalness={0.02} transparent opacity={0.86} />
+        <mesh receiveShadow position={[-4, 1.8, -1.1]} rotation={[0, Math.PI / 2, 0]}>
+          <boxGeometry args={[5.1, 3.6, 0.18]} />
+          <meshStandardMaterial color="#e9e5dc" roughness={0.86} />
         </mesh>
-        <mesh receiveShadow position={[3.2, 1.45, -1.15]} rotation={[0, -Math.PI / 2, 0]}>
-          <boxGeometry args={[2.9, 2.9, 0.12]} />
-          <meshStandardMaterial color="#fff3ee" roughness={0.58} metalness={0.02} transparent opacity={0.78} />
+        <mesh receiveShadow position={[4, 1.8, -1.1]} rotation={[0, -Math.PI / 2, 0]}>
+          <boxGeometry args={[5.1, 3.6, 0.18]} />
+          <meshStandardMaterial color="#e9e5dc" roughness={0.86} />
         </mesh>
 
-        <LightStrip position={[-1.65, 2.86, -0.85]} rotation={[0, 0, 0.04]} />
-        <LightStrip position={[1.65, 2.86, -1.05]} rotation={[0, 0, -0.04]} />
-        <LightStrip position={[0, 2.78, 1.15]} rotation={[0, 0, 0]} />
-
-        <Artwork palette={artworkPalettes[0]} position={[-1.9, 1.75, -2.51]} scale={[1.04, 1.04, 1.04]} />
-        <Artwork palette={artworkPalettes[1]} position={[0, 1.65, -2.5]} rotation={[0, 0, 0.03]} scale={[0.9, 0.9, 0.9]} />
-        <Artwork palette={artworkPalettes[2]} position={[1.9, 1.75, -2.51]} scale={[1.04, 1.04, 1.04]} />
-        <Artwork palette={artworkPalettes[3]} position={[-3.11, 1.58, -1.35]} rotation={[0, Math.PI / 2, 0]} scale={[0.82, 0.82, 0.82]} />
-        <Artwork palette={artworkPalettes[4]} position={[3.11, 1.58, -1.15]} rotation={[0, -Math.PI / 2, 0]} scale={[0.82, 0.82, 0.82]} />
-
-        <Pedestal position={[-1.25, 0, 0.35]} accent="#38bdf8" />
-        <Pedestal position={[1.25, 0, 0.25]} accent="#fb7185" />
-
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.025, 1.15]}>
-          <ringGeometry args={[0.82, 0.87, 72]} />
-          <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.65} transparent opacity={0.78} toneMapped={false} />
+        <mesh receiveShadow position={[-2.8, 1.67, -3.42]}>
+          <boxGeometry args={[1.65, 3.12, 0.12]} />
+          <meshStandardMaterial color="#b8afa1" roughness={0.9} />
         </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 1.15]}>
-          <planeGeometry args={[0.12, 2.7]} />
-          <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={0.72} transparent opacity={0.62} toneMapped={false} />
+        <mesh receiveShadow position={[3.1, 1.25, -3.39]}>
+          <boxGeometry args={[1.28, 2.5, 0.14]} />
+          <meshStandardMaterial color="#8c6654" roughness={0.82} />
+        </mesh>
+
+        <mesh castShadow position={[0, 3.54, -0.55]}>
+          <boxGeometry args={[7.55, 0.12, 0.12]} />
+          <meshStandardMaterial color="#2e2b27" roughness={0.32} metalness={0.62} />
+        </mesh>
+        <TrackLight position={[-2.25, 3.37, 0.55]} rotation={[0.15, 0, 0.22]} />
+        <TrackLight position={[0, 3.37, 0.55]} rotation={[0.15, 0, 0]} />
+        <TrackLight position={[2.25, 3.37, 0.55]} rotation={[0.15, 0, -0.22]} />
+
+        <mesh position={[-1.9, 3.47, -1.95]}>
+          <boxGeometry args={[2.3, 0.07, 0.7]} />
+          <meshStandardMaterial color="#faf7ef" emissive="#fff2d7" emissiveIntensity={0.65} roughness={0.75} />
+        </mesh>
+        <mesh position={[1.25, 3.47, -1.95]}>
+          <boxGeometry args={[2.8, 0.07, 0.7]} />
+          <meshStandardMaterial color="#faf7ef" emissive="#fff2d7" emissiveIntensity={0.65} roughness={0.75} />
+        </mesh>
+
+        <Artwork palette={artworkPalettes[0]} position={[-2.8, 1.78, -3.24]} scale={[0.82, 0.82, 0.82]} />
+        <Artwork palette={artworkPalettes[1]} position={[-0.75, 1.84, -3.34]} scale={[0.98, 0.98, 0.98]} />
+        <Artwork palette={artworkPalettes[2]} position={[1.15, 1.84, -3.34]} scale={[0.98, 0.98, 0.98]} />
+        <Artwork palette={artworkPalettes[3]} position={[-3.8, 1.76, -0.65]} rotation={[0, Math.PI / 2, 0]} scale={[0.86, 0.86, 0.86]} />
+
+        <Pedestal position={[-1.35, 0, -0.45]}>
+          <mesh castShadow position={[0, 1.2, 0]} rotation={[0.18, 0.2, -0.12]}>
+            <torusKnotGeometry args={[0.34, 0.095, 96, 12, 2, 3]} />
+            <meshStandardMaterial color="#403c36" roughness={0.2} metalness={0.82} />
+          </mesh>
+        </Pedestal>
+        <Pedestal position={[1.4, 0, -0.75]}>
+          <group position={[0, 1.18, 0]} rotation={[0.08, 0.35, -0.08]}>
+            <mesh castShadow>
+              <icosahedronGeometry args={[0.38, 2]} />
+              <meshStandardMaterial color="#9c604b" roughness={0.46} metalness={0.08} />
+            </mesh>
+            <mesh castShadow position={[0.22, 0.22, 0.12]}>
+              <sphereGeometry args={[0.15, 28, 20]} />
+              <meshStandardMaterial color="#d7b77d" roughness={0.38} metalness={0.12} />
+            </mesh>
+          </group>
+        </Pedestal>
+
+        <group position={[0.25, 0, 2.12]}>
+          <mesh castShadow receiveShadow position={[0, 0.29, 0]}>
+            <boxGeometry args={[2.15, 0.18, 0.68]} />
+            <meshStandardMaterial color="#5a4638" roughness={0.58} metalness={0.04} />
+          </mesh>
+          <mesh castShadow position={[-0.82, 0.14, 0]}>
+            <boxGeometry args={[0.11, 0.28, 0.5]} />
+            <meshStandardMaterial color="#2f2b27" roughness={0.35} metalness={0.55} />
+          </mesh>
+          <mesh castShadow position={[0.82, 0.14, 0]}>
+            <boxGeometry args={[0.11, 0.28, 0.5]} />
+            <meshStandardMaterial color="#2f2b27" roughness={0.35} metalness={0.55} />
+          </mesh>
+        </group>
+
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0.2]}>
+          <planeGeometry args={[1.5, 4.8]} />
+          <meshStandardMaterial color="#c2b6a7" roughness={0.88} />
+        </mesh>
+        <mesh position={[3.78, 1.5, -2.65]} rotation={[0, -Math.PI / 2, 0]}>
+          <boxGeometry args={[1.25, 2.65, 0.08]} />
+          <meshStandardMaterial color="#413d38" roughness={0.42} metalness={0.18} />
         </mesh>
       </group>
 
-      <ContactShadows position={[0, 0.02, 0]} opacity={0.25} scale={7} blur={2.7} far={4} />
+      <ContactShadows position={[0, 0.018, 0]} opacity={0.38} scale={8} blur={2.4} far={4.5} color="#4f463d" />
     </>
   );
 }
@@ -204,14 +273,13 @@ export function Gallery3D() {
       className="relative mx-auto h-72 w-full max-w-xl overflow-hidden rounded-md sm:h-80"
     >
       <Canvas
-        shadows
+        shadows={THREE.PCFShadowMap}
         dpr={[1, 1.6]}
-        orthographic
-        camera={{ position: [3.6, 3.05, 5.2], zoom: 72, near: 0.1, far: 40 }}
+        camera={{ position: [5.65, 3.75, 7.4], fov: 34, near: 0.1, far: 40 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.08;
+          gl.toneMappingExposure = 1.12;
           gl.outputColorSpace = THREE.SRGBColorSpace;
         }}
       >
@@ -221,9 +289,12 @@ export function Gallery3D() {
           autoRotate={false}
           enablePan={false}
           enableZoom={false}
-          minPolarAngle={Math.PI / 4.2}
-          maxPolarAngle={Math.PI / 2.08}
-          target={[0, 1.15, -1.35]}
+          rotateSpeed={0.45}
+          minPolarAngle={Math.PI / 3.35}
+          maxPolarAngle={Math.PI / 2.18}
+          minAzimuthAngle={Math.PI / 18}
+          maxAzimuthAngle={Math.PI / 4.5}
+          target={[0, 1.35, -0.75]}
         />
       </Canvas>
       <div className="pointer-events-none absolute inset-x-4 bottom-3 flex items-center justify-between rounded-md border border-white/70 bg-white/72 px-3 py-2 text-[11px] font-semibold text-stone-600 shadow-sm backdrop-blur dark:border-white/10 dark:bg-stone-950/58 dark:text-stone-300">

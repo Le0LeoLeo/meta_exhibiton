@@ -49,14 +49,96 @@ describe('validateSecurityEnv', () => {
   );
 
   it('accepts a secure secret and explicit HTTPS origins in production', () => {
-    expect(validateSecurityEnv(secureProductionEnv)).toMatchObject({
-      ADMIN_SECRET: secureProductionEnv.ADMIN_SECRET,
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(validateSecurityEnv(secureProductionEnv)).toMatchObject({
+        ADMIN_SECRET: secureProductionEnv.ADMIN_SECRET,
+        INSTANCE_COUNT: 1,
+        REDIS_URL: '',
+        MULTIPLAYER_SHARED_STATE: 'memory',
+        MULTIPLAYER_SCENE_TTL_SECONDS: 3600,
+      });
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/in-memory storage/));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('rejects multiple instances unless Redis collaboration is enabled', () => {
+    expect(() => validateSecurityEnv({
+      ...secureProductionEnv,
+      INSTANCE_COUNT: '2',
+      REDIS_URL: 'redis://redis.internal:6379',
+      MULTIPLAYER_SHARED_STATE: 'memory',
+    })).toThrow(/MULTIPLAYER_SHARED_STATE/);
+  });
+
+  it('accepts multiple instances with Redis collaboration', () => {
+    expect(validateSecurityEnv({
+      ...secureProductionEnv,
+      INSTANCE_COUNT: '2',
+      REDIS_URL: 'redis://redis.internal:6379',
+      MULTIPLAYER_SHARED_STATE: 'redis',
+    })).toMatchObject({
+      INSTANCE_COUNT: 2,
+      REDIS_URL: 'redis://redis.internal:6379',
+      MULTIPLAYER_SHARED_STATE: 'redis',
     });
+  });
+
+  it('requires REDIS_URL whenever Redis collaboration is enabled', () => {
+    expect(() => validateSecurityEnv({
+      NODE_ENV: 'development',
+      MULTIPLAYER_SHARED_STATE: 'redis',
+    })).toThrow(/REDIS_URL/);
+  });
+
+  it('rejects unsupported multiplayer shared state modes', () => {
+    expect(() => validateSecurityEnv({
+      NODE_ENV: 'development',
+      MULTIPLAYER_SHARED_STATE: 'sqlite',
+    })).toThrow(/MULTIPLAYER_SHARED_STATE/);
+  });
+
+  it.each([
+    ['59', 'below the minimum'],
+    ['86401', 'above the maximum'],
+    ['60.5', 'not an integer'],
+    ['seconds', 'not numeric'],
+  ])('rejects multiplayer scene TTL %s when it is %s', (MULTIPLAYER_SCENE_TTL_SECONDS) => {
+    expect(() => validateSecurityEnv({
+      NODE_ENV: 'development',
+      MULTIPLAYER_SCENE_TTL_SECONDS,
+    })).toThrow(/MULTIPLAYER_SCENE_TTL_SECONDS/);
+  });
+
+  it.each(['60', '86400'])('accepts multiplayer scene TTL boundary %s', (
+    MULTIPLAYER_SCENE_TTL_SECONDS,
+  ) => {
+    expect(validateSecurityEnv({
+      NODE_ENV: 'development',
+      JWT_SECRET: 'test-secret',
+      FRONTEND_ORIGIN: 'http://localhost:5173',
+      MULTIPLAYER_CORS_ORIGIN: '*',
+      MULTIPLAYER_SCENE_TTL_SECONDS,
+    }).MULTIPLAYER_SCENE_TTL_SECONDS).toBe(Number(MULTIPLAYER_SCENE_TTL_SECONDS));
+  });
+
+  it.each(['0', '-1', '1.5', 'two'])('rejects invalid INSTANCE_COUNT %j', (INSTANCE_COUNT) => {
+    expect(() => validateSecurityEnv({
+      NODE_ENV: 'development',
+      INSTANCE_COUNT,
+    })).toThrow(/INSTANCE_COUNT/);
   });
 
   it('allows production to disable administrator access by omitting ADMIN_SECRET', () => {
     const { ADMIN_SECRET: _omitted, ...withoutAdminSecret } = secureProductionEnv;
-    expect(validateSecurityEnv(withoutAdminSecret).ADMIN_SECRET).toBe('');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(validateSecurityEnv(withoutAdminSecret).ADMIN_SECRET).toBe('');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it.each([

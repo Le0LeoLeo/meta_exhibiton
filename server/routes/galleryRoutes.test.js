@@ -438,6 +438,129 @@ describe('gallery capability header API', () => {
   });
 });
 
+describe('gallery persistent asset validation', () => {
+  it('rejects nested blob URLs before creating a gallery', async () => {
+    let inserts = 0;
+    const response = await fetch(`${await startApp({
+      insertGallery: async () => {
+        inserts += 1;
+      },
+    })}/api/galleries`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${ownerToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: 'Gallery',
+        description: 'Description',
+        templateTitle: 'Template',
+        templateImage: 'https://example.com/template.jpg',
+        category: 'art',
+        sceneJson: JSON.stringify({ items: [{ content: 'blob:https://example.com/local-id' }] }),
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      message: expect.stringMatching(/blob URL/i),
+    });
+    expect(inserts).toBe(0);
+  });
+
+  it('rejects nested blob URLs before updating a gallery', async () => {
+    let updates = 0;
+    const response = await fetch(`${await startApp({
+      updateGalleryById: async () => {
+        updates += 1;
+        return true;
+      },
+    })}/api/galleries/${privateGallery.id}`, {
+      method: 'PATCH',
+      headers: {
+        authorization: `Bearer ${ownerToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sceneJson: JSON.stringify({ room: { textureUrl: 'blob:null/local-texture' } }),
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(updates).toBe(0);
+  });
+
+  it('rejects publishing a stored scene that contains a blob URL', async () => {
+    let publishes = 0;
+    const gallery = {
+      ...privateGallery,
+      scene_json: JSON.stringify({ items: [{ nested: { src: 'blob:https://example.com/local-video' } }] }),
+    };
+    const response = await fetch(`${await startApp({
+      getGalleryById: async (id) => (id === gallery.id ? gallery : null),
+      updateGalleryPublishById: async () => {
+        publishes += 1;
+        return true;
+      },
+    })}/api/galleries/${gallery.id}/publish`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${ownerToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(400);
+    expect(publishes).toBe(0);
+  });
+
+  it('rejects blob URLs submitted through an editor share', async () => {
+    let updates = 0;
+    const editorGallery = {
+      ...privateGallery,
+      share_token: 'editor-token',
+      share_role: 'editor',
+    };
+    const response = await sharedGalleryRequest(await startApp({
+      getGalleryByShareToken: async () => editorGallery,
+      updateGalleryById: async () => {
+        updates += 1;
+        return true;
+      },
+    }), {
+      method: 'PATCH',
+      shareToken: editorGallery.share_token,
+      body: { sceneJson: JSON.stringify({ items: [{ src: 'blob:local-preview-id' }] }) },
+    });
+
+    expect(response.status).toBe(400);
+    expect(updates).toBe(0);
+  });
+
+  it('rejects blob URLs submitted through an upload link', async () => {
+    let updates = 0;
+    const response = await fetch(`${await startApp({
+      getGalleryUploadLinkByToken: async () => ({
+        upload_token: 'upload-token',
+        gallery_id: privateGallery.id,
+        item_id: 'item-1',
+      }),
+      updateGalleryById: async () => {
+        updates += 1;
+        return true;
+      },
+    })}/api/upload-links/upload-token`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: 'blob:https://example.com/local-upload' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(updates).toBe(0);
+  });
+});
+
 describe('gallery comment deletion', () => {
   it('allows the gallery owner to delete a matching comment', async () => {
     let deletes = 0;

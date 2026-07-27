@@ -1,4 +1,5 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from './base';
+import { apiFetch } from './request';
 
 export type AuthUser = {
   id: string;
@@ -11,8 +12,20 @@ export type AuthResponse = {
   user: AuthUser;
 };
 
+let inMemoryAuth: AuthResponse | null = null;
+const authListeners = new Set<() => void>();
+
+function notifyAuthListeners() {
+  for (const listener of authListeners) listener();
+}
+
+export function subscribeAuth(listener: () => void) {
+  authListeners.add(listener);
+  return () => authListeners.delete(listener);
+}
+
 export async function registerUser(payload: { name: string; email: string; password: string }): Promise<AuthResponse> {
-  const res = await fetch(apiUrl('/api/auth/register'), {
+  const res = await apiFetch(apiUrl('/api/auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -24,7 +37,7 @@ export async function registerUser(payload: { name: string; email: string; passw
 }
 
 export async function loginUser(payload: { email: string; password: string }): Promise<AuthResponse> {
-  const res = await fetch(apiUrl('/api/auth/login'), {
+  const res = await apiFetch(apiUrl('/api/auth/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -35,59 +48,52 @@ export async function loginUser(payload: { email: string; password: string }): P
   return data as AuthResponse;
 }
 
-function loadAuthFromStorage(storage: Storage): { token: string | null; user: AuthUser | null } {
-  const token = storage.getItem('auth_token');
-  const rawUser = storage.getItem('auth_user');
-  let user: AuthUser | null = null;
-  if (rawUser) {
-    try {
-      user = JSON.parse(rawUser) as AuthUser;
-    } catch {
-      user = null;
-    }
-  }
-  return { token, user };
-}
-
 export function saveAuth(auth: AuthResponse, opts?: { remember?: boolean }) {
-  const remember = opts?.remember ?? true;
-  const storage = remember ? localStorage : sessionStorage;
-  storage.setItem('auth_token', auth.token);
-  storage.setItem('auth_user', JSON.stringify(auth.user));
-
-  const other = remember ? sessionStorage : localStorage;
-  other.removeItem('auth_token');
-  other.removeItem('auth_user');
+  void opts;
+  inMemoryAuth = auth;
+  clearLegacyAuthStorage();
+  notifyAuthListeners();
 }
 
 export function loadAuth(): { token: string | null; user: AuthUser | null; source: 'local' | 'session' | 'none' } {
-  const fromLocal = loadAuthFromStorage(localStorage);
-  if (fromLocal.token) return { ...fromLocal, source: 'local' };
-
-  const fromSession = loadAuthFromStorage(sessionStorage);
-  if (fromSession.token) return { ...fromSession, source: 'session' };
+  if (inMemoryAuth) return { ...inMemoryAuth, source: 'none' };
 
   return { token: null, user: null, source: 'none' };
 }
 
 export function clearAuth() {
+  inMemoryAuth = null;
+  notifyAuthListeners();
+  void logoutUser().catch(() => undefined);
+  clearLegacyAuthStorage();
+}
+
+function clearLegacyAuthStorage() {
   localStorage.removeItem('auth_token');
   localStorage.removeItem('auth_user');
   sessionStorage.removeItem('auth_token');
   sessionStorage.removeItem('auth_user');
 }
 
-export async function getMe(token: string): Promise<{ user: AuthUser }> {
-  const res = await fetch(apiUrl('/api/auth/me'), {
-    headers: { Authorization: `Bearer ${token}` },
+export async function logoutUser(): Promise<void> {
+  await apiFetch(apiUrl('/api/auth/logout'), { method: 'POST' });
+}
+
+export async function getMe(token?: string | null): Promise<AuthResponse> {
+  const res = await apiFetch(apiUrl('/api/auth/me'), {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, '載入個人資料失敗');
-  return data as { user: AuthUser };
+  if (!res.ok) {
+    const error = errorFromResponse(data, '載入個人資料失敗') as Error & { status?: number };
+    error.status = res.status;
+    throw error;
+  }
+  return data as AuthResponse;
 }
 
 export async function updateMyName(token: string, name: string): Promise<AuthResponse> {
-  const res = await fetch(apiUrl('/api/users/me'), {
+  const res = await apiFetch(apiUrl('/api/users/me'), {
     method: 'PATCH',
     headers: authHeaders(token),
     body: JSON.stringify({ name }),
@@ -98,7 +104,7 @@ export async function updateMyName(token: string, name: string): Promise<AuthRes
 }
 
 export async function changePassword(token: string, payload: { currentPassword: string; newPassword: string }): Promise<{ ok: true }> {
-  const res = await fetch(apiUrl('/api/auth/change-password'), {
+  const res = await apiFetch(apiUrl('/api/auth/change-password'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -109,11 +115,22 @@ export async function changePassword(token: string, payload: { currentPassword: 
 }
 
 export async function deleteMyAccount(token: string): Promise<{ ok: true }> {
-  const res = await fetch(apiUrl('/api/users/me'), {
+  const res = await apiFetch(apiUrl('/api/users/me'), {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '刪除帳號失敗');
   return data as { ok: true };
+}
+
+export async function exportMyData(token: string): Promise<Blob> {
+  const res = await apiFetch(apiUrl('/api/users/me/export'), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const data = await parseJsonSafe(res);
+    throw errorFromResponse(data, '個人資料匯出失敗');
+  }
+  return res.blob();
 }

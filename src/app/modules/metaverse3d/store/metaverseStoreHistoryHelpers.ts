@@ -2,6 +2,27 @@ import { v4 as uuidv4 } from "uuid";
 import type { ExhibitItem, FloorPlanElement, FloorPlanElementType, RoomSize, WallMaterialSettings } from "../types";
 import { createSnapshot, normalizeImportedItemContent, parseRotationVec3, parseVec3 } from "./metaverseStoreUtils";
 
+const IMPORTED_ITEM_CANONICAL_Y: Partial<Record<ExhibitItem["type"], number>> = {
+  pedestal: 0,
+  flower: 0,
+  bench: 0,
+  rug: 0.01,
+  vase: 0,
+  sculpture: 0,
+  spotlight: 0.2,
+  plant: 0,
+  column: 0,
+};
+
+export function normalizeImportedItemPosition(
+  type: ExhibitItem["type"],
+  value: unknown,
+): [number, number, number] {
+  const position = parseVec3(value, [0, 1.5, 0]);
+  const canonicalY = IMPORTED_ITEM_CANONICAL_Y[type];
+  return canonicalY === undefined ? position : [position[0], canonicalY, position[2]];
+}
+
 export interface SceneSnapshotLike {
   roomSize: RoomSize;
   items: ExhibitItem[];
@@ -38,7 +59,10 @@ export function createImportedSceneSnapshot(snapshot: Partial<SceneSnapshotLike>
       ? snapshot.items.map((item: Partial<ExhibitItem>) => ({
           id: item.id || uuidv4(),
           type: (item.type as ExhibitItem["type"]) || "text",
-          position: parseVec3(item.position, [0, 1.5, 0]),
+          position: normalizeImportedItemPosition(
+            (item.type as ExhibitItem["type"]) || "text",
+            item.position,
+          ),
           rotation: parseRotationVec3(item.rotation, [0, 0, 0]),
           scale: parseVec3(item.scale, [1, 1, 1]),
           content: normalizeImportedItemContent(((item.type as ExhibitItem["type"]) || "text"), item.content),

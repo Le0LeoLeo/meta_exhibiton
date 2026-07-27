@@ -1,0 +1,49 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createMemoryRouter, RouterProvider } from 'react-router';
+import { describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from './I18nProvider';
+import { RouteErrorPage } from './RouteErrorPage';
+
+describe('RouteErrorPage', () => {
+  it('shows localized recovery actions without exposing the raw error', async () => {
+    const reportError = vi.fn();
+    const reloadPage = vi.fn();
+    const rawMessage = 'private exception details';
+    const router = createMemoryRouter([
+      {
+        path: '/',
+        loader: () => {
+          throw new Error(rawMessage);
+        },
+        element: <div />,
+        errorElement: (
+          <RouteErrorPage
+            errorReference="ERR-TEST-123"
+            reloadPage={reloadPage}
+            reportError={reportError}
+          />
+        ),
+      },
+    ]);
+
+    render(
+      <I18nProvider>
+        <RouterProvider router={router} />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByRole('heading', { name: '頁面暫時無法顯示' })).toBeInTheDocument();
+    expect(screen.queryByText(rawMessage)).not.toBeInTheDocument();
+    expect(screen.getByText('ERR-TEST-123')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '重新載入' }));
+    expect(reloadPage).toHaveBeenCalledOnce();
+
+    const homeLink = screen.getByRole('link', { name: '返回首頁' });
+    expect(homeLink).toHaveAttribute('href', '/');
+
+    await waitFor(() => {
+      expect(reportError).toHaveBeenCalledWith(expect.any(Error), 'ERR-TEST-123');
+    });
+  });
+});

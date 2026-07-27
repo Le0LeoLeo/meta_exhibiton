@@ -36,7 +36,7 @@ const competitionCreateSchema = z.object({
   registrationDeadline: z.string().trim().min(1, 'registrationDeadline is required'),
   votingDeadline: z.string().trim().optional().nullable(),
   submissionFields: z.array(submissionFieldSchema).max(10).optional(),
-  status: z.enum(['draft', 'open', 'closed', 'judging', 'completed']).optional(),
+  status: z.enum(['draft', 'open', 'closed', 'voting', 'judging', 'completed']).optional(),
 });
 
 const competitionUpdateSchema = competitionCreateSchema.partial();
@@ -57,11 +57,36 @@ const entryReviewSchema = z.object({
   rank: z.coerce.number().int().positive().max(9999).optional().nullable(),
 });
 
-const voteCreateSchema = z.object({
-  voterName: z.string().trim().min(1, 'voterName is required').max(120, 'voterName too long'),
-  voterEmail: z.string().trim().email('invalid email').max(255, 'voterEmail too long'),
-});
 const noRateLimit = (_req, _res, next) => next();
+
+function validateSubmissionContract(submissionFields, submission, assets = []) {
+  const fieldsById = new Map(submissionFields.map((field) => [field.id, field]));
+  const unknownField = Object.keys(submission).find((fieldId) => !fieldsById.has(fieldId));
+  if (unknownField) return `unknown submission field: ${unknownField}`;
+
+  if (assets.length > 0) {
+    return 'competition assets must reference a completed server-managed asset';
+  }
+
+  for (const field of submissionFields) {
+    const value = submission[field.id];
+    const normalizedValue = String(value ?? '').trim();
+
+    if (field.type === 'file') {
+      if (field.required && !normalizedValue) {
+        return `${field.label} requires a completed uploaded asset`;
+      }
+      if (normalizedValue) {
+        return `${field.label} must reference a completed server-managed asset`;
+      }
+      continue;
+    }
+
+    if (field.required && !normalizedValue) return `${field.label} is required`;
+  }
+
+  return null;
+}
 
 function normalizeCompetition(row) {
   return {
@@ -199,11 +224,11 @@ export function registerCompetitionRoutes(app, deps) {
     insertCompetitionEntry,
     listCompetitionEntriesByCompetitionId,
     listCompetitionEntriesByOwnerId,
-    getCompetitionEntryByCompetitionAndGallery,
     getCompetitionEntryById,
     updateCompetitionEntryById,
     deleteCompetitionEntryById,
     insertCompetitionVote,
+    insertCompetitionVoteAndRefreshCount,
     countCompetitionVotesByEntryId,
     hasCompetitionVote,
   } = deps;
@@ -402,12 +427,12 @@ export function registerCompetitionRoutes(app, deps) {
 
       const submissionFields = competition.submission_fields_json ? JSON.parse(competition.submission_fields_json) : [];
       const submission = parsed.data.submission || {};
-      for (const field of submissionFields) {
-        const value = submission[field.id];
-        if (field.required && field.type !== 'file' && String(value ?? '').trim() === '') {
-          return res.status(400).json({ message: `${field.label} is required` });
-        }
-      }
+      const submissionError = validateSubmissionContract(
+        submissionFields,
+        submission,
+        parsed.data.assets || [],
+      );
+      if (submissionError) return res.status(400).json({ message: submissionError });
 
       const statement = String(submission.statement || '').trim();
       const fileValues = submissionFields
@@ -492,24 +517,25 @@ export function registerCompetitionRoutes(app, deps) {
   });
 
   app.post('/api/competitions/:competitionId/entries/:entryId/vote', voteLimiter, async (req, res) => {
+    const payload = requireAuth(req, res);
+    if (!payload) return;
+
     try {
       const competitionId = String(req.params.competitionId || '').trim();
       const entryId = String(req.params.entryId || '').trim();
-      const parsed = voteCreateSchema.safeParse(req.body || {});
-      if (!parsed.success) {
-        return res.status(400).json({ message: parsed.error.issues[0]?.message ?? 'invalid payload' });
-      }
+      const voter = await getUserById(payload.sub);
+      if (!voter) return res.status(403).json({ message: 'active voter account required' });
 
       const competition = await getCompetitionById(competitionId);
       if (!competition) return res.status(404).json({ message: 'competition not found' });
       if (!isCompetitionPublic(competition)) {
         return res.status(403).json({ message: 'voting is not public for this competition' });
       }
-      if (competition.status !== 'open' && competition.status !== 'judging' && competition.status !== 'completed') {
-        return res.status(400).json({ message: 'competition is not accepting votes' });
+      if (competition.status !== 'voting') {
+        return res.status(409).json({ message: 'competition is not accepting votes' });
       }
       if (competition.voting_deadline && new Date(competition.voting_deadline).getTime() < Date.now()) {
-        return res.status(400).json({ message: 'voting deadline has passed' });
+        return res.status(409).json({ message: 'voting deadline has passed' });
       }
 
       const entry = await getCompetitionEntryById(entryId);
@@ -520,23 +546,39 @@ export function registerCompetitionRoutes(app, deps) {
         return res.status(400).json({ message: 'only approved entries can receive votes' });
       }
 
-      const existed = await hasCompetitionVote(competitionId, entryId, parsed.data.voterEmail.toLowerCase());
+      const existed = await hasCompetitionVote(competitionId, entryId, payload.sub);
       if (existed) {
         return res.status(409).json({ message: 'you have already voted for this entry' });
       }
 
-      await insertCompetitionVote({
-        id: randomUUID(),
-        competitionId,
-        entryId,
-        voterName: parsed.data.voterName,
-        voterEmail: parsed.data.voterEmail.toLowerCase(),
-        createdAt: new Date().toISOString(),
-      });
+      const vote = {
+          id: randomUUID(),
+          competitionId,
+          entryId,
+          voterUserId: payload.sub,
+          voterName: voter.name,
+          voterEmail: voter.email.toLowerCase(),
+          createdAt: new Date().toISOString(),
+      };
+      let updated;
+      try {
+        if (insertCompetitionVoteAndRefreshCount) {
+          updated = await insertCompetitionVoteAndRefreshCount(vote);
+        } else {
+          await insertCompetitionVote(vote);
+        }
+      } catch (err) {
+        if (err?.code === 'SQLITE_CONSTRAINT' || String(err?.message || '').includes('UNIQUE constraint failed')) {
+          return res.status(409).json({ message: 'you have already voted for this entry' });
+        }
+        throw err;
+      }
 
-      const voteCount = await countCompetitionVotesByEntryId(entryId);
-      await updateCompetitionEntryById(entryId, { voteCount });
-      const updated = await getCompetitionEntryById(entryId);
+      if (!updated) {
+        const voteCount = await countCompetitionVotesByEntryId(entryId);
+        await updateCompetitionEntryById(entryId, { voteCount });
+        updated = await getCompetitionEntryById(entryId);
+      }
       res.status(201).json({ entry: normalizeEntry(updated) });
     } catch (err) {
       console.error(err);

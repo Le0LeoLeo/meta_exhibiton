@@ -1,5 +1,67 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router';
-import { loadAuth } from './api/client';
+import { getMe, loadAuth, saveAuth, subscribeAuth, type AuthUser } from './api/client';
+import { RouteLoadingFallback } from './components/RouteLoadingFallback';
+
+type AuthSession = {
+  status: 'loading' | 'authenticated' | 'unauthenticated' | 'error';
+  user: AuthUser | null;
+};
+
+const AuthSessionContext = createContext<AuthSession | null>(null);
+
+export function AuthSessionProvider({
+  children,
+  bootstrap = getMe,
+}: {
+  children: ReactNode;
+  bootstrap?: typeof getMe;
+}) {
+  const cached = loadAuth();
+  const [session, setSession] = useState<AuthSession>(() => cached.token
+    ? { status: 'authenticated', user: cached.user }
+    : { status: 'loading', user: null });
+
+  useEffect(() => {
+    let cancelled = false;
+    const unsubscribe = subscribeAuth(() => {
+      if (cancelled) return;
+      const auth = loadAuth();
+      setSession(auth.token
+        ? { status: 'authenticated', user: auth.user }
+        : { status: 'unauthenticated', user: null });
+    });
+
+    if (loadAuth().token) return unsubscribe;
+
+    bootstrap()
+      .then((auth) => {
+        if (cancelled) return;
+        saveAuth(auth);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const status = typeof error === 'object' && error !== null && 'status' in error
+          ? Number(error.status)
+          : undefined;
+        setSession({
+          status: status === 401 ? 'unauthenticated' : 'error',
+          user: null,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [bootstrap]);
+
+  return (
+    <AuthSessionContext.Provider value={session}>
+      {children}
+    </AuthSessionContext.Provider>
+  );
+}
 
 export function createLoginDestination(
   pathname: string,
@@ -15,9 +77,16 @@ export function createLoginDestination(
 
 export function RequireAuth() {
   const location = useLocation();
-  const { token } = loadAuth();
+  const session = useContext(AuthSessionContext);
+  const authenticated = session
+    ? session.status === 'authenticated'
+    : Boolean(loadAuth().token);
 
-  if (!token) {
+  if (session?.status === 'loading' || session?.status === 'error') {
+    return <RouteLoadingFallback />;
+  }
+
+  if (!authenticated) {
     if (location.pathname === '/login') {
       return <Outlet />;
     }

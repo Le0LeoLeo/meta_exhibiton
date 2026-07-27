@@ -101,16 +101,28 @@ function normalizeReviewPayload(payload = {}) {
   };
 }
 
-const GROUND_ITEM_TYPES = new Set([
-  'bench',
-  'pedestal',
-  'sculpture',
-  'flower',
-  'rug',
-  'vase',
-  'plant',
-  'column',
+function isVisionReviewPayload(payload) {
+  return Boolean(
+    payload &&
+    typeof payload === 'object' &&
+    Number.isFinite(Number(payload.technicalScore)) &&
+    Number.isFinite(Number(payload.curatorialScore)) &&
+    ['pass', 'needs_revision', 'blocked'].includes(payload.overallStatus) &&
+    Array.isArray(payload.blockingIssues),
+  );
+}
+
+const GROUND_ITEM_Y = new Map([
+  ['bench', 0],
+  ['pedestal', 0],
+  ['sculpture', 0],
+  ['flower', 0],
+  ['rug', 0.01],
+  ['vase', 0],
+  ['plant', 0],
+  ['column', 0],
 ]);
+const GROUND_ITEM_Y_TOLERANCE = 0.02;
 
 function inspectSceneGeometry(scene = {}) {
   const issues = [];
@@ -121,13 +133,14 @@ function inspectSceneGeometry(scene = {}) {
 
   for (const item of Array.isArray(scene.items) ? scene.items : []) {
     const [x = 0, y = 0, z = 0] = Array.isArray(item.position) ? item.position : [];
-    if (GROUND_ITEM_TYPES.has(item.type) && y > 0.18) {
+    const expectedGroundY = GROUND_ITEM_Y.get(item.type);
+    if (expectedGroundY !== undefined && Math.abs(y - expectedGroundY) > GROUND_ITEM_Y_TOLERANCE) {
       issues.push({
         category: 'geometry',
         severity: 'high',
         viewId: 'geometry-preflight',
-        message: `${item.id || item.type} appears to float above the floor at y=${y}.`,
-        suggestedFix: 'Set floor-standing objects close to y=0 before visual review.',
+        message: `${item.id || item.type} is not grounded (y=${y}, expected ${expectedGroundY}).`,
+        suggestedFix: `Set this floor-standing object to y=${expectedGroundY} before visual review.`,
       });
     }
 
@@ -235,25 +248,16 @@ function mergeGeometryPreflight(review, scene) {
   };
 }
 
-function buildFallbackReview(reason) {
-  return {
-    technicalScore: 50,
-    curatorialScore: 55,
-    overallStatus: 'needs_revision',
-    blockingIssues: [
-      {
-        category: 'layout',
-        severity: 'medium',
-        viewId: 'system',
-        message: `Visual review could not be completed: ${reason}`,
-        suggestedFix:
-          'Retry visual review, or revise the scene using deterministic geometry checks before applying.',
-      },
-    ],
+function createDeterministicPreflightReview(scene) {
+  const review = mergeGeometryPreflight({
+    technicalScore: 100,
+    curatorialScore: 100,
+    overallStatus: 'pass',
+    blockingIssues: [],
     viewReviews: [],
-    revisionPrompt:
-      'Revise the scene conservatively: improve spacing, keep floor objects grounded, keep wall works clear of walls, improve lighting, and strengthen the exhibition narrative.',
-  };
+    revisionPrompt: '',
+  }, scene);
+  return review.blockingIssues.length > 0 ? review : null;
 }
 
 function buildVisionMessages({ screenshots, scene }) {
@@ -344,6 +348,9 @@ export async function createBuilderSession({ input, generateExhibitionScene }) {
     scene: result.scene,
     source: result.source,
     warnings: result.warnings || [],
+    operationSummary: result.operationSummary,
+    appliedOperationCount: Array.isArray(result.operations) ? result.operations.length : undefined,
+    revisionCount: 0,
     status: 'generated',
   };
 }
@@ -359,28 +366,69 @@ export async function reviewBuilderSession({
     throw new Error('at least 3 screenshots are required for visual review');
   }
 
+  const deterministicReview = createDeterministicPreflightReview(scene);
+
   try {
     const raw = await callVisionReview({ screenshots, scene });
-    const parsed = extractJsonObject(raw);
+    let parsed;
+    try {
+      parsed = extractJsonObject(raw);
+      if (!isVisionReviewPayload(parsed)) throw new Error('invalid review contract');
+    } catch {
+      if (deterministicReview) {
+        return {
+          sessionId,
+          versionId,
+          review: deterministicReview,
+          status: 'reviewed',
+          source: 'fallback',
+          errorCode: 'INVALID_VISION_RESPONSE',
+          message: 'Visual review was unavailable; local geometry and layout checks found blocking issues.',
+        };
+      }
+      return {
+        sessionId,
+        versionId,
+        review: null,
+        status: 'unavailable',
+        source: 'fallback',
+        errorCode: 'INVALID_VISION_RESPONSE',
+        message: 'The visual review provider returned an invalid response.',
+      };
+    }
     return {
       sessionId,
       versionId,
       review: mergeGeometryPreflight(normalizeReviewPayload(parsed), scene),
       status: 'reviewed',
+      source: 'qwen',
     };
-  } catch (error) {
+  } catch {
+    if (deterministicReview) {
+      return {
+        sessionId,
+        versionId,
+        review: deterministicReview,
+        status: 'reviewed',
+        source: 'fallback',
+        errorCode: 'VISION_PROVIDER_FAILED',
+        message: 'Visual review was unavailable; local geometry and layout checks found blocking issues.',
+      };
+    }
     return {
       sessionId,
       versionId,
-      review: buildFallbackReview(error instanceof Error ? error.message : 'unknown error'),
-      status: 'reviewed',
+      review: null,
+      status: 'unavailable',
+      source: 'fallback',
+      errorCode: 'VISION_PROVIDER_FAILED',
+      message: 'The visual review provider is unavailable.',
     };
   }
 }
 
 export async function reviseBuilderSession({
   sessionId,
-  versionId,
   scene,
   review,
   prompt = '',
@@ -395,7 +443,7 @@ export async function reviseBuilderSession({
 
   const revisionPrompt = [
     prompt || 'Revise the generated exhibition scene.',
-    'Use this visual review report to improve the next scene version.',
+    review ? 'Use this visual review report to improve the next scene version.' : '',
     review?.revisionPrompt || '',
     issueText,
     'Keep floor objects grounded, wall-mounted works clear of wall geometry, labels readable, and the curatorial route coherent.',
@@ -418,6 +466,8 @@ export async function reviseBuilderSession({
     scene: result.scene,
     source: result.source,
     warnings: result.warnings || [],
+    operationSummary: result.operationSummary,
+    appliedOperationCount: Array.isArray(result.operations) ? result.operations.length : undefined,
     revisionCount: revisionCount + 1,
     status: 'revised',
   };

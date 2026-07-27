@@ -8,6 +8,7 @@ import {
   saveAuth,
   changePassword,
   deleteMyAccount,
+  exportMyData,
 } from '../api/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
@@ -33,6 +34,7 @@ export default function Profile() {
 
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -150,6 +152,27 @@ export default function Profile() {
       });
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    if (!token) return;
+    setExporting(true);
+    try {
+      const blob = await exportMyData(token);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'personal-data.json';
+      anchor.click();
+      URL.revokeObjectURL(url);
+      toast.success('個人資料已匯出');
+    } catch (err) {
+      toast.error('個人資料匯出失敗', {
+        description: err instanceof Error ? err.message : t('retryLater'),
+      });
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -271,6 +294,16 @@ export default function Profile() {
                 </div>
 
                 {/* 刪除帳號 */}
+                <div className="border-t border-border pt-6">
+                  <h2 className="mb-3 text-lg font-semibold text-foreground">匯出個人資料</h2>
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    下載帳戶、展覽、作品及活動紀錄的 JSON 副本；檔案不包含密碼或分享密鑰。
+                  </p>
+                  <Button type="button" variant="outline" disabled={exporting} onClick={handleExportData}>
+                    {exporting ? '正在準備資料…' : '下載我的資料'}
+                  </Button>
+                </div>
+
                 <div className="border-t border-border pt-6">
                   <h2 className="mb-3 text-lg font-semibold text-destructive">{t('profileDeleteAccount')}</h2>
                   <p className="mb-3 text-sm text-muted-foreground">

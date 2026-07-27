@@ -57,7 +57,7 @@ describe('exhibitionBuilderAgentService', () => {
     expect(generateExhibitionScene).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'Macau memory' }));
   });
 
-  it('returns a deterministic failed-review report when VL is unavailable', async () => {
+  it('reports VL provider failure as unavailable instead of a completed review', async () => {
     const result = await reviewBuilderSession({
       sessionId: 'builder-1',
       versionId: 'version-1',
@@ -70,10 +70,93 @@ describe('exhibitionBuilderAgentService', () => {
       callVisionReview: vi.fn().mockRejectedValue(new Error('vl unavailable')),
     });
 
-    expect(result.status).toBe('reviewed');
-    expect(result.review.overallStatus).toBe('needs_revision');
-    expect(result.review.technicalScore).toBeLessThan(85);
-    expect(result.review.blockingIssues[0].category).toBe('layout');
+    expect(result).toEqual(expect.objectContaining({
+      status: 'unavailable',
+      source: 'fallback',
+      errorCode: 'VISION_PROVIDER_FAILED',
+      review: null,
+    }));
+    expect(result.message).toContain('unavailable');
+  });
+
+  it('reports malformed VL output separately from provider failure', async () => {
+    const result = await reviewBuilderSession({
+      sessionId: 'builder-1',
+      versionId: 'version-1',
+      scene: createScene(),
+      screenshots: [
+        { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
+        { viewId: 'left', label: 'Left wall', dataUrl: 'data:image/png;base64,bbb' },
+        { viewId: 'top', label: 'Top-down', dataUrl: 'data:image/png;base64,ccc' },
+      ],
+      callVisionReview: vi.fn().mockResolvedValue('{}'),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      status: 'unavailable',
+      source: 'fallback',
+      errorCode: 'INVALID_VISION_RESPONSE',
+      review: null,
+    }));
+  });
+
+  it('still blocks floating furniture when the vision provider is unavailable', async () => {
+    const scene = createScene();
+    scene.items = [{
+      id: 'floating-bench',
+      type: 'bench',
+      position: [0, 1.5, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+    }];
+
+    const result = await reviewBuilderSession({
+      sessionId: 'builder-1',
+      versionId: 'version-1',
+      scene,
+      screenshots: [
+        { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
+        { viewId: 'left', label: 'Left wall', dataUrl: 'data:image/png;base64,bbb' },
+        { viewId: 'top', label: 'Top-down', dataUrl: 'data:image/png;base64,ccc' },
+      ],
+      callVisionReview: vi.fn().mockRejectedValue(new Error('vl unavailable')),
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      status: 'reviewed',
+      source: 'fallback',
+      errorCode: 'VISION_PROVIDER_FAILED',
+    }));
+    expect(result.review.blockingIssues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        category: 'geometry',
+        severity: 'high',
+        message: expect.stringContaining('floating-bench is not grounded'),
+      }),
+    ]));
+  });
+
+  it.each([
+    ['bench', 0.18, 0],
+    ['plant', -0.2, 0],
+    ['rug', 0.15, 0.01],
+  ])('uses canonical ground height for %s at y=%s', async (type, y, expectedY) => {
+    const scene = createScene();
+    scene.items = [{ id: `bad-${type}`, type, position: [0, y, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }];
+
+    const result = await reviewBuilderSession({
+      sessionId: 'builder-1',
+      versionId: 'version-1',
+      scene,
+      screenshots: [
+        { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
+        { viewId: 'left', label: 'Left wall', dataUrl: 'data:image/png;base64,bbb' },
+        { viewId: 'top', label: 'Top-down', dataUrl: 'data:image/png;base64,ccc' },
+      ],
+      callVisionReview: vi.fn().mockResolvedValue('{}'),
+    });
+
+    expect(result.review.blockingIssues[0].suggestedFix).toContain(`y=${expectedY}`);
   });
 
   it('adds deterministic geometry issues before accepting a VL pass', async () => {
@@ -270,6 +353,33 @@ describe('exhibitionBuilderAgentService', () => {
     expect(result.versionId).not.toBe('version-1');
     expect(generateExhibitionScene).toHaveBeenCalledWith(expect.objectContaining({
       prompt: expect.stringContaining('Move paintings apart.'),
+    }));
+  });
+
+  it('supports a manual revision when visual review is unavailable', async () => {
+    const generateExhibitionScene = vi.fn().mockResolvedValue({
+      exhibition: { title: 'Manual revision', curatorialStatement: 'Adjusted.', sections: [] },
+      scene: createScene(),
+      warnings: [],
+      source: 'qwen',
+      operationSummary: 'Moved the entrance label',
+      operations: [{ type: 'move-item', itemId: 'label-1' }],
+    });
+
+    const result = await reviseBuilderSession({
+      sessionId: 'builder-1',
+      versionId: 'version-1',
+      scene: createScene(),
+      review: null,
+      prompt: 'Move the entrance label to the left.',
+      generateExhibitionScene,
+    });
+
+    expect(result.operationSummary).toBe('Moved the entrance label');
+    expect(result.appliedOperationCount).toBe(1);
+    expect(generateExhibitionScene).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining('Move the entrance label to the left.'),
+      currentScene: expect.any(Object),
     }));
   });
 

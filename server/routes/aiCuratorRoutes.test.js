@@ -162,6 +162,9 @@ describe('aiCuratorRoutes', () => {
     });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ message: 'curator unavailable' });
+    expect(await response.json()).toEqual({
+      code: 'AI_CURATOR_FAILED',
+      message: 'AI curator request failed',
+    });
   });
 });

@@ -13,7 +13,7 @@ afterEach(() => {
 
 function createDeps(overrides = {}) {
   return {
-    requireAuth: (req, res) => ({ id: 'user-1' }),
+    requireAuth: (_req, _res) => ({ id: 'user-1' }),
     visitorMemoryLimiter: (_req, _res, next) => next(),
     getVisitorMemory: async (userId, galleryId) => {
       if (galleryId === 'gallery-existing') {

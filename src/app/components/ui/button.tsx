@@ -52,7 +52,7 @@ function Button({
     return <Slot data-slot="button" className={baseClassName} {...props} />;
   }
 
-  const MotionButton = motion.button as React.ComponentType<any>;
+  const MotionButton = motion.button;
 
   return (
     <MotionButton

@@ -3,11 +3,11 @@ import { useStore } from "../store";
 import { useMultiplayerStore } from "../../../modules/metaverse3d/network/multiplayerStore";
 import { ExhibitItem as ExhibitItemType } from "../types";
 import { Text, useTexture, TransformControls, Edges, useGLTF } from "@react-three/drei";
-import { useLoader, useThree } from "@react-three/fiber";
+import { useLoader, useThree, type ThreeEvent } from "@react-three/fiber";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import * as THREE from "three";
-import { RigidBody } from "@react-three/rapier";
 import { CanvasAssetBoundary } from "../../../modules/metaverse3d/components/CanvasAssetBoundary";
+import { BeveledBox } from "../../../modules/metaverse3d/components/geometry/BeveledBox";
 import { createExhibitRegistry, type ExhibitRendererProps } from "./exhibitRegistry";
 import { LightstripExhibit, PartitionExhibit, TextExhibit } from "./components";
 
@@ -104,7 +104,7 @@ export function ExhibitItem({ item }: { item: ExhibitItemType }) {
     };
   }, []);
 
-  const handlePointerDown = (e: any) => {
+  const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     if (mode === "edit") {
       if (isRemotelyFocused) return;
@@ -243,11 +243,10 @@ function PaintingFallback({ item, isSelected }: { item: ExhibitItemType; isSelec
 
   return (
     <group>
-      <mesh position={[0, 0, -0.05]} castShadow={false}>
-        <boxGeometry args={[frameWidth, frameHeight, 0.1]} />
+      <BeveledBox dimensions={[frameWidth, frameHeight, 0.1]} position={[0, 0, -0.05]} castShadow={false}>
         <meshStandardMaterial color="#334155" roughness={0.7} />
         {isSelected && <Edges scale={1.05} color="#4f46e5" />}
-      </mesh>
+      </BeveledBox>
       <mesh position={[0, 0, 0.01]}>
         <planeGeometry args={[Math.max(0.2, frameWidth - 0.22), Math.max(0.2, frameHeight - 0.22)]} />
         <meshBasicMaterial color="#e2e8f0" />
@@ -289,7 +288,7 @@ function Painting({
 }: {
   item: ExhibitItemType;
   isSelected: boolean;
-  onInteract?: (e: any) => void;
+  onInteract?: (e: ThreeEvent<PointerEvent>) => void;
 }) {
   const mode = useStore((state) => state.mode);
   const fallbackImageUrl =
@@ -344,11 +343,14 @@ function Painting({
   return (
     <group>
       {/* Frame */}
-      <mesh position={[0, 0, -0.05]} castShadow>
-        <boxGeometry args={[frameWidth + frameBorder * 2, frameHeight + frameBorder * 2, 0.1]} />
+      <BeveledBox
+        dimensions={[frameWidth + frameBorder * 2, frameHeight + frameBorder * 2, 0.1]}
+        position={[0, 0, -0.05]}
+        castShadow
+      >
         <meshStandardMaterial color="#333" />
         {isSelected && <Edges scale={1.05} color="#4f46e5" />}
-      </mesh>
+      </BeveledBox>
       {/* Canvas */}
       <mesh
         position={[0, 0, 0.01]}
@@ -376,10 +378,9 @@ function Painting({
 
       {/* Artwork caption plaque */}
       <group position={[0, captionY, 0.03]}>
-        <mesh>
-          <boxGeometry args={[1.7, 0.32, 0.03]} />
+        <BeveledBox dimensions={[1.7, 0.32, 0.03]} bevelRadius={0.004}>
           <meshStandardMaterial color="#f8fafc" roughness={0.7} metalness={0.05} />
-        </mesh>
+        </BeveledBox>
         <Text
           position={[0, 0.06, 0.02]}
           color="#111827"
@@ -469,14 +470,18 @@ function Pedestal({ item, isSelected }: { item: ExhibitItemType; isSelected: boo
 function PedestalModelFallback() {
   return (
     <group>
-      <mesh castShadow={false} receiveShadow={false} position={[0, 0.28, 0]}>
-        <boxGeometry args={[0.58, 0.56, 0.58]} />
+      <BeveledBox
+        dimensions={[0.58, 0.56, 0.58]}
+        bevelRadius={0.015}
+        castShadow={false}
+        receiveShadow={false}
+        position={[0, 0.28, 0]}
+      >
         <meshStandardMaterial color="#cbd5e1" roughness={0.72} metalness={0.05} />
-      </mesh>
-      <mesh position={[0, 0.61, 0]}>
-        <boxGeometry args={[0.68, 0.04, 0.68]} />
+      </BeveledBox>
+      <BeveledBox dimensions={[0.68, 0.04, 0.68]} bevelRadius={0.008} position={[0, 0.61, 0]}>
         <meshBasicMaterial color="#64748b" transparent opacity={0.28} />
-      </mesh>
+      </BeveledBox>
       <Text
         position={[0, 0.98, 0]}
         color="#475569"
@@ -679,20 +684,17 @@ function BenchDecor({ item, isSelected }: { item: ExhibitItemType; isSelected: b
 
   return (
     <group>
-      <mesh castShadow receiveShadow position={[0, 0.4, 0]}>
-        <boxGeometry args={[1, 0.16, 1]} />
+      <BeveledBox dimensions={[1, 0.16, 1]} bevelRadius={0.02} castShadow receiveShadow position={[0, 0.4, 0]}>
         <meshStandardMaterial color={woodColor} roughness={0.72} metalness={0.06} />
-      </mesh>
-      <mesh castShadow receiveShadow position={[0, 0.74, -0.34]}>
-        <boxGeometry args={[1, 0.52, 0.1]} />
+      </BeveledBox>
+      <BeveledBox dimensions={[1, 0.52, 0.1]} bevelRadius={0.015} castShadow receiveShadow position={[0, 0.74, -0.34]}>
         <meshStandardMaterial color={woodColor} roughness={0.72} metalness={0.06} />
-      </mesh>
+      </BeveledBox>
       {[-0.42, 0.42].map((x) =>
         [-0.42, 0.42].map((z) => (
-          <mesh key={`${x}-${z}`} castShadow receiveShadow position={[x, 0.2, z]}>
-            <boxGeometry args={[0.08, 0.4, 0.08]} />
+          <BeveledBox key={`${x}-${z}`} dimensions={[0.08, 0.4, 0.08]} bevelRadius={0.008} castShadow receiveShadow position={[x, 0.2, z]}>
             <meshStandardMaterial color="#6b7280" roughness={0.45} metalness={0.25} />
-          </mesh>
+          </BeveledBox>
         )),
       )}
       {isSelected && <Edges scale={1.08} color="#7c3aed" />}
@@ -745,10 +747,9 @@ function SculptureDecor({ item, isSelected }: { item: ExhibitItemType; isSelecte
 
   return (
     <group>
-      <mesh castShadow receiveShadow position={[0, 0.2, 0]}>
-        <boxGeometry args={[0.62, 0.4, 0.62]} />
+      <BeveledBox dimensions={[0.62, 0.4, 0.62]} bevelRadius={0.018} castShadow receiveShadow position={[0, 0.2, 0]}>
         <meshStandardMaterial color="#d1d5db" roughness={0.74} metalness={0.08} />
-      </mesh>
+      </BeveledBox>
       <mesh castShadow receiveShadow position={[0, 1.02, 0]} rotation={[0.3, 0.5, 0.2]}>
         <icosahedronGeometry args={[0.38, 0]} />
         <meshStandardMaterial color={stoneColor} roughness={0.58} metalness={0.12} />
@@ -836,14 +837,12 @@ function NeonDecor({ item, isSelected }: { item: ExhibitItemType; isSelected: bo
 
   return (
     <group>
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[1, 0.25, 0.12]} />
+      <BeveledBox dimensions={[1, 0.25, 0.12]} bevelRadius={0.012} castShadow receiveShadow>
         <meshStandardMaterial color="#0f172a" roughness={0.35} metalness={0.32} />
-      </mesh>
-      <mesh position={[0, 0, 0.08]}>
-        <boxGeometry args={[0.82, 0.12, 0.04]} />
+      </BeveledBox>
+      <BeveledBox dimensions={[0.82, 0.12, 0.04]} bevelRadius={0.006} position={[0, 0, 0.08]}>
         <meshBasicMaterial color={neonColor} />
-      </mesh>
+      </BeveledBox>
       <pointLight color={neonColor} intensity={1.2} distance={3.5} decay={2.5} position={[0, 0, 0.22]} />
       {isSelected && <Edges scale={1.1} color="#22d3ee" />}
     </group>

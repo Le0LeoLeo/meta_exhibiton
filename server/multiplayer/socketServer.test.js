@@ -2,11 +2,15 @@
 
 import { once } from 'node:events';
 import { createServer as createHttpServer } from 'node:http';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as createClient } from 'socket.io-client';
 
 import { defaultGalleryScene } from '../../src/app/modules/metaverse3d/store/defaultGalleryScene.ts';
-import { startMultiplayerServer } from './socketServer.js';
+import {
+  fetchRoomPlayers,
+  startMultiplayerServer,
+} from './socketServer.js';
+import { createMemorySceneStore } from './memorySceneStore.js';
 
 const PUBLIC_GALLERY = {
   id: 'public-gallery',
@@ -154,6 +158,58 @@ function expectNoEvent(target, event, timeoutMs = 100) {
   });
 }
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function createDeferredSceneStore(methodName) {
+  const inner = createMemorySceneStore();
+  const started = deferred();
+  const release = deferred();
+  let shouldDefer = false;
+  return {
+    store: {
+      initialize: (...args) => inner.initialize(...args),
+      get: async (...args) => {
+        if (methodName === 'get' && shouldDefer) {
+          shouldDefer = false;
+          started.resolve();
+          await release.promise;
+        }
+        return inner.get(...args);
+      },
+      replace: async (...args) => {
+        if (methodName === 'replace' && shouldDefer) {
+          shouldDefer = false;
+          started.resolve();
+          await release.promise;
+        }
+        return inner.replace(...args);
+      },
+      applyOperation: async (...args) => {
+        if (methodName === 'applyOperation' && shouldDefer) {
+          shouldDefer = false;
+          started.resolve();
+          await release.promise;
+        }
+        return inner.applyOperation(...args);
+      },
+      delete: (...args) => inner.delete(...args),
+      checkReadiness: (...args) => inner.checkReadiness(...args),
+      close: (...args) => inner.close(...args),
+    },
+    deferNext() {
+      shouldDefer = true;
+    },
+    started: started.promise,
+    release: release.resolve,
+  };
+}
+
 async function startServer(options = {}) {
   const normalizedOptions = options && (
     Object.prototype.hasOwnProperty.call(options, 'maxBytes')
@@ -161,6 +217,8 @@ async function startServer(options = {}) {
   )
     ? { sceneLimits: options }
     : options;
+  const getGallery = normalizedOptions.getGalleryById
+    || (async (id) => galleries.get(id) || null);
   const server = startMultiplayerServer({
     initialPort: 0,
     corsOrigin: normalizedOptions.corsOrigin || 'http://localhost',
@@ -170,8 +228,13 @@ async function startServer(options = {}) {
       if (token === 'owner-token') return { sub: 'owner-1', name: 'Owner' };
       return null;
     }),
-    getGalleryById: normalizedOptions.getGalleryById
-      || (async (id) => galleries.get(id) || null),
+    getGalleryById: async (id) => {
+      const gallery = await getGallery(id);
+      if (!gallery || normalizedOptions.withPersistedScene === false) return gallery;
+      return gallery.scene_json === undefined
+        ? { ...gallery, scene_json: JSON.stringify(makeValidScene()) }
+        : gallery;
+    },
     getGalleryByShareToken: normalizedOptions.getGalleryByShareToken
       || (async (token) => shares.get(token) || null),
     sceneLimits: normalizedOptions.sceneLimits,
@@ -180,6 +243,9 @@ async function startServer(options = {}) {
     startupLimits: normalizedOptions.startupLimits,
     movementLimits: normalizedOptions.movementLimits,
     authorizationSweepMs: normalizedOptions.authorizationSweepMs,
+    collaboration: normalizedOptions.collaboration,
+    sceneStore: normalizedOptions.sceneStore,
+    sceneTtlMs: normalizedOptions.sceneTtlMs,
   });
   servers.add(server);
 
@@ -227,7 +293,9 @@ async function join(client, {
     shareToken,
     ...untrusted,
   });
-  return joined;
+  const result = await joined;
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  return result;
 }
 
 async function joinError(client, payload) {
@@ -258,6 +326,64 @@ afterEach(async () => {
 });
 
 describe('multiplayer room authorization', () => {
+  it('builds presence snapshots from all adapter-returned sockets', async () => {
+    const remotePlayer = {
+      id: 'remote-socket',
+      nickname: 'Remote',
+      position: { x: 1, y: 2, z: 3 },
+      yaw: 0.5,
+      lastSeq: 4,
+      updatedAt: 123,
+    };
+    const fetchSockets = async () => [
+      {
+        id: 'remote-socket',
+        data: {
+          galleryId: PUBLIC_GALLERY.id,
+          player: remotePlayer,
+          playerAnnounced: true,
+        },
+      },
+      {
+        id: 'transient-socket',
+        data: {
+          galleryId: PUBLIC_GALLERY.id,
+          player: { ...remotePlayer, id: 'transient-socket' },
+          playerAnnounced: false,
+        },
+      },
+      {
+        id: 'other-room-socket',
+        data: {
+          galleryId: PRIVATE_GALLERY.id,
+          player: { ...remotePlayer, id: 'other-room-socket' },
+        },
+      },
+      {
+        id: 'mismatched-id',
+        data: {
+          galleryId: PUBLIC_GALLERY.id,
+          player: { ...remotePlayer, id: 'stale-id' },
+        },
+      },
+    ];
+    const io = {
+      in: (roomId) => {
+        expect(roomId).toBe(PUBLIC_GALLERY.id);
+        return { fetchSockets };
+      },
+    };
+
+    await expect(fetchRoomPlayers(io, PUBLIC_GALLERY.id))
+      .resolves.toEqual([remotePlayer]);
+    await expect(fetchRoomPlayers(io, PUBLIC_GALLERY.id, {
+      includeSocketId: 'transient-socket',
+    })).resolves.toEqual([
+      remotePlayer,
+      { ...remotePlayer, id: 'transient-socket' },
+    ]);
+  });
+
   it('accepts configured WebSocket origins and rejects mismatched origins', async () => {
     const server = await startServer({
       corsOrigin: ['https://allowed.example', 'https://second.example'],
@@ -713,6 +839,323 @@ describe('multiplayer room authorization', () => {
     await noDuplicate;
   });
 
+  it('updates duplicate-join nickname while preserving the socket movement sequence', async () => {
+    const server = await startServer();
+    const player = await connect(server);
+    const observer = await connect(server);
+    await join(player, { nickname: 'Before' });
+    await join(observer);
+
+    const moved = waitForEvent(observer, 'player:moved');
+    player.emit('player:move', {
+      roomId: PUBLIC_GALLERY.id,
+      seq: 7,
+      t: Date.now(),
+      yaw: 1,
+      position: { x: 3, y: 2.6, z: 4 },
+    });
+    await moved;
+
+    const noDuplicate = expectNoEvent(observer, 'player:joined');
+    const rejoined = await join(player, { nickname: 'After' });
+    await noDuplicate;
+    expect(rejoined.players).toContainEqual(expect.objectContaining({
+      id: player.id,
+      nickname: 'After',
+      lastSeq: 7,
+      position: { x: 3, y: 2.6, z: 4 },
+    }));
+  });
+
+  it('keeps movement sequence state on the socket and ignores stale moves', async () => {
+    const server = await startServer();
+    const mover = await connect(server);
+    const observer = await connect(server);
+    await join(mover);
+    await join(observer);
+
+    const moved = waitForEvent(observer, 'player:moved');
+    mover.emit('player:move', {
+      roomId: PUBLIC_GALLERY.id,
+      seq: 2,
+      t: Date.now(),
+      yaw: 0.25,
+      position: { x: 2, y: 2.6, z: 2 },
+    });
+    await expect(moved).resolves.toMatchObject({ seq: 2 });
+
+    const noStaleMove = expectNoEvent(observer, 'player:moved');
+    mover.emit('player:move', {
+      roomId: PUBLIC_GALLERY.id,
+      seq: 1,
+      t: Date.now(),
+      yaw: 1,
+      position: { x: 9, y: 2.6, z: 9 },
+    });
+    await noStaleMove;
+
+    const newcomer = await connect(server);
+    const snapshot = await join(newcomer);
+    expect(snapshot.players).toContainEqual(expect.objectContaining({
+      id: mover.id,
+      lastSeq: 2,
+      yaw: 0.25,
+      position: { x: 2, y: 2.6, z: 2 },
+    }));
+  });
+
+  it('broadcasts one leave and keeps live scene state after the local last player leaves', async () => {
+    const server = await startServer();
+    const owner = await connect(server, 'owner-token');
+    const observer = await connect(server);
+    await join(owner);
+    await join(observer);
+
+    const synced = waitForEvent(observer, 'scene:synced');
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      expectedVersion: 1,
+      scene: makeValidScene({
+        items: [makeValidItem('persistent-item')],
+      }),
+    });
+    await synced;
+
+    const left = waitForEvent(observer, 'player:left');
+    const ownerId = owner.id;
+    owner.disconnect();
+    await expect(left).resolves.toMatchObject({ id: ownerId });
+    await expectNoEvent(observer, 'player:left');
+
+    observer.disconnect();
+    const newcomer = await connect(server);
+    const sceneAfterEmpty = waitForEvent(newcomer, 'scene:synced');
+    await join(newcomer);
+    await expect(sceneAfterEmpty).resolves.toMatchObject({
+      scene: { items: [{ id: 'persistent-item' }] },
+    });
+  });
+
+  it('serializes a delayed old leave before a newer same-room join', async () => {
+    let watchLatestLookup = false;
+    let markLatestLookup;
+    const latestLookupStarted = new Promise((resolve) => {
+      markLatestLookup = resolve;
+    });
+    const server = await startServer({
+      getGalleryById: async (id) => {
+        if (watchLatestLookup && id === PUBLIC_GALLERY.id) {
+          markLatestLookup();
+        }
+        return galleries.get(id) || null;
+      },
+    });
+    const observer = await connect(server, 'owner-token');
+    const player = await connect(server, 'owner-token');
+    await join(observer);
+    await join(player, { nickname: 'Initial' });
+
+    const serverSocket = server.io.of('/').sockets.get(player.id);
+    const originalLeave = serverSocket.leave.bind(serverSocket);
+    let releaseLeave;
+    let markLeaveStarted;
+    const leaveStarted = new Promise((resolve) => {
+      markLeaveStarted = resolve;
+    });
+    const leaveReleased = new Promise((resolve) => {
+      releaseLeave = resolve;
+    });
+    let delayNextLeave = true;
+    serverSocket.leave = async (roomId) => {
+      if (delayNextLeave) {
+        delayNextLeave = false;
+        markLeaveStarted();
+        await leaveReleased;
+      }
+      return originalLeave(roomId);
+    };
+
+    const leftEvents = [];
+    observer.on('player:left', (payload) => leftEvents.push(payload));
+    player.emit('room:join', {
+      roomId: PRIVATE_GALLERY.id,
+      nickname: 'Stale switch',
+    });
+    await leaveStarted;
+
+    const latestJoin = waitForEvent(player, 'room:joined');
+    watchLatestLookup = true;
+    player.emit('room:join', {
+      roomId: PUBLIC_GALLERY.id,
+      nickname: 'Latest',
+    });
+    await latestLookupStarted;
+    releaseLeave();
+
+    const joined = await latestJoin;
+    expect(joined).toMatchObject({ roomId: PUBLIC_GALLERY.id });
+    expect(joined.players).toContainEqual(expect.objectContaining({
+      id: player.id,
+      nickname: 'Latest',
+    }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(leftEvents).toEqual([{
+      roomId: PUBLIC_GALLERY.id,
+      id: player.id,
+    }]);
+    expect(serverSocket.rooms.has(PUBLIC_GALLERY.id)).toBe(true);
+    expect(serverSocket.rooms.has(PRIVATE_GALLERY.id)).toBe(false);
+    expect(serverSocket.data).toMatchObject({
+      galleryId: PUBLIC_GALLERY.id,
+      player: { id: player.id, nickname: 'Latest' },
+    });
+  });
+
+  it('cleans a stale delayed switch join without ghost presence events', async () => {
+    let watchLatestLookup = false;
+    let markLatestLookup;
+    const latestLookupStarted = new Promise((resolve) => {
+      markLatestLookup = resolve;
+    });
+    const server = await startServer({
+      getGalleryById: async (id) => {
+        if (watchLatestLookup && id === PUBLIC_GALLERY.id) {
+          markLatestLookup();
+        }
+        return galleries.get(id) || null;
+      },
+    });
+    const observerA = await connect(server, 'owner-token');
+    const observerB = await connect(server, 'owner-token');
+    const player = await connect(server, 'owner-token');
+    await join(observerA);
+    await join(observerB, { roomId: PRIVATE_GALLERY.id });
+    await join(player, { nickname: 'Initial' });
+
+    const serverSocket = server.io.of('/').sockets.get(player.id);
+    const originalJoin = serverSocket.join.bind(serverSocket);
+    let releaseJoin;
+    let markJoinStarted;
+    const joinStarted = new Promise((resolve) => {
+      markJoinStarted = resolve;
+    });
+    const joinReleased = new Promise((resolve) => {
+      releaseJoin = resolve;
+    });
+    let delaySwitchJoin = true;
+    serverSocket.join = async (roomId) => {
+      if (delaySwitchJoin && roomId === PRIVATE_GALLERY.id) {
+        delaySwitchJoin = false;
+        markJoinStarted();
+        await joinReleased;
+      }
+      return originalJoin(roomId);
+    };
+
+    const noGhostJoin = expectNoEvent(observerB, 'player:joined', 250);
+    const noGhostLeave = expectNoEvent(observerB, 'player:left', 250);
+    player.emit('room:join', {
+      roomId: PRIVATE_GALLERY.id,
+      nickname: 'Stale switch',
+    });
+    await joinStarted;
+
+    const latestJoin = waitForEvent(player, 'room:joined');
+    watchLatestLookup = true;
+    player.emit('room:join', {
+      roomId: PUBLIC_GALLERY.id,
+      nickname: 'Latest',
+    });
+    await latestLookupStarted;
+    releaseJoin();
+
+    await expect(latestJoin).resolves.toMatchObject({
+      roomId: PUBLIC_GALLERY.id,
+    });
+    await Promise.all([noGhostJoin, noGhostLeave]);
+
+    const roomAPlayers = await fetchRoomPlayers(server.io, PUBLIC_GALLERY.id);
+    const roomBPlayers = await fetchRoomPlayers(server.io, PRIVATE_GALLERY.id);
+    expect(roomAPlayers.filter(({ id }) => id === player.id)).toEqual([
+      expect.objectContaining({ nickname: 'Latest' }),
+    ]);
+    expect(roomBPlayers.some(({ id }) => id === player.id)).toBe(false);
+    expect(serverSocket.data).toMatchObject({
+      galleryId: PUBLIC_GALLERY.id,
+      player: { id: player.id, nickname: 'Latest' },
+    });
+  });
+
+  it('hides adapter-joined transient presence from another joining socket', async () => {
+    const server = await startServer();
+    const observer = await connect(server);
+    const transient = await connect(server);
+    const newcomer = await connect(server);
+    await join(observer, { nickname: 'Observer' });
+
+    const transientId = transient.id;
+    const serverSocket = server.io.of('/').sockets.get(transientId);
+    const originalJoin = serverSocket.join.bind(serverSocket);
+    let releaseJoin;
+    let markAdapterJoined;
+    const adapterJoined = new Promise((resolve) => {
+      markAdapterJoined = resolve;
+    });
+    const joinReleased = new Promise((resolve) => {
+      releaseJoin = resolve;
+    });
+    serverSocket.join = async (roomId) => {
+      const result = await originalJoin(roomId);
+      markAdapterJoined();
+      await joinReleased;
+      return result;
+    };
+
+    const joinedEvents = [];
+    const leftEvents = [];
+    observer.on('player:joined', (payload) => joinedEvents.push(payload));
+    observer.on('player:left', (payload) => leftEvents.push(payload));
+    transient.emit('room:join', {
+      roomId: PUBLIC_GALLERY.id,
+      nickname: 'Transient',
+    });
+    await adapterJoined;
+
+    expect(serverSocket.rooms.has(PUBLIC_GALLERY.id)).toBe(true);
+    expect(serverSocket.data).toMatchObject({
+      galleryId: PUBLIC_GALLERY.id,
+      playerAnnounced: false,
+      player: { id: transientId, nickname: 'Transient' },
+    });
+
+    const newcomerSnapshot = await join(newcomer, { nickname: 'Newcomer' });
+    expect(newcomerSnapshot.players.some(({ id }) => id === transientId))
+      .toBe(false);
+    expect(newcomerSnapshot.players).toContainEqual(expect.objectContaining({
+      id: newcomer.id,
+      nickname: 'Newcomer',
+    }));
+
+    const disconnecting = waitForEvent(serverSocket, 'disconnecting');
+    transient.disconnect();
+    await disconnecting;
+    releaseJoin();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(joinedEvents.some(({ player }) => player.id === transientId))
+      .toBe(false);
+    expect(leftEvents.some(({ id }) => id === transientId)).toBe(false);
+    expect(serverSocket.data).toMatchObject({
+      galleryId: null,
+      player: null,
+      playerAnnounced: false,
+      membershipClosed: true,
+    });
+    const finalSnapshot = await fetchRoomPlayers(server.io, PUBLIC_GALLERY.id);
+    expect(finalSnapshot.some(({ id }) => id === transientId)).toBe(false);
+  });
+
   it('returns stable errors for missing galleries, invalid shares, and events before joining', async () => {
     const server = await startServer();
     const client = await connect(server);
@@ -754,7 +1197,11 @@ describe('multiplayer room authorization', () => {
       op: { kind: 'add-item', item: makeValidItem('forbidden-item') },
     });
 
-    await expect(forbidden).resolves.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(forbidden).resolves.toMatchObject({
+      code: 'FORBIDDEN',
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'viewer-op',
+    });
     await Promise.all([noAck, noBroadcast]);
 
     const observer = await connect(server);
@@ -1020,7 +1467,42 @@ describe('multiplayer room authorization', () => {
       clientOpId: 'second',
       op: { kind: 'add-item', item: makeValidItem('second') },
     });
-    await expect(limited).resolves.toMatchObject({ code: 'RATE_LIMITED' });
+    await expect(limited).resolves.toMatchObject({
+      code: 'RATE_LIMITED',
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'second',
+    });
+  });
+
+  it('correlates a rate-limited recovery scene sync', async () => {
+    const server = await startServer({
+      maxBytes: 1024 * 1024,
+      operationLimit: 1,
+      operationWindowMs: 60_000,
+    });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    const firstSynced = waitForEvent(owner, 'scene:synced');
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      expectedVersion: 1,
+      scene: makeValidScene({ items: [makeValidItem('consume-token')] }),
+    });
+    await firstSynced;
+
+    const limited = waitForEvent(owner, 'room:error');
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      clientSyncId: 'rate-limited-recovery',
+      expectedVersion: 2,
+      scene: makeValidScene(),
+    });
+    await expect(limited).resolves.toMatchObject({
+      code: 'RATE_LIMITED',
+      roomId: PUBLIC_GALLERY.id,
+      clientSyncId: 'rate-limited-recovery',
+    });
   });
 
   it('prevents scene operations from growing room state past the item limit', async () => {
@@ -1054,7 +1536,7 @@ describe('multiplayer room authorization', () => {
 
   it('atomically rejects scene operations that grow stored scene past the byte limit', async () => {
     const server = await startServer({
-      maxBytes: 500,
+      maxBytes: 800,
       maxItems: 10,
       maxFloorPlanElements: 10,
       operationLimit: 10,
@@ -1142,6 +1624,7 @@ describe('multiplayer room authorization', () => {
     const synced = waitForEvent(observer, 'scene:synced');
     owner.emit('scene:sync', {
       roomId: PUBLIC_GALLERY.id,
+      expectedVersion: 1,
       scene: structuredClone(defaultGalleryScene),
     });
     await expect(synced).resolves.toMatchObject({
@@ -1268,6 +1751,7 @@ describe('multiplayer room authorization', () => {
     const synced = waitForEvent(observer, 'scene:synced');
     owner.emit('scene:sync', {
       roomId: PUBLIC_GALLERY.id,
+      expectedVersion: 1,
       scene: makeValidScene({
         items: [validOptionalItem],
         floorPlanElements: [validFloor],
@@ -1293,5 +1777,607 @@ describe('multiplayer room authorization', () => {
 
     expect(server.httpServer.listening).toBe(false);
     expect(client.connected).toBe(false);
+  });
+
+  it('initializes the first valid scene sync at version one when no saved scene exists', async () => {
+    const server = await startServer({ withPersistedScene: false });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    const synced = waitForEvent(owner, 'scene:synced');
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      scene: makeValidScene({ items: [makeValidItem('first-scene')] }),
+    });
+
+    await expect(synced).resolves.toMatchObject({
+      by: owner.id,
+      version: 1,
+      scene: { items: [{ id: 'first-scene' }] },
+    });
+  });
+
+  it('correlates the authoritative snapshot when a concurrent initializer loses', async () => {
+    let current = null;
+    const sceneStore = {
+      initialize: vi.fn(async (_roomId, scene) => {
+        if (!current) {
+          current = {
+            scene,
+            version: 1,
+            updatedAt: Date.now(),
+          };
+        }
+        return current;
+      }),
+      get: vi.fn().mockResolvedValue(null),
+      replace: vi.fn(),
+      applyOperation: vi.fn(),
+      delete: vi.fn(),
+      checkReadiness: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const server = await startServer({
+      sceneStore,
+      withPersistedScene: false,
+    });
+    const winner = await connect(server, 'owner-token');
+    const loser = await connect(server, 'owner-token');
+    await join(winner);
+    await join(loser);
+
+    const winningScene = makeValidScene({
+      items: [makeValidItem('winning-initializer')],
+    });
+    const winnerSynced = waitForEvent(winner, 'scene:synced');
+    winner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      clientSyncId: 'winner-sync',
+      scene: winningScene,
+    });
+    await expect(winnerSynced).resolves.toMatchObject({
+      clientSyncId: 'winner-sync',
+      version: 1,
+      scene: { items: [{ id: 'winning-initializer' }] },
+    });
+
+    const conflict = waitForEvent(loser, 'room:error');
+    const authoritative = waitForEvent(loser, 'scene:synced');
+    loser.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      clientSyncId: 'loser-sync',
+      scene: makeValidScene({
+        items: [makeValidItem('losing-initializer')],
+      }),
+    });
+
+    await expect(conflict).resolves.toMatchObject({
+      code: 'SCENE_CONFLICT',
+      roomId: PUBLIC_GALLERY.id,
+      clientSyncId: 'loser-sync',
+    });
+    await expect(authoritative).resolves.toMatchObject({
+      by: 'server',
+      clientSyncId: 'loser-sync',
+      version: 1,
+      scene: { items: [{ id: 'winning-initializer' }] },
+    });
+  });
+
+  it('initializes a room from a valid persisted gallery scene without overwriting it', async () => {
+    const persistedScene = makeValidScene({
+      items: [makeValidItem('persisted-item')],
+    });
+    const server = await startServer({
+      getGalleryById: async (id) => (
+        id === PUBLIC_GALLERY.id
+          ? { ...PUBLIC_GALLERY, scene_json: JSON.stringify(persistedScene) }
+          : null
+      ),
+    });
+    const viewer = await connect(server);
+    const synced = waitForEvent(viewer, 'scene:synced');
+
+    await join(viewer);
+
+    await expect(synced).resolves.toMatchObject({
+      version: 1,
+      scene: { items: [{ id: 'persisted-item' }] },
+    });
+  });
+
+  it('rejects a stale scene replacement and returns the authoritative snapshot', async () => {
+    const server = await startServer();
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    const conflict = waitForEvent(owner, 'room:error');
+    const authoritative = waitForEvent(owner, 'scene:synced');
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      expectedVersion: 99,
+      scene: makeValidScene({ items: [makeValidItem('must-not-win')] }),
+    });
+
+    await expect(conflict).resolves.toMatchObject({ code: 'SCENE_CONFLICT' });
+    await expect(authoritative).resolves.toMatchObject({
+      by: 'server',
+      version: 1,
+      scene: { items: [] },
+    });
+  });
+
+  it('correlates a scene operation conflict with its client operation', async () => {
+    const inner = createMemorySceneStore();
+    const sceneStore = {
+      initialize: (...args) => inner.initialize(...args),
+      get: (...args) => inner.get(...args),
+      replace: (...args) => inner.replace(...args),
+      applyOperation: vi.fn().mockResolvedValue({
+        accepted: false,
+        reason: 'conflict',
+      }),
+      delete: (...args) => inner.delete(...args),
+      checkReadiness: (...args) => inner.checkReadiness(...args),
+      close: (...args) => inner.close(...args),
+    };
+    const server = await startServer({ sceneStore });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    const conflict = waitForEvent(owner, 'room:error');
+    const authoritative = waitForEvent(owner, 'scene:synced');
+    owner.emit('scene:op', {
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'conflicting-op',
+      op: { kind: 'add-item', item: makeValidItem('conflict') },
+    });
+
+    await expect(conflict).resolves.toMatchObject({
+      code: 'SCENE_CONFLICT',
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'conflicting-op',
+    });
+    await expect(authoritative).resolves.toMatchObject({
+      by: 'server',
+      version: 1,
+    });
+  });
+
+  it('includes consecutive versions in operation acknowledgement and broadcast', async () => {
+    const server = await startServer();
+    const owner = await connect(server, 'owner-token');
+    const observer = await connect(server);
+    await join(owner);
+    await join(observer);
+
+    const ack = waitForEvent(owner, 'scene:op:ack');
+    const broadcast = waitForEvent(observer, 'scene:oped');
+    owner.emit('scene:op', {
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'versioned-op',
+      op: { kind: 'add-item', item: makeValidItem('versioned-item') },
+    });
+
+    await expect(ack).resolves.toMatchObject({ version: 2 });
+    await expect(broadcast).resolves.toMatchObject({ version: 2 });
+  });
+
+  it('returns scene sync correlation only to the requesting editor', async () => {
+    const server = await startServer();
+    const owner = await connect(server, 'owner-token');
+    const observer = await connect(server);
+    await join(owner);
+    await join(observer);
+
+    const ownerSynced = waitForEvent(owner, 'scene:synced');
+    const observerSynced = waitForEvent(observer, 'scene:synced');
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      clientSyncId: 'recovery-sync-1',
+      expectedVersion: 1,
+      scene: makeValidScene({ items: [makeValidItem('recovered')] }),
+    });
+
+    await expect(ownerSynced).resolves.toMatchObject({
+      clientSyncId: 'recovery-sync-1',
+      version: 2,
+    });
+    const observerPayload = await observerSynced;
+    expect(observerPayload).toMatchObject({ version: 2 });
+    expect(observerPayload).not.toHaveProperty('clientSyncId');
+  });
+
+  it('broadcasts an accepted replacement after the sender switches rooms', async () => {
+    const deferredStore = createDeferredSceneStore('replace');
+    const server = await startServer({ sceneStore: deferredStore.store });
+    const owner = await connect(server, 'owner-token');
+    const observer = await connect(server);
+    await join(owner);
+    await join(observer);
+
+    deferredStore.deferNext();
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      expectedVersion: 1,
+      scene: makeValidScene({ items: [makeValidItem('committed-sync')] }),
+    });
+    await deferredStore.started;
+    await join(owner, { roomId: PRIVATE_GALLERY.id });
+
+    const broadcast = waitForEvent(observer, 'scene:synced');
+    const noStaleSnapshot = expectNoEvent(owner, 'scene:synced');
+    deferredStore.release();
+
+    await expect(broadcast).resolves.toMatchObject({
+      version: 2,
+      scene: { items: [{ id: 'committed-sync' }] },
+    });
+    await noStaleSnapshot;
+  });
+
+  it('scopes a stale scene sync error to the room captured before the store read', async () => {
+    const deferredStore = createDeferredSceneStore('get');
+    const server = await startServer({ sceneStore: deferredStore.store });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    deferredStore.deferNext();
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      clientSyncId: 'stale-public-sync',
+      expectedVersion: 1,
+      scene: makeValidScene({ items: [makeValidItem('stale')] }),
+    });
+    await deferredStore.started;
+    await join(owner, { roomId: PRIVATE_GALLERY.id });
+
+    const stale = waitForEvent(owner, 'room:error');
+    deferredStore.release();
+    await expect(stale).resolves.toMatchObject({
+      code: 'FORBIDDEN',
+      roomId: PUBLIC_GALLERY.id,
+      clientSyncId: 'stale-public-sync',
+    });
+  });
+
+  it('broadcasts an accepted operation but suppresses stale sender acknowledgement', async () => {
+    const deferredStore = createDeferredSceneStore('applyOperation');
+    const server = await startServer({ sceneStore: deferredStore.store });
+    const owner = await connect(server, 'owner-token');
+    const observer = await connect(server);
+    await join(owner);
+    await join(observer);
+
+    deferredStore.deferNext();
+    owner.emit('scene:op', {
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'committed-stale-op',
+      op: { kind: 'add-item', item: makeValidItem('committed-op') },
+    });
+    await deferredStore.started;
+    await join(owner, { roomId: PRIVATE_GALLERY.id });
+
+    const broadcast = waitForEvent(observer, 'scene:oped');
+    const noAck = expectNoEvent(owner, 'scene:op:ack');
+    deferredStore.release();
+
+    await expect(broadcast).resolves.toMatchObject({
+      clientOpId: 'committed-stale-op',
+      version: 2,
+    });
+    await noAck;
+  });
+
+  it('delivers a committed operation to a same-room rejoin without an old acknowledgement', async () => {
+    const deferredStore = createDeferredSceneStore('applyOperation');
+    const server = await startServer({ sceneStore: deferredStore.store });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    deferredStore.deferNext();
+    owner.emit('scene:op', {
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'same-room-rejoin-op',
+      op: { kind: 'add-item', item: makeValidItem('after-rejoin-snapshot') },
+    });
+    await deferredStore.started;
+    await join(owner, { roomId: PUBLIC_GALLERY.id });
+
+    const committed = waitForEvent(owner, 'scene:oped');
+    const noOldAck = expectNoEvent(owner, 'scene:op:ack');
+    deferredStore.release();
+
+    await expect(committed).resolves.toMatchObject({
+      clientOpId: 'same-room-rejoin-op',
+      version: 2,
+      op: { item: { id: 'after-rejoin-snapshot' } },
+    });
+    await noOldAck;
+  });
+
+  it('does not emit an old-room snapshot when request-sync becomes stale', async () => {
+    const deferredStore = createDeferredSceneStore('get');
+    const server = await startServer({ sceneStore: deferredStore.store });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    deferredStore.deferNext();
+    owner.emit('scene:request-sync', { roomId: PUBLIC_GALLERY.id });
+    await deferredStore.started;
+    await join(owner, { roomId: PRIVATE_GALLERY.id });
+
+    const noOldSnapshot = expectNoEvent(owner, 'scene:synced');
+    deferredStore.release();
+    await noOldSnapshot;
+  });
+
+  it('reports SCENE_MISSING for operations after live scene expiry', async () => {
+    const server = await startServer({ withPersistedScene: false });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    const missing = waitForEvent(owner, 'room:error');
+    owner.emit('scene:op', {
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'missing-scene-op',
+      op: { kind: 'add-item', item: makeValidItem('cannot-apply') },
+    });
+
+    await expect(missing).resolves.toMatchObject({
+      code: 'SCENE_MISSING',
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'missing-scene-op',
+    });
+  });
+
+  it('reports SCENE_MISSING when a scene expires between sync get and replace', async () => {
+    const inner = createMemorySceneStore();
+    const sceneStore = {
+      initialize: (...args) => inner.initialize(...args),
+      get: (...args) => inner.get(...args),
+      replace: vi.fn(async (roomId, ...args) => {
+        await inner.delete(roomId);
+        return inner.replace(roomId, ...args);
+      }),
+      applyOperation: (...args) => inner.applyOperation(...args),
+      delete: (...args) => inner.delete(...args),
+      checkReadiness: (...args) => inner.checkReadiness(...args),
+      close: (...args) => inner.close(...args),
+    };
+    const server = await startServer({ sceneStore });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    const missing = waitForEvent(owner, 'room:error');
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      expectedVersion: 1,
+      scene: makeValidScene({ items: [makeValidItem('expired-replace')] }),
+    });
+
+    await expect(missing).resolves.toMatchObject({
+      code: 'SCENE_MISSING',
+      roomId: PUBLIC_GALLERY.id,
+    });
+    expect(sceneStore.replace).toHaveBeenCalledOnce();
+  });
+
+  it('reports SCENE_MISSING when request-sync has no live snapshot', async () => {
+    const server = await startServer({ withPersistedScene: false });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    const missing = waitForEvent(owner, 'room:error');
+    owner.emit('scene:request-sync', { roomId: PUBLIC_GALLERY.id });
+
+    await expect(missing).resolves.toMatchObject({
+      code: 'SCENE_MISSING',
+      roomId: PUBLIC_GALLERY.id,
+    });
+  });
+
+  it('reports store failures without falling back to process-local scene state', async () => {
+    const failure = new Error('shared store unavailable');
+    const sceneStore = {
+      initialize: vi.fn().mockRejectedValue(failure),
+      get: vi.fn().mockRejectedValue(failure),
+      replace: vi.fn(),
+      applyOperation: vi.fn(),
+      checkReadiness: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const server = await startServer({ sceneStore });
+    const owner = await connect(server, 'owner-token');
+    const unavailable = waitForEvent(owner, 'room:error');
+
+    owner.emit('room:join', {
+      roomId: PUBLIC_GALLERY.id,
+      nickname: 'Tester',
+    });
+
+    await expect(unavailable).resolves.toMatchObject({
+      code: 'COLLABORATION_UNAVAILABLE',
+    });
+    expect(sceneStore.initialize).toHaveBeenCalledOnce();
+  });
+
+  it('correlates scene operation store failures with the rejected client operation', async () => {
+    const inner = createMemorySceneStore();
+    const failure = new Error('shared store unavailable');
+    const sceneStore = {
+      initialize: (...args) => inner.initialize(...args),
+      get: (...args) => inner.get(...args),
+      replace: (...args) => inner.replace(...args),
+      applyOperation: vi.fn().mockRejectedValue(failure),
+      delete: (...args) => inner.delete(...args),
+      checkReadiness: (...args) => inner.checkReadiness(...args),
+      close: (...args) => inner.close(...args),
+    };
+    const server = await startServer({ sceneStore });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    const unavailable = waitForEvent(owner, 'room:error');
+    owner.emit('scene:op', {
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'store-failure-op',
+      op: { kind: 'add-item', item: makeValidItem('store-failure') },
+    });
+
+    await expect(unavailable).resolves.toMatchObject({
+      code: 'COLLABORATION_UNAVAILABLE',
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'store-failure-op',
+    });
+  });
+
+  it('correlates recovery scene sync store failures with the sync request', async () => {
+    const inner = createMemorySceneStore();
+    const failure = new Error('shared store unavailable');
+    const sceneStore = {
+      initialize: (...args) => inner.initialize(...args),
+      get: vi.fn().mockRejectedValue(failure),
+      replace: (...args) => inner.replace(...args),
+      applyOperation: (...args) => inner.applyOperation(...args),
+      delete: (...args) => inner.delete(...args),
+      checkReadiness: (...args) => inner.checkReadiness(...args),
+      close: (...args) => inner.close(...args),
+    };
+    const server = await startServer({ sceneStore });
+    const owner = await connect(server, 'owner-token');
+    await join(owner);
+
+    const unavailable = waitForEvent(owner, 'room:error');
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      clientSyncId: 'recovery-store-failure',
+      scene: makeValidScene(),
+    });
+
+    await expect(unavailable).resolves.toMatchObject({
+      code: 'COLLABORATION_UNAVAILABLE',
+      roomId: PUBLIC_GALLERY.id,
+      clientSyncId: 'recovery-store-failure',
+    });
+  });
+
+  it('returns an authoritative versioned snapshot on scene:request-sync', async () => {
+    const server = await startServer();
+    const viewer = await connect(server);
+    await join(viewer);
+
+    const synced = waitForEvent(viewer, 'scene:synced');
+    viewer.emit('scene:request-sync', { roomId: PUBLIC_GALLERY.id });
+
+    await expect(synced).resolves.toMatchObject({
+      by: 'server',
+      version: 1,
+      scene: { items: [] },
+    });
+  });
+
+  it('attaches collaboration and checks the store before listening', async () => {
+    let finishAttach;
+    const attachBarrier = new Promise((resolve) => {
+      finishAttach = resolve;
+    });
+    const order = [];
+    const collaboration = {
+      attach: vi.fn(async () => {
+        order.push('attach');
+        await attachBarrier;
+      }),
+      checkReadiness: vi.fn(async () => order.push('collaboration-ready')),
+      close: vi.fn(async () => order.push('collaboration-close')),
+    };
+    const sceneStore = {
+      initialize: vi.fn(),
+      get: vi.fn(),
+      replace: vi.fn(),
+      applyOperation: vi.fn(),
+      checkReadiness: vi.fn(async () => order.push('store-ready')),
+      close: vi.fn(async () => order.push('store-close')),
+    };
+    const server = startMultiplayerServer({
+      initialPort: 0,
+      corsOrigin: 'http://localhost',
+      allowMissingOrigin: true,
+      verifyToken: () => null,
+      getGalleryById: async () => null,
+      getGalleryByShareToken: async () => null,
+      collaboration,
+      sceneStore,
+    });
+    servers.add(server);
+
+    await Promise.resolve();
+    expect(server.httpServer.listening).toBe(false);
+    finishAttach();
+    await server.ready;
+
+    expect(order.slice(0, 3)).toEqual([
+      'attach',
+      'collaboration-ready',
+      'store-ready',
+    ]);
+  });
+
+  it('cleans collaboration resources when startup attachment fails', async () => {
+    const startupError = new Error('adapter attach failed');
+    const collaboration = {
+      attach: vi.fn().mockRejectedValue(startupError),
+      checkReadiness: vi.fn(),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const sceneStore = {
+      initialize: vi.fn(),
+      get: vi.fn(),
+      replace: vi.fn(),
+      applyOperation: vi.fn(),
+      checkReadiness: vi.fn(),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const server = startMultiplayerServer({
+      initialPort: 0,
+      corsOrigin: 'http://localhost',
+      allowMissingOrigin: true,
+      verifyToken: () => null,
+      getGalleryById: async () => null,
+      getGalleryByShareToken: async () => null,
+      collaboration,
+      sceneStore,
+    });
+    servers.add(server);
+
+    await expect(server.ready).rejects.toBe(startupError);
+    expect(server.httpServer.listening).toBe(false);
+    expect(sceneStore.checkReadiness).not.toHaveBeenCalled();
+    expect(sceneStore.close).toHaveBeenCalledOnce();
+    expect(collaboration.close).toHaveBeenCalledOnce();
+  });
+
+  it('keeps same-process memory scene stores isolated when another server closes', async () => {
+    const first = await startServer();
+    const second = await startServer();
+    const secondOwner = await connect(second, 'owner-token');
+    await join(secondOwner);
+
+    const ack = waitForEvent(secondOwner, 'scene:op:ack');
+    secondOwner.emit('scene:op', {
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'isolated-op',
+      op: { kind: 'add-item', item: makeValidItem('survives-other-close') },
+    });
+    await ack;
+
+    await first.close();
+    servers.delete(first);
+    const synced = waitForEvent(secondOwner, 'scene:synced');
+    secondOwner.emit('scene:request-sync', { roomId: PUBLIC_GALLERY.id });
+    await expect(synced).resolves.toMatchObject({
+      version: 2,
+      scene: { items: [{ id: 'survives-other-close' }] },
+    });
   });
 });

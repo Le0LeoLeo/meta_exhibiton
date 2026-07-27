@@ -14,8 +14,10 @@ export async function parseJsonSafe(res: Response) {
   }
 }
 
-export function errorFromResponse(data: any, fallback: string) {
-  const msg = data?.message;
+export function errorFromResponse(data: unknown, fallback: string) {
+  const msg = typeof data === 'object' && data !== null && 'message' in data
+    ? data.message
+    : undefined;
   return new Error(typeof msg === 'string' && msg.trim() ? msg : fallback);
 }
 

@@ -210,6 +210,39 @@ describe('exhibitionSceneRoutes', () => {
     }));
   });
 
+  it('passes an unavailable visual review response through without inventing scores', async () => {
+    const reviewBuilderSession = vi.fn().mockResolvedValue({
+      sessionId: 'builder-1',
+      versionId: 'version-1',
+      status: 'unavailable',
+      source: 'fallback',
+      errorCode: 'VISION_PROVIDER_FAILED',
+      message: 'The visual review provider is unavailable.',
+      review: null,
+    });
+    const baseUrl = await startApp({ reviewBuilderSession });
+    const res = await fetch(`${baseUrl}/api/ai/exhibition-builder/review`, {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        sessionId: 'builder-1',
+        versionId: 'version-1',
+        scene: { roomSize: {}, items: [], floorPlanElements: [] },
+        screenshots: [
+          { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
+          { viewId: 'left', label: 'Left', dataUrl: 'data:image/png;base64,bbb' },
+          { viewId: 'top', label: 'Top', dataUrl: 'data:image/png;base64,ccc' },
+        ],
+      }),
+    });
+
+    expect(await res.json()).toEqual(expect.objectContaining({
+      status: 'unavailable',
+      errorCode: 'VISION_PROVIDER_FAILED',
+      review: null,
+    }));
+  });
+
   it('revises a builder scene from a review report', async () => {
     const reviseBuilderSession = vi.fn(createDeps().reviseBuilderSession);
     const baseUrl = await startApp({ reviseBuilderSession });
@@ -241,6 +274,26 @@ describe('exhibitionSceneRoutes', () => {
       sessionId: 'builder-1',
       revisionCount: 1,
       prompt: 'Original brief',
+    }));
+  });
+
+  it('accepts a prompt-only manual revision after review is unavailable', async () => {
+    const reviseBuilderSession = vi.fn(createDeps().reviseBuilderSession);
+    const baseUrl = await startApp({ reviseBuilderSession });
+    const res = await fetch(`${baseUrl}/api/ai/exhibition-builder/revise`, {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        sessionId: 'builder-1',
+        versionId: 'version-1',
+        scene: { roomSize: {}, items: [], floorPlanElements: [] },
+        prompt: 'Move the entrance label left.',
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(reviseBuilderSession).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: 'Move the entrance label left.',
     }));
   });
 });

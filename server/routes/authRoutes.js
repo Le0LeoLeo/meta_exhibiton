@@ -1,6 +1,12 @@
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
+import {
+  clearCsrfCookie,
+  clearSessionCookie,
+  setCsrfCookie,
+  setSessionCookie,
+} from '../auth/sessionCookie.js';
 
 const nameSchema = z.string().trim().min(1, 'name is required').max(100, 'name too long');
 
@@ -15,13 +21,17 @@ export function registerAuthRoutes(app, deps) {
   const {
     requireAuth,
     signToken,
+    createCsrfToken,
     authLimiter = noRateLimit,
     getUserByEmail,
     insertUser,
     getUserById,
     updateUserName,
     updateUserPasswordHash,
-    deleteUserById,
+    deleteAccountWithCleanup,
+    exportUserData,
+    listMediaStorageFileNamesByOwnerId,
+    deleteMediaFiles,
     listGrowthAssetContentUrlsByOwnerId,
     deleteGrowthAssetFiles,
   } = deps;
@@ -55,6 +65,8 @@ export function registerAuthRoutes(app, deps) {
       await insertUser(user);
 
       const token = signToken(user);
+      setSessionCookie(res, token);
+      setCsrfCookie(res, createCsrfToken());
       res.status(201).json({
         token,
         user: { id: user.id, email: user.email, name: user.name },
@@ -86,6 +98,8 @@ export function registerAuthRoutes(app, deps) {
 
       const user = { id: row.id, email: row.email, name: row.name };
       const token = signToken(user);
+      setSessionCookie(res, token);
+      setCsrfCookie(res, createCsrfToken());
       res.json({ token, user });
     } catch (err) {
       console.error(err);
@@ -103,11 +117,21 @@ export function registerAuthRoutes(app, deps) {
         return res.status(401).json({ message: 'user not found' });
       }
 
-      res.json({ user: { id: row.id, email: row.email, name: row.name } });
+      const user = { id: row.id, email: row.email, name: row.name };
+      const token = signToken(user);
+      setSessionCookie(res, token);
+      setCsrfCookie(res, createCsrfToken());
+      res.json({ token, user });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'internal error' });
     }
+  });
+
+  app.post('/api/auth/logout', (_req, res) => {
+    clearSessionCookie(res);
+    clearCsrfCookie(res);
+    res.json({ ok: true });
   });
 
   app.patch('/api/users/me', async (req, res) => {
@@ -129,6 +153,8 @@ export function registerAuthRoutes(app, deps) {
 
       const user = { id: row.id, email: row.email, name: row.name };
       const token = signToken(user);
+      setSessionCookie(res, token);
+      setCsrfCookie(res, createCsrfToken());
       res.json({ token, user });
     } catch (err) {
       console.error(err);
@@ -166,19 +192,40 @@ export function registerAuthRoutes(app, deps) {
     }
   });
 
+  app.get('/api/users/me/export', async (req, res) => {
+    const payload = requireAuth(req, res);
+    if (!payload) return;
+
+    try {
+      const data = await exportUserData(payload.sub);
+      if (!data) return res.status(404).json({ message: 'user not found' });
+
+      res.set('Cache-Control', 'no-store');
+      res.attachment('personal-data.json');
+      res.json(data);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'internal error' });
+    }
+  });
+
   app.delete('/api/users/me', async (req, res) => {
     const payload = requireAuth(req, res);
     if (!payload) return;
 
     try {
       const growthAssetUrls = await listGrowthAssetContentUrlsByOwnerId(payload.sub);
-      await deleteUserById(payload.sub);
-      try {
-        await deleteGrowthAssetFiles(growthAssetUrls);
-      } catch (cleanupError) {
-        console.error('[auth] failed to clean up deleted user growth media', cleanupError);
-      }
-      res.json({ ok: true });
+      const mediaFileNames = await listMediaStorageFileNamesByOwnerId(payload.sub);
+      const result = await deleteAccountWithCleanup({
+        ownerId: payload.sub,
+        growthAssetUrls,
+        mediaFileNames,
+        deleteGrowthAssetFiles,
+        deleteMediaFiles,
+      });
+      clearSessionCookie(res);
+      clearCsrfCookie(res);
+      res.status(result.cleanupPending ? 202 : 200).json({ ok: true, ...result });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'internal error' });

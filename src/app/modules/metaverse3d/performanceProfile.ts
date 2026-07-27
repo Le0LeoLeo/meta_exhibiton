@@ -15,6 +15,8 @@ export interface RenderPerformanceProfile {
   enableEnvironment: boolean;
   enableExtraAccentLights: boolean;
   enablePostprocessing: boolean;
+  enableAmbientOcclusion: boolean;
+  ambientOcclusionQuality: "off" | "low" | "high";
   enableShadows: boolean;
   enableRemotePlayers: boolean;
   physicsUpdateLoop: "independent" | "follow";
@@ -26,11 +28,13 @@ export interface RenderPerformanceProfile {
 }
 
 const qualityProfile: Omit<RenderPerformanceProfile, "requestedMode" | "effectiveMode"> = {
-  dpr: [1, 1.35],
-  shadowMapSize: 512,
+  dpr: [1, 1.5],
+  shadowMapSize: 2048,
   enableEnvironment: true,
   enableExtraAccentLights: true,
   enablePostprocessing: true,
+  enableAmbientOcclusion: true,
+  ambientOcclusionQuality: "high",
   enableShadows: true,
   enableRemotePlayers: true,
   physicsUpdateLoop: "independent",
@@ -42,11 +46,13 @@ const qualityProfile: Omit<RenderPerformanceProfile, "requestedMode" | "effectiv
 };
 
 const balancedProfile: Omit<RenderPerformanceProfile, "requestedMode" | "effectiveMode"> = {
-  dpr: [0.9, 1.1],
-  shadowMapSize: 384,
+  dpr: [0.9, 1.2],
+  shadowMapSize: 1024,
   enableEnvironment: true,
   enableExtraAccentLights: false,
-  enablePostprocessing: false,
+  enablePostprocessing: true,
+  enableAmbientOcclusion: true,
+  ambientOcclusionQuality: "low",
   enableShadows: true,
   enableRemotePlayers: true,
   physicsUpdateLoop: "independent",
@@ -63,6 +69,8 @@ const performanceProfile: Omit<RenderPerformanceProfile, "requestedMode" | "effe
   enableEnvironment: false,
   enableExtraAccentLights: false,
   enablePostprocessing: false,
+  enableAmbientOcclusion: false,
+  ambientOcclusionQuality: "off",
   enableShadows: false,
   enableRemotePlayers: false,
   physicsUpdateLoop: "follow",

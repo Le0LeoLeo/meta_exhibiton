@@ -28,8 +28,6 @@ export default function CompetitionDetail() {
   const [loading, setLoading] = useState(true);
   const [voteOpen, setVoteOpen] = useState(false);
   const [activeEntry, setActiveEntry] = useState<CompetitionEntry | null>(null);
-  const [voterName, setVoterName] = useState('');
-  const [voterEmail, setVoterEmail] = useState('');
   const [submittingVote, setSubmittingVote] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [joinSubmission, setJoinSubmission] = useState<SubmissionState>({});
@@ -81,13 +79,16 @@ export default function CompetitionDetail() {
 
   const handleVote = async () => {
     if (!competition || !activeEntry) return;
+    const { token } = loadAuth();
+    if (!token) {
+      toast.error(t('cdToastLoginRequired'));
+      return;
+    }
     setSubmittingVote(true);
     try {
-      const result = await voteCompetitionEntry(competition.id, activeEntry.id, { voterName, voterEmail });
+      const result = await voteCompetitionEntry(token, competition.id, activeEntry.id);
       setEntries((prev) => prev.map((entry) => (entry.id === activeEntry.id ? result.entry : entry)));
       setVoteOpen(false);
-      setVoterName('');
-      setVoterEmail('');
       setActiveEntry(null);
       toast.success(t('cdToastVoteSuccess'));
     } catch (err) {
@@ -278,7 +279,7 @@ export default function CompetitionDetail() {
                         </Button>
                       </>
                     ) : null}
-                    <Button onClick={() => { setActiveEntry(entry); setVoteOpen(true); }} disabled={entry.status !== 'approved'}>
+                    <Button onClick={() => { setActiveEntry(entry); setVoteOpen(true); }} disabled={entry.status !== 'approved' || competition.status !== 'voting'}>
                       <Vote className="mr-2 size-4" /> {t('cdVoteBtn')}
                     </Button>
                   </div>
@@ -341,10 +342,6 @@ export default function CompetitionDetail() {
             <DialogTitle>{t('cdVoteDialogTitle')}</DialogTitle>
             <DialogDescription>{t('cdVoteDialogDesc')}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <Input value={voterName} onChange={(e) => setVoterName(e.target.value)} placeholder={t('cdVoteNamePlaceholder')} />
-            <Input value={voterEmail} onChange={(e) => setVoterEmail(e.target.value)} placeholder={t('cdVoteEmailPlaceholder')} type="email" />
-          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setVoteOpen(false)} disabled={submittingVote}>{t('cdDialogCancel')}</Button>
             <Button onClick={() => void handleVote()} disabled={submittingVote}>{submittingVote ? t('cdDialogSending') : t('cdVoteConfirm')}</Button>

@@ -108,7 +108,7 @@ export default function MyExhibitions() {
     null,
   );
   const [competitions, setCompetitions] = useState<Competition[]>([]);
-  const [myCompetitionEntries, setMyCompetitionEntries] = useState<
+  const [, setMyCompetitionEntries] = useState<
     CompetitionEntry[]
   >([]);
   const [hostCompetitionEnabled, setHostCompetitionEnabled] = useState(false);

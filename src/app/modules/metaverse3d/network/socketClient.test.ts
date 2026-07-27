@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const transport = vi.hoisted(() => {
   type Listener = (payload?: any) => void;
@@ -69,6 +69,14 @@ function roomJoined(role: "viewer" | "participant" | "editor" | "owner") {
   };
 }
 
+async function saveTestAuth(token: string) {
+  const { saveAuth } = await import("../../../api/auth");
+  saveAuth({
+    token,
+    user: { id: "user-1", email: "user@example.com", name: "User" },
+  });
+}
+
 describe("multiplayer credentials and server roles", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -78,8 +86,13 @@ describe("multiplayer credentials and server roles", () => {
     sessionStorage.clear();
   });
 
+  afterEach(async () => {
+    const { clearAuth } = await import("../../../api/auth");
+    clearAuth();
+  });
+
   it("passes the current stored JWT in the socket handshake", async () => {
-    localStorage.setItem("auth_token", "jwt-one");
+    await saveTestAuth("jwt-one");
     const { connectMultiplayer } = await loadNetwork();
 
     connectMultiplayer();
@@ -153,13 +166,13 @@ describe("multiplayer credentials and server roles", () => {
   );
 
   it("recreates the socket with the current JWT when auth changes", async () => {
-    localStorage.setItem("auth_token", "jwt-one");
+    await saveTestAuth("jwt-one");
     const { connectMultiplayer, store } = await loadNetwork();
     const first = connectMultiplayer();
     store.getState().setConnected(true);
     store.getState().setRole("editor");
 
-    localStorage.setItem("auth_token", "jwt-two");
+    await saveTestAuth("jwt-two");
     const second = connectMultiplayer();
 
     expect(second).not.toBe(first);
@@ -188,21 +201,23 @@ describe("multiplayer credentials and server roles", () => {
     connectMultiplayer();
     store.getState().setConnected(true);
     store.getState().setRole("owner");
+    store.setState({ lastSceneVersion: 10, sceneResyncRequested: true });
 
     latestSocket().trigger("disconnect");
 
     expect(store.getState().connected).toBe(false);
     expect(store.getState().role).toBeNull();
+    expect(store.getState().lastSceneVersion).toBeNull();
+    expect(store.getState().sceneResyncRequested).toBe(false);
   });
 
   it("refreshes socket auth from storage before an automatic reconnect attempt", async () => {
-    localStorage.setItem("auth_token", "jwt-one");
+    await saveTestAuth("jwt-one");
     const { connectMultiplayer } = await loadNetwork();
     connectMultiplayer();
     const socket = latestSocket();
 
-    sessionStorage.setItem("auth_token", "jwt-two");
-    localStorage.removeItem("auth_token");
+    await saveTestAuth("jwt-two");
     socket.triggerManager("reconnect_attempt");
 
     expect(socket.auth).toEqual({ token: "jwt-two" });
@@ -222,6 +237,7 @@ describe("multiplayer credentials and server roles", () => {
         floorPlanElements: [],
         wallMaterialOverrides: {},
       },
+      version: 1,
       updatedAt: 1,
     });
     store.getState().setSceneOpPayload({
@@ -229,6 +245,7 @@ describe("multiplayer credentials and server roles", () => {
       by: "editor-1",
       clientOpId: "op-1",
       op: { kind: "remove-item", id: "item-1" },
+      version: 2,
       updatedAt: 1,
     });
 
@@ -317,6 +334,37 @@ describe("multiplayer credentials and server roles", () => {
       expect(socket.emit).toHaveBeenCalledWith(eventNames[method], payloads[method]);
     },
   );
+
+  it("emits versioned full-scene syncs and authoritative resync requests", async () => {
+    const {
+      connectMultiplayer,
+      emitSceneRequestSync,
+      emitSceneSync,
+      store,
+    } = await loadNetwork();
+    connectMultiplayer();
+    const socket = latestSocket();
+    store.getState().setRole("editor");
+    const sync = {
+      roomId: "gallery-1",
+      scene: {
+        roomSize: {},
+        items: [],
+        floorPlanElements: [],
+        wallMaterialOverrides: {},
+      },
+      expectedVersion: 10,
+    };
+
+    emitSceneSync(sync);
+    emitSceneRequestSync({ roomId: "gallery-1" });
+
+    expect(socket.emit).toHaveBeenCalledWith("scene:sync", sync);
+    expect(socket.emit).toHaveBeenCalledWith(
+      "scene:request-sync",
+      { roomId: "gallery-1" },
+    );
+  });
 
   it.each([
     ["viewer", false],

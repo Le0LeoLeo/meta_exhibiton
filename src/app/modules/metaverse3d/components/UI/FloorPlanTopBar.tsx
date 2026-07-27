@@ -68,24 +68,28 @@ export function FloorPlanTopBar({
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button
           onClick={() => onSetEditTarget("room")}
+          aria-pressed={floorPlanEditTarget === "room"}
+          title={t("floorPlanEditRooms")}
           className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium transition-all duration-200 ${
             floorPlanEditTarget === "room"
               ? "border-white/18 bg-white/22 text-white shadow-[0_8px_20px_rgba(15,23,42,0.16)]"
               : "border-white/10 bg-white/8 text-white/72 hover:bg-white/12"
           }`}
         >
-          {t("floorPlanRoom")}
+          {t("floorPlanEditRooms")}
           <ArrowRight className="h-4 w-4" />
         </button>
         <button
           onClick={() => onSetEditTarget("wall")}
+          aria-pressed={floorPlanEditTarget === "wall"}
+          title={t("floorPlanEditWalls")}
           className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium transition-all duration-200 ${
             floorPlanEditTarget === "wall"
               ? "border-white/18 bg-white/22 text-white shadow-[0_8px_20px_rgba(15,23,42,0.16)]"
               : "border-white/10 bg-white/8 text-white/72 hover:bg-white/12"
           }`}
         >
-          {t("floorPlanWall")}
+          {t("floorPlanEditWalls")}
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>
@@ -165,13 +169,13 @@ export function FloorPlanTopBar({
           <h3 className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/60">{t("floorPlanNewElement")}</h3>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={onAddRoom} className="flex flex-col items-center justify-center rounded-2xl border border-white/12 bg-white/8 p-3 transition-all duration-200 hover:bg-white/12">
+          <button onClick={onAddRoom} title={t("floorPlanAddRoom")} className="flex flex-col items-center justify-center rounded-2xl border border-white/12 bg-white/8 p-3 transition-all duration-200 hover:bg-white/12">
             <Home className="mb-1 h-6 w-6 text-white" />
-            <span className="text-xs font-medium text-white/85">{t("floorPlanRoom")}</span>
+            <span className="text-xs font-medium text-white/85">{t("floorPlanAddRoom")}</span>
           </button>
-          <button onClick={onAddWall} className="flex flex-col items-center justify-center rounded-2xl border border-white/12 bg-white/8 p-3 transition-all duration-200 hover:bg-white/12">
+          <button onClick={onAddWall} title={t("floorPlanAddWall")} className="flex flex-col items-center justify-center rounded-2xl border border-white/12 bg-white/8 p-3 transition-all duration-200 hover:bg-white/12">
             <Minus className="mb-1 h-6 w-6 text-white" />
-            <span className="text-xs font-medium text-white/85">{t("floorPlanWall")}</span>
+            <span className="text-xs font-medium text-white/85">{t("floorPlanAddWall")}</span>
           </button>
         </div>
       </div>

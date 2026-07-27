@@ -124,7 +124,10 @@ export function normalizeImportedItemContent(type: ExhibitItem["type"], rawConte
 
 export function parseVec3(value: unknown, fallback: [number, number, number]): [number, number, number] {
   if (Array.isArray(value) && value.length >= 3) {
-    return [Number(value[0]) || fallback[0], Number(value[1]) || fallback[1], Number(value[2]) || fallback[2]];
+    const parsed = [Number(value[0]), Number(value[1]), Number(value[2])];
+    return parsed.map((component, index) => (
+      Number.isFinite(component) ? component : fallback[index]
+    )) as [number, number, number];
   }
   if (typeof value === "string") {
     const parts = value.split(",").map((part) => Number(part.trim())).filter((n) => Number.isFinite(n));

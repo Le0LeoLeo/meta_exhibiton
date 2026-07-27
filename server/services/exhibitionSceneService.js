@@ -1,6 +1,8 @@
 import OpenAI from 'openai';
 import { normalizeSceneGeometry } from './sceneGeometryService.js';
 import { sanitizeSceneSnapshot } from '../schemas/sceneSchema.js';
+import { buildSceneContext } from './exhibitionSceneContext.js';
+import { applySceneOperationPlan, sceneOperationPlanSchema } from './exhibitionSceneOperations.js';
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&q=80&w=1200';
 const PLACEHOLDER_IMAGES = [
@@ -13,6 +15,51 @@ const PLACEHOLDER_IMAGES = [
   'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&q=80&w=1200',
   'https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&q=80&w=1200',
 ];
+
+function isBlobUrl(value) {
+  return /^blob:\S+$/i.test(value.trim());
+}
+
+function findBlobUrlPath(value, path = '$', seen = new WeakSet()) {
+  if (typeof value === 'string') {
+    return isBlobUrl(value) ? path : null;
+  }
+  if (!value || typeof value !== 'object' || seen.has(value)) return null;
+
+  seen.add(value);
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const result = findBlobUrlPath(value[index], `${path}[${index}]`, seen);
+      if (result) return result;
+    }
+    return null;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const keyPath = /^[A-Za-z_$][\w$]*$/.test(key)
+      ? `${path}.${key}`
+      : `${path}[${JSON.stringify(key)}]`;
+    const result = findBlobUrlPath(nestedValue, keyPath, seen);
+    if (result) return result;
+  }
+  return null;
+}
+
+export function assertPersistentScenePayload(payload) {
+  let scene = payload;
+  if (typeof payload === 'string' && !isBlobUrl(payload)) {
+    try {
+      scene = JSON.parse(payload);
+    } catch {
+      return;
+    }
+  }
+
+  const blobUrlPath = findBlobUrlPath(scene);
+  if (blobUrlPath) {
+    throw new Error(`scene contains a non-persistent blob URL at ${blobUrlPath}`);
+  }
+}
 
 function getApiKey() {
   return process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY || '';
@@ -451,10 +498,10 @@ function createCuratedScene(input = {}, plan = normalizeExhibitionPlan(input)) {
       scale: [1, 1, 1],
       content: compactWallText(plan.exhibition.curatorialStatement, 28, 3),
       textFontFamily: 'sans',
-      textColor: '#f8fafc',
+      textColor: '#334155',
       textFontSize: 0.22,
-      textBackboardEnabled: true,
-      textBackboardColor: '#111827',
+      textBackboardEnabled: false,
+      textBackboardColor: '#f8fafc',
     },
   ];
 
@@ -569,13 +616,12 @@ function normalizeCompletionContent(content) {
 function extractJsonObject(text) {
   const raw = String(text || '').trim();
   if (!raw) throw new Error('empty Qwen response');
+  const fenced = raw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const json = fenced ? fenced[1] : raw;
   try {
-    return JSON.parse(raw);
+    return JSON.parse(json);
   } catch {
-    const start = raw.indexOf('{');
-    const end = raw.lastIndexOf('}');
-    if (start < 0 || end <= start) throw new Error('Qwen response is not JSON');
-    return JSON.parse(raw.slice(start, end + 1));
+    throw new Error('Qwen response is not valid JSON');
   }
 }
 
@@ -609,7 +655,7 @@ function coercePositiveNumber(value) {
   return Number.isFinite(number) && number > 0 ? number : undefined;
 }
 
-function coerceQwenScene(scene, input) {
+function _coerceQwenScene(scene, input) {
   const source = scene && typeof scene === 'object' ? scene : {};
   const roomSize = {
     ...createBaseRoom(input),
@@ -650,7 +696,22 @@ function coerceQwenScene(scene, input) {
   };
 }
 
-function buildSystemPrompt() {
+function shouldReviseExistingScene(input = {}) {
+  return Boolean(input.currentScene && Array.isArray(input.currentScene.items) && input.currentScene.items.length > 0);
+}
+
+function buildSystemPrompt(input = {}) {
+  if (shouldReviseExistingScene(input)) {
+    return [
+      'You are a precise virtual exhibition editor.',
+      'Return valid JSON only. Do not use Markdown. Do not include comments.',
+      'The JSON must contain exhibition and operationPlan keys.',
+      'Use only operation types and fields present in the output contract.',
+      'Only reference item IDs included in sceneContext.',
+      'Never replace or remove protected items. Never change content, assetId, assetUrl, thumbnailUrl, or other media fields.',
+      'Make the smallest set of operations needed to satisfy the request.',
+    ].join(' ');
+  }
   return [
     'You are a precise virtual exhibition curator.',
     'Return valid JSON only. Do not use Markdown. Do not include comments.',
@@ -663,8 +724,52 @@ function buildSystemPrompt() {
   ].join(' ');
 }
 
+function buildPromptAssets(assets) {
+  if (!Array.isArray(assets)) return [];
+  return assets.slice(0, 30).map((asset) => {
+    const imageUrl = typeof asset?.imageUrl === 'string' && !/^(data|blob):/i.test(asset.imageUrl.trim())
+      ? asset.imageUrl.slice(0, 500)
+      : undefined;
+    return {
+      id: asset?.id,
+      title: asset?.title,
+      artist: asset?.artist,
+      description: asset?.description,
+      ...(imageUrl ? { imageUrl } : {}),
+    };
+  });
+}
+
 function buildUserPrompt(input) {
+  const revisionMode = shouldReviseExistingScene(input);
+  if (revisionMode) {
+    return JSON.stringify({
+      mode: 'revise-existing-scene',
+      request: input.prompt,
+      language: input.language || 'zh-TW',
+      sceneContext: buildSceneContext(input.currentScene),
+      instructions: [
+        'Return the same language as language.',
+        'Preserve every protected item and all of its media references.',
+        'Do not return a replacement scene, items array, floor plan, or renderer settings.',
+        'Use move-item for placement changes and update-item-copy only for title, artist, description, or externalUrl.',
+      ],
+      outputContract: {
+        exhibition: {
+          title: 'string',
+          curatorialStatement: 'string',
+          sections: [{ title: 'string', description: 'string', exhibitIds: ['existing-item-id'] }],
+        },
+        operationPlan: {
+          schemaVersion: 1,
+          summary: 'string',
+          operations: [{ type: 'allowlisted-operation', itemId: 'existing-item-id' }],
+        },
+      },
+    });
+  }
   return JSON.stringify({
+    mode: 'create-new-scene',
     request: input.prompt,
     language: input.language || 'zh-TW',
     style: input.style || 'white-box',
@@ -672,7 +777,7 @@ function buildUserPrompt(input) {
     roomShape: input.roomShape || 'single-room',
     roomWidth: input.roomWidth || null,
     roomLength: input.roomLength || null,
-    assets: input.assets || [],
+    assets: buildPromptAssets(input.assets),
     instructions: [
       'Return the same language as language.',
       'Keep the exhibition title anchored to request keywords.',
@@ -707,11 +812,11 @@ async function callQwenForScene(input) {
   const completion = await client.chat.completions.create({
     model: process.env.QWEN_MODEL || 'qwen3.6-plus',
     messages: [
-      { role: 'system', content: buildSystemPrompt() },
+      { role: 'system', content: buildSystemPrompt(input) },
       { role: 'user', content: buildUserPrompt(input) },
     ],
     stream: false,
-    temperature: 0.35,
+    temperature: 0.2,
     top_p: 0.9,
     enable_search: false,
     enable_thinking: false,
@@ -723,10 +828,26 @@ async function callQwenForScene(input) {
 
 export async function generateExhibitionScene(input = {}) {
   const fallback = createFallbackCuratedScene(input);
+  const revisionMode = shouldReviseExistingScene(input);
+
+  function currentSceneFallback(message) {
+    const normalized = normalizeSceneGeometry(sanitizeSceneSnapshot(input.currentScene));
+    return {
+      exhibition: fallback.exhibition,
+      scene: normalized.scene,
+      operations: [],
+      operationSummary: '',
+      warnings: [message, ...normalized.warnings],
+      source: 'fallback',
+    };
+  }
 
   try {
     const qwenContent = await callQwenForScene(input);
     if (!qwenContent) {
+      if (revisionMode) {
+        return currentSceneFallback('Qwen scene revision unavailable; kept the existing scene.');
+      }
       const normalizedFallback = normalizeSceneGeometry(sanitizeSceneSnapshot(fallback.scene));
       return {
         ...fallback,
@@ -737,6 +858,19 @@ export async function generateExhibitionScene(input = {}) {
     }
 
     const parsed = extractJsonObject(qwenContent);
+    if (revisionMode) {
+      const operationPlan = sceneOperationPlanSchema.parse(parsed.operationPlan);
+      const applied = applySceneOperationPlan(input.currentScene, operationPlan);
+      const metadata = normalizeExhibitionPlan(input, parsed).exhibition;
+      return {
+        exhibition: metadata,
+        scene: applied.scene,
+        operations: operationPlan.operations,
+        operationSummary: operationPlan.summary,
+        warnings: applied.warnings,
+        source: 'qwen',
+      };
+    }
     const plan = normalizeExhibitionPlan(input, parsed);
     const exhibition = plan.exhibition;
     const scene = sanitizeSceneSnapshot(createCuratedScene(input, plan));
@@ -748,12 +882,15 @@ export async function generateExhibitionScene(input = {}) {
       warnings: normalized.warnings,
       source: 'qwen',
     };
-  } catch (error) {
+  } catch {
+    if (revisionMode) {
+      return currentSceneFallback('Qwen scene revision failed; kept the existing scene.');
+    }
     const normalizedFallback = normalizeSceneGeometry(sanitizeSceneSnapshot(fallback.scene));
     return {
       ...fallback,
       scene: normalizedFallback.scene,
-      warnings: [`Qwen scene generation failed: ${error instanceof Error ? error.message : 'unknown error'}`, ...normalizedFallback.warnings],
+      warnings: ['Qwen scene generation failed; used the deterministic fallback.', ...normalizedFallback.warnings],
       source: 'fallback',
     };
   }
@@ -762,4 +899,6 @@ export async function generateExhibitionScene(input = {}) {
 export const _private = {
   createFallbackScene,
   extractJsonObject,
+  buildSystemPrompt,
+  buildUserPrompt,
 };

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createFixedWindowLimiter,
+  createInMemoryRateLimitStore,
   createRateTokenConsumer,
 } from './rateLimit.js';
 
@@ -195,7 +196,7 @@ describe('createRateTokenConsumer', () => {
 });
 
 describe('createFixedWindowLimiter', () => {
-  it('calls next for allowed requests and returns a complete 429 response when denied', () => {
+  it('calls next for allowed requests and returns a complete 429 response when denied', async () => {
     let currentTime = 100;
     const limiter = createFixedWindowLimiter({
       limit: 2,
@@ -207,11 +208,11 @@ describe('createFixedWindowLimiter', () => {
     const req = { clientId: 'client' };
     const next = vi.fn();
 
-    limiter(req, createResponse(), next);
-    limiter(req, createResponse(), next);
+    await limiter(req, createResponse(), next);
+    await limiter(req, createResponse(), next);
 
     const deniedResponse = createResponse();
-    limiter(req, deniedResponse, next);
+    await limiter(req, deniedResponse, next);
 
     expect(next).toHaveBeenCalledTimes(2);
     expect(deniedResponse).toMatchObject({
@@ -221,11 +222,11 @@ describe('createFixedWindowLimiter', () => {
     });
 
     currentTime = 1600;
-    limiter(req, createResponse(), next);
+    await limiter(req, createResponse(), next);
     expect(next).toHaveBeenCalledTimes(3);
   });
 
-  it('uses req.ip by default and fails closed when the key is missing', () => {
+  it('uses req.ip by default and fails closed when the key is missing', async () => {
     const limiter = createFixedWindowLimiter({
       limit: 1,
       windowMs: 1000,
@@ -233,12 +234,49 @@ describe('createFixedWindowLimiter', () => {
     });
     const next = vi.fn();
 
-    limiter({}, createResponse(), next);
+    await limiter({}, createResponse(), next);
     const deniedResponse = createResponse();
-    limiter({ ip: '' }, deniedResponse, next);
+    await limiter({ ip: '' }, deniedResponse, next);
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(deniedResponse.statusCode).toBe(429);
+  });
+
+  it('enforces one combined limit across limiter instances sharing a store', async () => {
+    const store = createInMemoryRateLimitStore();
+    const options = {
+      namespace: 'auth',
+      store,
+      limit: 2,
+      windowMs: 1000,
+      now: () => 0,
+      key: (req) => req.clientId,
+    };
+    const firstInstance = createFixedWindowLimiter(options);
+    const secondInstance = createFixedWindowLimiter(options);
+    const next = vi.fn();
+
+    await firstInstance({ clientId: 'shared-client' }, createResponse(), next);
+    await secondInstance({ clientId: 'shared-client' }, createResponse(), next);
+    const deniedResponse = createResponse();
+    await firstInstance({ clientId: 'shared-client' }, deniedResponse, next);
+
+    expect(next).toHaveBeenCalledTimes(2);
+    expect(deniedResponse.statusCode).toBe(429);
+  });
+
+  it('passes store failures to Express error handling', async () => {
+    const failure = new Error('store unavailable');
+    const limiter = createFixedWindowLimiter({
+      limit: 1,
+      windowMs: 1000,
+      store: { consume: vi.fn().mockRejectedValue(failure) },
+    });
+    const next = vi.fn();
+
+    await limiter({ ip: 'client' }, createResponse(), next);
+
+    expect(next).toHaveBeenCalledWith(failure);
   });
 
   it.each([

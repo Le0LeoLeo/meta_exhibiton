@@ -1,5 +1,6 @@
 import type { SceneSnapshot } from "../modules/metaverse3d/store/metaverseStoreTypes";
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from "./base";
+import { apiFetch, LONG_API_TIMEOUT_MS } from "./request";
 
 export type ExhibitionSceneStyle =
   | "white-box"
@@ -72,25 +73,33 @@ export type BuilderSessionResponse = ExhibitionSceneResponse & {
   sessionId: string;
   versionId: string;
   status: "generated" | "revised";
-  revisionCount?: number;
+  operationSummary?: string;
+  appliedOperationCount?: number;
+  revisionCount: number;
 };
+
+export type BuilderProviderSource = "qwen" | "fallback";
+export type BuilderReviewStatus = "reviewed" | "unavailable";
 
 export type BuilderReviewResponse = {
   sessionId: string;
   versionId: string;
-  review: BuilderReview;
-  status: "reviewed";
+  review: BuilderReview | null;
+  status: BuilderReviewStatus;
+  source: BuilderProviderSource;
+  errorCode?: "VISION_PROVIDER_FAILED" | "INVALID_VISION_RESPONSE";
+  message?: string;
 };
 
 export async function requestExhibitionScene(
   token: string,
   payload: ExhibitionSceneRequest,
 ): Promise<ExhibitionSceneResponse> {
-  const res = await fetch(apiUrl("/api/ai/exhibition-scene"), {
+  const res = await apiFetch(apiUrl("/api/ai/exhibition-scene"), {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  });
+  }, { timeoutMs: LONG_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, "AI 建展失敗");
   return data as ExhibitionSceneResponse;
@@ -100,11 +109,11 @@ export async function requestBuilderSession(
   token: string,
   payload: ExhibitionSceneRequest,
 ): Promise<BuilderSessionResponse> {
-  const res = await fetch(apiUrl("/api/ai/exhibition-builder/start"), {
+  const res = await apiFetch(apiUrl("/api/ai/exhibition-builder/start"), {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  });
+  }, { timeoutMs: LONG_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, "AI exhibition builder failed to start");
   return data as BuilderSessionResponse;
@@ -119,11 +128,11 @@ export async function requestBuilderReview(
     screenshots: BuilderScreenshot[];
   },
 ): Promise<BuilderReviewResponse> {
-  const res = await fetch(apiUrl("/api/ai/exhibition-builder/review"), {
+  const res = await apiFetch(apiUrl("/api/ai/exhibition-builder/review"), {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  });
+  }, { timeoutMs: LONG_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, "AI exhibition builder review failed");
   return data as BuilderReviewResponse;
@@ -135,16 +144,16 @@ export async function requestBuilderRevision(
     sessionId: string;
     versionId: string;
     scene: SceneSnapshot;
-    review: BuilderReview;
+    review?: BuilderReview | null;
     prompt?: string;
     revisionCount?: number;
   },
 ): Promise<BuilderSessionResponse> {
-  const res = await fetch(apiUrl("/api/ai/exhibition-builder/revise"), {
+  const res = await apiFetch(apiUrl("/api/ai/exhibition-builder/revise"), {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  });
+  }, { timeoutMs: LONG_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, "AI exhibition builder revision failed");
   return data as BuilderSessionResponse;

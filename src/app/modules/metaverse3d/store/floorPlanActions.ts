@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import type { ExhibitItem, FloorPlanElement, RoomSize, WallMaterialSettings } from "../types";
+import type { ExhibitItem, FloorPlanElement, RoomSize } from "../types";
 import { createDefaultFloorPlanElement, createPartitionFromWall, createRoomFloorPlanElement } from "./metaverseStoreFloorPlanHelpers";
 
 export function addFloorPlanElementAction(state: {
@@ -9,6 +9,30 @@ export function addFloorPlanElementAction(state: {
   return (type: FloorPlanElement["type"]) => {
     const sameTypeCount = state.floorPlanElements.filter((el) => el.type === type).length;
     const newElement = createDefaultFloorPlanElement(type, state.roomSize, sameTypeCount);
+    const primaryRoom = state.floorPlanElements.find((element) => element.type === "room" && element.isLocked)
+      ?? state.floorPlanElements.find((element) => element.type === "room");
+
+    if (primaryRoom) {
+      if (type === "room") {
+        newElement.position = [
+          primaryRoom.position[0] + Math.abs(primaryRoom.scale[0]) / 2 + Math.abs(newElement.scale[0]) / 2 + 2,
+          0.02,
+          primaryRoom.position[2],
+        ];
+      } else {
+        const direction = sameTypeCount === 0 ? 0 : sameTypeCount % 2 === 1 ? 1 : -1;
+        const distance = Math.ceil(sameTypeCount / 2) * 1.5;
+        const maxOffset = Math.max(0, Math.abs(primaryRoom.scale[2]) / 2 - 1);
+        const offset = Math.max(-maxOffset, Math.min(maxOffset, direction * distance));
+        newElement.position = [primaryRoom.position[0], 0.1, primaryRoom.position[2] + offset];
+        newElement.scale = [
+          Math.min(6, Math.max(2, Math.abs(primaryRoom.scale[0]) * 0.6)),
+          0.2,
+          0.18,
+        ];
+      }
+    }
+
     return {
       floorPlanElements: [...state.floorPlanElements, newElement],
       selectedFloorPlanElementId: newElement.id,
@@ -74,15 +98,7 @@ export function createSyncedFloorPlan(state: {
   const usedWallIds = new Set<string>();
 
   const roomElements: FloorPlanElement[] = existingRooms.length > 0
-    ? existingRooms.map((room, index) =>
-        index === 0
-          ? {
-              ...room,
-              scale: [state.roomSize.width, 0.04, state.roomSize.length],
-              isLocked: true,
-            }
-          : room,
-      )
+    ? existingRooms
     : [createRoomFloorPlanElement(state.roomSize)];
 
   const wallElements: FloorPlanElement[] = partitions.map((item) => {

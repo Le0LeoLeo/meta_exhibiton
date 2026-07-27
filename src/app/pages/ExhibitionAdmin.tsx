@@ -253,7 +253,6 @@ export default function ExhibitionAdmin() {
 
   useEffect(() => {
     void loadAnalytics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDeleteComment = async (comment: GalleryAdminAnalytics['comments'][number]) => {

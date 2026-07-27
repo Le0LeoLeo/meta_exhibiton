@@ -2,30 +2,57 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { useStore } from '../features/metaverse-studio';
 import { useMultiplayerStore } from '../modules/metaverse3d/network/multiplayerStore';
-import type { MultiplayerRole } from '../modules/metaverse3d/network/protocol';
+import type { SceneSnapshot } from '../modules/metaverse3d/store/metaverseStoreTypes';
 import {
   createGallery,
   getGalleryById,
   getSharedGallery,
   loadAuth,
+  publishGalleryById,
+  requestExhibitionScene,
   updateGalleryById,
   updateSharedGallery,
 } from '../api/client';
+import { bindMediaAssets } from '../api/media';
 import {
-  disconnectMultiplayer,
-  emitSceneSync,
-} from '../modules/metaverse3d/network/socketClient';
+  addMediaShareTokenToScene,
+  replaceMediaPreviewUrls,
+  stripMediaAccessTokensFromScene,
+} from '../features/exhibition-wizard/mediaSceneUrls';
+import { disconnectMultiplayer } from '../modules/metaverse3d/network/socketClient';
 import { MultiplayerRoomError } from '../modules/metaverse3d/components/Multiplayer/MultiplayerRoomError';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { useI18n } from '../components/I18nProvider';
 import { GALLERY_TEMPLATES } from '../constants/galleryTemplates';
+import { restoreExhibitionWizardDraft, type ExhibitionWizardDraft } from '../features/exhibition-wizard/wizardStore';
+import type { ExhibitionWizardSlotContext } from '../features/exhibition-wizard/ExhibitionWizard';
+import {
+  analyzeSceneBudget,
+  type SceneBudgetInput,
+  type SceneBudgetLevel,
+} from '../modules/metaverse3d/performance/sceneBudget';
 
 const MetaverseStudioApp = lazy(() => import('../features/metaverse-studio'));
+const ExhibitionWizard = lazy(() => import('../features/exhibition-wizard/ExhibitionWizard').then((module) => ({
+  default: module.ExhibitionWizard,
+})));
+const UploadStep = lazy(() => import('../features/exhibition-wizard/steps/UploadStep').then((module) => ({
+  default: module.UploadStep,
+})));
 const BLANK_TEMPLATE_TITLE = GALLERY_TEMPLATES[0]?.title ?? '';
+const WIZARD_DRAFT_KEY = 'exhibition-wizard-draft-v1';
 
-export function canSyncMultiplayerRole(role: MultiplayerRole | null): boolean {
-  return role === 'editor' || role === 'owner';
+const PERSISTENCE_BLOCKING_ROOM_ERRORS = new Set([
+  'NOT_FOUND',
+  'AUTH_REQUIRED',
+  'FORBIDDEN',
+  'INVALID_SHARE',
+  'SHARE_EXPIRED',
+]);
+
+export function doesRoomErrorBlockPersistence(code?: string): boolean {
+  return Boolean(code && PERSISTENCE_BLOCKING_ROOM_ERRORS.has(code));
 }
 
 function StudioLoadingFallback() {
@@ -40,7 +67,80 @@ function StudioLoadingFallback() {
   );
 }
 
-const DEFAULT_NEW_GALLERY_SCENE = {
+function WizardLoadingFallback() {
+  return (
+    <div
+      className="mx-auto flex min-h-64 max-w-4xl items-center justify-center rounded-xl border border-slate-700 bg-slate-950 px-4 text-center text-slate-100"
+      role="status"
+      aria-live="polite"
+    >
+      <div>
+        <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" aria-hidden="true" />
+        <p className="text-sm font-medium">正在載入建展精靈…</p>
+      </div>
+    </div>
+  );
+}
+
+const SCENE_BUDGET_COPY: Record<SceneBudgetLevel, { label: string; message: string; className: string }> = {
+  info: {
+    label: '場景負載良好',
+    message: '目前素材量適合一般手機和平板。',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-950',
+  },
+  warning: {
+    label: '場景負載偏高',
+    message: '部分中低階裝置可能需要較長載入時間。',
+    className: 'border-amber-300 bg-amber-50 text-amber-950',
+  },
+  critical: {
+    label: '場景負載很高',
+    message: '中低階裝置可能出現卡頓或載入失敗；你仍可繼續發布。',
+    className: 'border-red-300 bg-red-50 text-red-950',
+  },
+};
+
+function SceneBudgetSummary({ scene }: { scene: SceneBudgetInput }) {
+  const budget = analyzeSceneBudget(scene);
+  const copy = SCENE_BUDGET_COPY[budget.level];
+  const counts = [
+    ['物件', budget.counts.items],
+    ['圖片', budget.counts.images],
+    ['影片', budget.counts.videos],
+    ['模型', budget.counts.models],
+    ['空間', budget.counts.floorPlanElements],
+    ['燈光', budget.counts.lights],
+  ] as const;
+
+  return (
+    <section
+      className={`rounded-lg border p-3 ${copy.className}`}
+      role={budget.level === 'critical' ? 'alert' : 'status'}
+      aria-live={budget.level === 'critical' ? 'assertive' : 'polite'}
+      aria-label="場景效能預算"
+    >
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+        <p className="text-sm font-semibold">{copy.label}</p>
+        <p className="text-xs leading-5 opacity-80">{copy.message}</p>
+      </div>
+      <dl className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+        {counts.map(([label, count]) => (
+          <div key={label} className="rounded-md bg-white/65 px-2 py-1.5 text-center">
+            <dt className="text-[11px] opacity-70">{label}</dt>
+            <dd className="text-sm font-semibold tabular-nums">{count}</dd>
+          </div>
+        ))}
+      </dl>
+      {budget.suggestions.length > 0 ? (
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-xs leading-5">
+          {budget.suggestions.map((suggestion) => <li key={suggestion}>{suggestion}</li>)}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+const DEFAULT_NEW_GALLERY_SCENE: SceneSnapshot = {
   roomSize: {
     width: 20,
     length: 20,
@@ -91,9 +191,8 @@ export default function VirtualGalleryCreate() {
   const setMultiplayerEnabled = useMultiplayerStore((state) => state.setEnabled);
   const setMultiplayerIsHost = useMultiplayerStore((state) => state.setIsHost);
   const setMultiplayerShareToken = useMultiplayerStore((state) => state.setShareToken);
-  const multiplayerRoomId = useMultiplayerStore((state) => state.roomId);
-  const multiplayerRole = useMultiplayerStore((state) => state.role);
   const roomError = useMultiplayerStore((state) => state.roomError);
+  const roomErrorBlocksPersistence = doesRoomErrorBlockPersistence(roomError?.code);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -107,6 +206,12 @@ export default function VirtualGalleryCreate() {
   const [hasShownQuickStart, setHasShownQuickStart] = useState(false);
   const [activeTemplateTitle, setActiveTemplateTitle] = useState<string>('');
   const [shareAccessRole, setShareAccessRole] = useState<'viewer' | 'editor' | null>(null);
+  const [wizardAction, setWizardAction] = useState<'layout' | 'publish' | null>(null);
+  const [wizardActionError, setWizardActionError] = useState<string | null>(null);
+  const [wizardDraft, setWizardDraft] = useState<ExhibitionWizardDraft | undefined>(() => {
+    if (typeof window === 'undefined') return undefined;
+    return restoreExhibitionWizardDraft(window.sessionStorage.getItem(WIZARD_DRAFT_KEY)) ?? undefined;
+  });
 
   const lastSavedSceneJsonRef = useRef<string>('');
   const lastRemoteUpdatedAtRef = useRef<string | null>(null);
@@ -193,7 +298,7 @@ export default function VirtualGalleryCreate() {
           if (result.gallery.sceneJson) {
             const parsed = JSON.parse(result.gallery.sceneJson);
             if (parsed && typeof parsed === 'object') {
-              importScene(parsed);
+              importScene(addMediaShareTokenToScene(parsed, galleryShareToken) as SceneSnapshot);
               lastSavedSceneJsonRef.current = result.gallery.sceneJson;
             }
           }
@@ -226,7 +331,7 @@ export default function VirtualGalleryCreate() {
         setMultiplayerShareToken('');
         setShareAccessRole(null);
         setIsHost(false);
-        importScene(DEFAULT_NEW_GALLERY_SCENE as any);
+        importScene(DEFAULT_NEW_GALLERY_SCENE);
         lastSavedSceneJsonRef.current = '';
         lastRemoteUpdatedAtRef.current = null;
         return;
@@ -265,7 +370,7 @@ export default function VirtualGalleryCreate() {
             lastSavedSceneJsonRef.current = result.gallery.sceneJson;
           }
         } else if (result.gallery.templateTitle === BLANK_TEMPLATE_TITLE) {
-          importScene(DEFAULT_NEW_GALLERY_SCENE as any);
+          importScene(DEFAULT_NEW_GALLERY_SCENE);
           lastSavedSceneJsonRef.current = '';
         }
         lastRemoteUpdatedAtRef.current = result.gallery.updatedAt;
@@ -336,7 +441,7 @@ export default function VirtualGalleryCreate() {
 
     setIsCreatingGallery(true);
     try {
-      const scene = exportScene();
+      const scene = stripMediaAccessTokensFromScene(exportScene());
       const sceneJson = JSON.stringify(scene);
       const thumbnail = captureCanvasThumbnail();
       const createdAtLabel = new Date().toLocaleString('zh-TW', {
@@ -401,7 +506,7 @@ export default function VirtualGalleryCreate() {
     }
 
     try {
-      const scene = exportScene();
+      const scene = stripMediaAccessTokensFromScene(exportScene());
       const sceneJson = JSON.stringify(scene);
       const thumbnail = captureCanvasThumbnail();
 
@@ -424,13 +529,6 @@ export default function VirtualGalleryCreate() {
 
       setLoadedTitle(result.gallery.title);
       lastRemoteUpdatedAtRef.current = result.gallery.updatedAt;
-
-      if (canSyncMultiplayerRole(multiplayerRole) && multiplayerRoomId) {
-        emitSceneSync({
-          roomId: multiplayerRoomId,
-          scene,
-        });
-      }
 
       lastSavedSceneJsonRef.current = sceneJson;
       setLastAutoSavedAt(Date.now());
@@ -482,17 +580,93 @@ export default function VirtualGalleryCreate() {
     await persistScene();
   };
 
+  const handleWizardLayout = async ({ draft, patch }: ExhibitionWizardSlotContext) => {
+    const { token } = loadAuth();
+    if (!token) {
+      navigate('/login?returnTo=' + encodeURIComponent(location.pathname + location.search));
+      return;
+    }
+
+    setWizardAction('layout');
+    setWizardActionError(null);
+    patch({ layoutStatus: 'running' });
+    try {
+      const galleryId = await ensureGalleryExists();
+      if (!galleryId) throw new Error('Unable to create the gallery for these media assets.');
+      const assetIds = draft.assets.filter((asset) => asset.status === 'succeeded').map((asset) => asset.id);
+      const refreshedAssets = assetIds.length > 0 ? await bindMediaAssets(token, galleryId, assetIds) : [];
+      const refreshedById = new Map(refreshedAssets.map((asset) => [asset.id, asset]));
+      patch({
+        galleryId,
+        assets: draft.assets.map((asset) => ({ ...asset, ...refreshedById.get(asset.id) })),
+      });
+      const allowedStyles = new Set(['white-box', 'warm-museum', 'tech-showroom', 'history-gallery', 'immersive']);
+      const style = allowedStyles.has(draft.style) ? draft.style as 'white-box' : 'white-box';
+      const assets = draft.assets
+        .filter((asset) => asset.status === 'succeeded' && asset.url)
+        .map((asset) => ({
+          title: asset.title || asset.fileName.replace(/\.[^.]+$/, ''),
+          artist: asset.authorDisplayName,
+          description: asset.description,
+          imageUrl: refreshedById.get(asset.id)?.previewUrl || asset.previewUrl || asset.url,
+          type: 'image' as const,
+        }));
+      const result = await requestExhibitionScene(token, {
+        prompt: draft.theme,
+        style,
+        exhibitCount: Math.max(1, Math.min(30, assets.length)),
+        currentScene: exportScene(),
+        assets,
+      });
+      importScene(result.scene);
+      patch({ layoutStatus: 'complete', aiJobId: `scene-${Date.now()}`, previewReady: false });
+    } catch (error) {
+      patch({ layoutStatus: 'failed' });
+      setWizardActionError(error instanceof Error ? error.message : 'AI 排展失敗');
+    } finally {
+      setWizardAction(null);
+    }
+  };
+
+  const handleWizardPublish = async () => {
+    const { token } = loadAuth();
+    if (!token) {
+      navigate('/login?returnTo=' + encodeURIComponent(location.pathname + location.search));
+      return;
+    }
+
+    setWizardAction('publish');
+    setWizardActionError(null);
+    try {
+      const galleryId = await ensureGalleryExists();
+      if (!galleryId) return;
+      const assetIds = (wizardDraft?.assets ?? [])
+        .filter((asset) => asset.status === 'succeeded')
+        .map((asset) => asset.id);
+      if (assetIds.length > 0) await bindMediaAssets(token, galleryId, assetIds);
+      const stableScene = replaceMediaPreviewUrls(exportScene(), wizardDraft?.assets ?? []);
+      await updateGalleryById(token, galleryId, { sceneJson: JSON.stringify(stableScene) });
+      await publishGalleryById(token, galleryId);
+      window.sessionStorage.removeItem(WIZARD_DRAFT_KEY);
+      navigate(`/exhibitions/${encodeURIComponent(galleryId)}`);
+    } catch (error) {
+      setWizardActionError(error instanceof Error ? error.message : '發布失敗');
+    } finally {
+      setWizardAction(null);
+    }
+  };
+
   useEffect(() => {
     if (
       isLoading
       || !isAutoSaveEnabled
-      || roomError
+      || roomErrorBlocksPersistence
       || shareMode === 'view'
       || (galleryShareToken && shareAccessRole !== 'editor')
     ) return;
 
     const interval = window.setInterval(() => {
-      const scene = exportScene();
+      const scene = stripMediaAccessTokensFromScene(exportScene());
       const sceneJson = JSON.stringify(scene);
       if (sceneJson === lastSavedSceneJsonRef.current) {
         if (autoSaveTimerRef.current) {
@@ -516,14 +690,14 @@ export default function VirtualGalleryCreate() {
         autoSaveTimerRef.current = null;
       }
     };
-  }, [currentGalleryId, galleryShareToken, isCreatingGallery, isLoading, isAutoSaveEnabled, exportScene, roomError, shareAccessRole, shareMode]);
+  }, [currentGalleryId, galleryShareToken, isCreatingGallery, isLoading, isAutoSaveEnabled, exportScene, roomErrorBlocksPersistence, shareAccessRole, shareMode]);
 
   useEffect(() => {
     const handleSceneSaved = (event: Event) => {
       const customEvent = event as CustomEvent<{ galleryId?: string; scene?: unknown }>;
       if (customEvent.detail?.galleryId && customEvent.detail.galleryId !== currentGalleryId) return;
       if (customEvent.detail?.scene && typeof customEvent.detail.scene === 'object') {
-        syncSceneSnapshot(customEvent.detail.scene as any);
+        syncSceneSnapshot(customEvent.detail.scene as SceneSnapshot);
         lastSavedSceneJsonRef.current = JSON.stringify(customEvent.detail.scene);
       }
     };
@@ -586,42 +760,60 @@ export default function VirtualGalleryCreate() {
       )}
 
       {showQuickStart && (
-        <div className="absolute left-1/2 top-20 z-40 w-[min(92vw,44rem)] -translate-x-1/2 rounded-3xl border border-cyan-200 bg-white/95 p-5 shadow-2xl shadow-slate-900/10 backdrop-blur-xl">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">{t('vgcQuickStartSectionLabel')}</p>
-              <h3 className="mt-1 text-lg font-semibold text-slate-950">{t('vgcQuickStartTitle')}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{t('vgcQuickStartDesc')}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setHasShownQuickStart(true)}
-              className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
-            >
-              {t('vgcQuickStartClose')}
-            </button>
+        <div className="absolute inset-0 z-40 overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-sm sm:p-6">
+          <div className="mx-auto mb-3 flex max-w-4xl justify-end">
+            <Button type="button" variant="secondary" onClick={() => setHasShownQuickStart(true)}>
+              切換至專業編輯器
+            </Button>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            {[
-              { title: t('vgcTemplateBlank'), desc: t('vgcTemplateBlankDesc') },
-              { title: t('vgcTemplateGrowth'), desc: t('vgcTemplateGrowthDesc') },
-              { title: t('vgcTemplateCompetition'), desc: t('vgcTemplateCompetitionDesc') },
-            ].map((item) => (
-              <button
-                key={item.title}
-                type="button"
-                onClick={() => {
-                  setActiveTemplateTitle(item.title);
-                  setHasShownQuickStart(true);
-                  importScene(DEFAULT_NEW_GALLERY_SCENE as any);
-                }}
-                className={`rounded-2xl border p-4 text-left transition hover:border-cyan-300 hover:bg-cyan-50 ${activeTemplateTitle === item.title ? 'border-cyan-300 bg-cyan-50' : 'border-slate-200 bg-slate-50/80'}`}
-              >
-                <div className="font-semibold text-slate-950">{item.title}</div>
-                <div className="mt-1 text-sm leading-6 text-slate-600">{item.desc}</div>
-              </button>
-            ))}
-          </div>
+          <Suspense fallback={<WizardLoadingFallback />}>
+            <ExhibitionWizard
+              initialDraft={wizardDraft}
+              onDraftChange={(draft) => {
+                setWizardDraft(draft);
+                window.sessionStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify(draft));
+              }}
+              renderUpload={(context) => (
+                <Suspense fallback={<WizardLoadingFallback />}>
+                  <UploadStep
+                    {...context}
+                    token={loadAuth().token}
+                    onRequireAuth={() => navigate('/login?returnTo=' + encodeURIComponent(location.pathname + location.search))}
+                  />
+                </Suspense>
+              )}
+              renderLayout={(context) => (
+                <div className="space-y-3 rounded-lg border border-border p-4">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  AI 會根據主題、風格及已上傳作品，自動建立展品尺寸、位置、燈光和基本動線。
+                </p>
+                <Button type="button" className="min-h-11 w-full" disabled={wizardAction === 'layout'} onClick={() => void handleWizardLayout(context)}>
+                  {wizardAction === 'layout' ? 'AI 排展中…' : context.draft.layoutStatus === 'complete' ? '重新執行 AI 排展' : '開始 AI 排展'}
+                </Button>
+                {wizardActionError ? <p role="alert" className="text-sm text-destructive">{wizardActionError}</p> : null}
+                </div>
+              )}
+              renderPreview={({ patch }) => (
+                <div className="space-y-3 rounded-lg border border-border p-4">
+                <p className="text-sm leading-6 text-muted-foreground">場景已生成。你可以先進入 3D 編輯器檢查作品、燈光與動線，再回到精靈發布。</p>
+                <SceneBudgetSummary scene={exportScene()} />
+                <Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => { patch({ previewReady: true }); setHasShownQuickStart(true); }}>
+                  開啟 3D 預覽
+                </Button>
+                </div>
+              )}
+              renderPublish={() => (
+                <div className="space-y-3 rounded-lg border border-border p-4">
+                <p className="text-sm leading-6 text-muted-foreground">發布後，訪客可透過公開展覽頁進入並多人參觀。</p>
+                <SceneBudgetSummary scene={exportScene()} />
+                <Button type="button" className="min-h-11 w-full" disabled={wizardAction === 'publish'} onClick={() => void handleWizardPublish()}>
+                  {wizardAction === 'publish' ? '發布中…' : '發布展覽'}
+                </Button>
+                {wizardActionError ? <p role="alert" className="text-sm text-destructive">{wizardActionError}</p> : null}
+                </div>
+              )}
+            />
+          </Suspense>
         </div>
       )}
 
@@ -649,6 +841,12 @@ export default function VirtualGalleryCreate() {
               </span>
             )}
 
+            {!currentGalleryId && hasShownQuickStart && (
+              <Button size="sm" variant="outline" onClick={() => setHasShownQuickStart(false)}>
+                建展精靈
+              </Button>
+            )}
+
             <span className={`text-xs px-2 py-0.5 rounded-full border ${isHost ? 'text-emerald-700 border-emerald-200 bg-emerald-50' : 'text-slate-600 border-slate-200 bg-slate-50'}`}>
               {isHost ? t('vgcHostMode') : t('vgcGuestMode')}
             </span>
@@ -670,7 +868,7 @@ export default function VirtualGalleryCreate() {
               </span>
             )}
 
-            <Button size="sm" onClick={handleSave} disabled={Boolean(roomError) || isSaving || isLoading || isCreatingGallery || shareMode === 'view' || shareAccessRole === 'viewer'}>
+            <Button size="sm" onClick={handleSave} disabled={roomErrorBlocksPersistence || isSaving || isLoading || isCreatingGallery || shareMode === 'view' || shareAccessRole === 'viewer'}>
               {shareMode === 'view' || shareAccessRole === 'viewer' ? t('vgcBtnViewOnly') : isSaving ? t('vgcBtnSaving') : isCreatingGallery ? t('vgcBtnCreating') : t('vgcBtnSave')}
             </Button>
           </div>

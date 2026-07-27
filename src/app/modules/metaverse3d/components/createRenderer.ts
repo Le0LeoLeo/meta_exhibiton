@@ -1,4 +1,4 @@
-import { PCFShadowMap, WebGLRenderer, Clock } from "three";
+import { PCFShadowMap, WebGLRenderer } from "three";
 
 export async function createRenderer(parameters: ConstructorParameters<typeof WebGLRenderer>[0]) {
   const supportsWebGPU = typeof navigator !== "undefined" && "gpu" in navigator;
@@ -16,8 +16,4 @@ export async function createRenderer(parameters: ConstructorParameters<typeof We
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
   return renderer;
-}
-
-export function createSceneClock() {
-  return new Clock();
 }

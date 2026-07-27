@@ -23,8 +23,8 @@ export function TextInspector({ selectedItem, glassInputClass, updateItem }: Pro
       const res = await requestPolishIntro(auth.token, { text: selectedItem.content });
       updateItem(selectedItem.id, { content: res.result });
       toast.success("潤飾完成");
-    } catch (e: any) {
-      toast.error(e.message || "潤飾失敗");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "潤飾失敗");
     } finally {
       setAiLoading(null);
     }
@@ -37,8 +37,8 @@ export function TextInspector({ selectedItem, glassInputClass, updateItem }: Pro
     try {
       const res = await requestTranslate(auth.token, { text: selectedItem.content, targetLanguage });
       toast.success(`${label} 翻譯完成`, { description: res.result });
-    } catch (e: any) {
-      toast.error(e.message || `${label} 翻譯失敗`);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : `${label} 翻譯失敗`);
     } finally {
       setAiLoading(null);
     }

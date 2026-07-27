@@ -4,7 +4,8 @@ import { ArrowLeft, CalendarDays, Cpu, Eye, Loader2, Sparkles, UserRound } from 
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { getPublishedGalleryById, type ExhibitionDetail } from '../api/exhibitions';
-import { useStore } from '../features/metaverse-studio';
+import { canCreateWebGLContext } from '../modules/metaverse3d/components/webglSupport';
+import { Exhibition2DView, sceneToExhibits } from '../features/exhibition-2d';
 import { useI18n } from '../components/I18nProvider';
 
 const MetaverseStudioApp = lazy(() => import('../features/metaverse-studio'));
@@ -66,9 +67,18 @@ export default function ExhibitionView() {
   const { t } = useI18n();
   const exhibitionId = (params.exhibitionId || '').trim();
   const [gallery, setGallery] = useState<ExhibitionDetail | null>(null);
+  const [sceneSnapshot, setSceneSnapshot] = useState<Record<string, unknown> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [prepared3DSource, setPrepared3DSource] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>(() =>
+    typeof document !== 'undefined' && canCreateWebGLContext(document) ? '3d' : '2d',
+  );
   const webGpuAvailable = useMemo(() => typeof navigator !== 'undefined' && 'gpu' in navigator, []);
+  const current3DSource = useMemo(
+    () => gallery ? JSON.stringify([exhibitionId, gallery.sceneJson ?? '']) : null,
+    [exhibitionId, gallery],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -82,16 +92,13 @@ export default function ExhibitionView() {
 
       setIsLoading(true);
       setError(null);
+      setPrepared3DSource(null);
 
       try {
         const result = await loadPublishedGallery(exhibitionId);
         if (cancelled) return;
 
-        const sourceIdentity = JSON.stringify([
-          exhibitionId,
-          result.gallery.sceneJson ?? '',
-        ]);
-        const store = useStore.getState();
+        let parsedScene: Record<string, unknown> | null = null;
         if (result.gallery.sceneJson) {
           try {
             const parsed = JSON.parse(result.gallery.sceneJson);
@@ -99,18 +106,7 @@ export default function ExhibitionView() {
               throw new Error('Invalid scene snapshot');
             }
 
-            const currentFingerprint = createSceneFingerprint(store.exportScene());
-            const sceneAlreadyApplied =
-              appliedScene?.sourceIdentity === sourceIdentity &&
-              appliedScene.exportedFingerprint === currentFingerprint;
-
-            if (!sceneAlreadyApplied) {
-              store.importScene(parsed);
-              appliedScene = {
-                sourceIdentity,
-                exportedFingerprint: createSceneFingerprint(store.exportScene()),
-              };
-            }
+            parsedScene = parsed as Record<string, unknown>;
           } catch {
             setGallery(null);
             setError(t('viewSceneLoadFailed'));
@@ -119,8 +115,8 @@ export default function ExhibitionView() {
           }
         }
 
+        setSceneSnapshot(parsedScene);
         setGallery(result.gallery);
-        store.setMode('view');
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : t('viewLoadFailed');
@@ -136,6 +132,49 @@ export default function ExhibitionView() {
       cancelled = true;
     };
   }, [exhibitionId]);
+
+  useEffect(() => {
+    if (viewMode !== '3d' || !gallery || gallery.id !== exhibitionId) return;
+    let cancelled = false;
+
+    const applyScene = async () => {
+      try {
+        const { useMetaverseStudioStore } = await import('../modules/metaverse3d/store/useMetaverseStudioStore');
+        if (cancelled) return;
+        const store = useMetaverseStudioStore.getState();
+        const sourceIdentity = JSON.stringify([
+          exhibitionId,
+          gallery.sceneJson ?? '',
+        ]);
+        if (sceneSnapshot) {
+          const currentFingerprint = createSceneFingerprint(store.exportScene());
+          const sceneAlreadyApplied =
+            appliedScene?.sourceIdentity === sourceIdentity &&
+            appliedScene.exportedFingerprint === currentFingerprint;
+
+          if (!sceneAlreadyApplied) {
+            store.importScene(sceneSnapshot as Parameters<typeof store.importScene>[0]);
+            appliedScene = {
+              sourceIdentity,
+              exportedFingerprint: createSceneFingerprint(store.exportScene()),
+            };
+          }
+        }
+        store.setMode('view');
+        setPrepared3DSource(sourceIdentity);
+      } catch {
+        if (cancelled) return;
+        setGallery(null);
+        setError(t('viewSceneLoadFailed'));
+        toast.error(t('viewSceneDataFormatError'), { description: t('viewSceneDataParseFailed') });
+      }
+    };
+
+    void applyScene();
+    return () => {
+      cancelled = true;
+    };
+  }, [exhibitionId, gallery, sceneSnapshot, t, viewMode]);
 
   if (isLoading) {
     return (
@@ -177,11 +216,53 @@ export default function ExhibitionView() {
     );
   }
 
+  const modeSwitch = (
+    <div role="group" className="fixed right-4 top-20 z-50 flex rounded-full border border-stone-200 bg-white/95 p-1 shadow-lg backdrop-blur dark:border-stone-700 dark:bg-stone-900/95" aria-label="展覽顯示模式">
+      <Button
+        size="sm"
+        variant={viewMode === '2d' ? 'default' : 'ghost'}
+        aria-pressed={viewMode === '2d'}
+        onClick={() => setViewMode('2d')}
+        className="min-h-11 rounded-full"
+      >
+        2D 圖文
+      </Button>
+      <Button
+        size="sm"
+        variant={viewMode === '3d' ? 'default' : 'ghost'}
+        aria-pressed={viewMode === '3d'}
+        onClick={() => setViewMode('3d')}
+        className="min-h-11 rounded-full"
+      >
+        3D 展廳
+      </Button>
+    </div>
+  );
+
+  if (viewMode === '2d') {
+    return (
+      <div className="relative">
+        {modeSwitch}
+        <Exhibition2DView
+          title={gallery.title}
+          description={gallery.description}
+          exhibits={sceneToExhibits(sceneSnapshot)}
+        />
+      </div>
+    );
+  }
+
+  if (prepared3DSource !== current3DSource) {
+    return <StudioLoadingFallback />;
+  }
+
   return (
     <div className="relative min-h-[calc(100vh-64px)] bg-background text-foreground dark:bg-stone-950">
+      {modeSwitch}
       <Suspense fallback={<StudioLoadingFallback />}>
         <MetaverseStudioApp
           exhibitionId={exhibitionId}
+          onUse2D={() => setViewMode('2d')}
           sessionStatus={
           <div className="flex max-w-full flex-wrap items-center justify-end gap-2 rounded-2xl border border-stone-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur dark:border-stone-800 dark:bg-stone-900/95">
             <Button size="sm" variant="outline" onClick={() => navigate('/exhibitions')} className="border-stone-200 bg-white text-stone-700 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-200 dark:hover:bg-stone-800">

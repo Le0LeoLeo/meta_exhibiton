@@ -1,13 +1,26 @@
 import { useStore } from "../../store/useStore";
 import { ExternalLink, Globe, MessageSquareQuote, Send, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { toast } from "sonner";
 import { apiUrl, parseJsonSafe, errorFromResponse } from "../../../../api/base";
 import { loadAuth } from "../../../../api/auth";
 import { requestFeedbackSummary } from "../../../../api/aiWriting";
 import { loadVisitorMemory, saveVisitorMemory } from "../../../../api/visitorMemory";
+import type { VisitorMemoryPayload } from "../../../../api/visitorMemory";
+import {
+  completeExhibitionPassport,
+  getExhibitionPassport,
+  shareExhibitionPassport,
+} from "../../../../api/exhibitionPassport";
+import type {
+  ExhibitionPassport,
+  ExhibitionPassportApiError,
+} from "../../../../api/exhibitionPassport";
 import { useI18n } from "../../../../components/I18nProvider";
+import { calculatePassportProgressFromPassport } from "../../passport/passportProgress";
+import { ExhibitionPassportPanel } from "./ExhibitionPassportPanel";
+import { PassportCompletionDialog } from "./PassportCompletionDialog";
 import { PerformanceModeControl } from "./PerformanceModeControl";
 
 interface ViewUIProps {
@@ -18,6 +31,19 @@ type CommentItem = { id: string; userName: string; content: string; createdAt: s
 
 const fallbackImageUrl = "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?auto=format&fit=crop&q=80&w=1200";
 const emptyComments: CommentItem[] = [];
+
+function buildVisitorMemoryPayload(
+  agent: ReturnType<typeof useStore.getState>["agent"],
+  locale: string,
+): VisitorMemoryPayload {
+  return {
+    visitedExhibitIds: agent.memory.visitedExhibitIds,
+    engagedExhibitIds: agent.memory.engagedExhibitIds,
+    dwellSecondsByExhibit: agent.memory.dwellSecondsByExhibit,
+    preferredPersonality: agent.personality,
+    preferredLanguage: agent.preferredLanguage || locale,
+  };
+}
 
 function CommentCard({
   comment,
@@ -71,8 +97,7 @@ export function ViewUI({ exhibitionId }: ViewUIProps) {
     return (window.sessionStorage.getItem('activeExhibitionId') || '').trim();
   }, []);
   const activeExhibitionId = (exhibitionId || exhibitionIdFromRoute || exhibitionIdFromPath || exhibitionIdFromQuery || exhibitionIdFromSession || '').trim();
-  const { mode, setMode, items, viewingItem, setViewingItem, openNextViewingItem, openPrevViewingItem, setHasSelectedParticipationMode, agent, setAgent } = useStore();
-  const hasViewingItem = Boolean(viewingItem?.id);
+  const { mode, setMode, items, viewingItem, setViewingItem, openNextViewingItem, openPrevViewingItem, hasSelectedParticipationMode, setHasSelectedParticipationMode, agent, setAgent, pushAgentMessage } = useStore();
   const [commentName, setCommentName] = useState('');
   const [commentContent, setCommentContent] = useState('');
   const [commentList, setCommentList] = useState<CommentItem[]>([]);
@@ -81,6 +106,40 @@ export function ViewUI({ exhibitionId }: ViewUIProps) {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isSummarizingFeedback, setIsSummarizingFeedback] = useState(false);
   const [feedbackSummary, setFeedbackSummary] = useState('');
+  const [passport, setPassport] = useState<ExhibitionPassport | null>(null);
+  const [passportState, setPassportState] = useState<'loading' | 'ready' | 'unavailable' | 'error' | 'signed-out'>(auth.token ? 'loading' : 'signed-out');
+  const [isPassportDialogOpen, setIsPassportDialogOpen] = useState(false);
+  const [passportCompletionError, setPassportCompletionError] = useState<'sync' | 'generic' | null>(null);
+  const announcedPassportIdRef = useRef<string | null>(null);
+
+  const loadPassport = useCallback(async () => {
+    if (!auth.token || !activeExhibitionId) {
+      setPassport(null);
+      setPassportState('signed-out');
+      return;
+    }
+    setPassportState('loading');
+    try {
+      const nextPassport = await getExhibitionPassport(auth.token, activeExhibitionId);
+      setPassport(nextPassport);
+      setPassportState('ready');
+    } catch (error) {
+      const apiError = error as ExhibitionPassportApiError;
+      setPassport(null);
+      setPassportState(apiError.code === 'PASSPORT_UNAVAILABLE' || apiError.status === 422 ? 'unavailable' : 'error');
+    }
+  }, [activeExhibitionId, auth.token]);
+
+  useEffect(() => {
+    if (mode !== 'view' || !activeExhibitionId) return;
+    void loadPassport();
+  }, [activeExhibitionId, loadPassport, mode]);
+
+  useEffect(() => {
+    if (passportState !== 'ready' || !passport || announcedPassportIdRef.current === passport.id) return;
+    announcedPassportIdRef.current = passport.id;
+    pushAgentMessage({ role: 'system', content: t('passportReadyMessage') });
+  }, [passport, passportState, pushAgentMessage, t]);
 
   const submitComment = useCallback(async (form?: HTMLFormElement | null) => {
     const formData = form ? new FormData(form) : null;
@@ -243,13 +302,7 @@ export function ViewUI({ exhibitionId }: ViewUIProps) {
   useEffect(() => {
     if (!auth.token || !activeExhibitionId) return;
     const timeoutId = window.setTimeout(() => {
-      void saveVisitorMemory(auth.token, activeExhibitionId, {
-        visitedExhibitIds: agent.memory.visitedExhibitIds,
-        engagedExhibitIds: agent.memory.engagedExhibitIds,
-        dwellSecondsByExhibit: agent.memory.dwellSecondsByExhibit,
-        preferredPersonality: agent.personality,
-        preferredLanguage: agent.preferredLanguage || locale,
-      }).catch(() => {
+      void saveVisitorMemory(auth.token, activeExhibitionId, buildVisitorMemoryPayload(agent, locale)).catch(() => {
         // Keep the viewing flow quiet if the memory endpoint is unavailable.
       });
     }, 1200);
@@ -264,6 +317,43 @@ export function ViewUI({ exhibitionId }: ViewUIProps) {
     agent.personality,
     locale,
   ]);
+
+  const eligiblePassportItemIds = useMemo(
+    () => items.filter((item) => item.type === 'painting' || item.type === 'pedestal' || item.type === 'text').map((item) => item.id),
+    [items],
+  );
+  const optimisticPassportProgress = useMemo(() => {
+    if (!passport) return null;
+    if (passport.status === 'completed') return passport.progress;
+    return calculatePassportProgressFromPassport(passport, agent.memory, eligiblePassportItemIds);
+  }, [agent.memory, eligiblePassportItemIds, passport]);
+
+  const completePassport = useCallback(async (reflection: string) => {
+    if (!auth.token || !activeExhibitionId || !passport || !optimisticPassportProgress?.complete) return;
+    setPassportCompletionError(null);
+    try {
+      await saveVisitorMemory(auth.token, activeExhibitionId, buildVisitorMemoryPayload(agent, locale));
+      const completedPassport = await completeExhibitionPassport(auth.token, activeExhibitionId, reflection);
+      setPassport(completedPassport);
+      setPassportState('ready');
+    } catch (error) {
+      const apiError = error as ExhibitionPassportApiError;
+      if (apiError.code === 'PASSPORT_INCOMPLETE' || apiError.status === 409) {
+        setPassportCompletionError('sync');
+        await loadPassport();
+      } else {
+        setPassportCompletionError('generic');
+      }
+      throw error;
+    }
+  }, [activeExhibitionId, agent, auth.token, loadPassport, locale, optimisticPassportProgress?.complete, passport]);
+
+  const sharePassport = useCallback(async () => {
+    if (!auth.token || !activeExhibitionId || passport?.status !== 'completed') {
+      throw new Error('Passport is not ready to share');
+    }
+    return shareExhibitionPassport(auth.token, activeExhibitionId);
+  }, [activeExhibitionId, auth.token, passport?.status]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -339,6 +429,32 @@ export function ViewUI({ exhibitionId }: ViewUIProps) {
         </button>
         <PerformanceModeControl compact />
       </div>
+
+      {activeExhibitionId && hasSelectedParticipationMode && (
+        <div className="absolute right-4 top-4">
+          <ExhibitionPassportPanel
+            passport={passport}
+            progress={optimisticPassportProgress}
+            state={passportState}
+            onRetry={() => void loadPassport()}
+            onComplete={() => {
+              if (passport?.status === 'completed' || optimisticPassportProgress?.complete) {
+                setPassportCompletionError(null);
+                setIsPassportDialogOpen(true);
+              }
+            }}
+          />
+        </div>
+      )}
+
+      <PassportCompletionDialog
+        open={isPassportDialogOpen}
+        passport={passport}
+        completionError={passportCompletionError}
+        onOpenChange={setIsPassportDialogOpen}
+        onComplete={completePassport}
+        onShare={sharePassport}
+      />
 
       {!viewingItem && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-full border border-cyan-300/30 bg-slate-900/70 px-6 py-3 text-sm font-medium tracking-wide text-white shadow-lg backdrop-blur-md">

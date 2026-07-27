@@ -2,8 +2,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useMultiplayerStore } from "../modules/metaverse3d/network/multiplayerStore";
-import { I18nProvider } from "../components/I18nProvider";
-import VirtualGalleryCreate, { canSyncMultiplayerRole } from "./VirtualGalleryCreate";
+import { useStore } from "../features/metaverse-studio";
+import VirtualGalleryCreate, { doesRoomErrorBlockPersistence } from "./VirtualGalleryCreate";
+import { clearAuth, saveAuth } from "../api/auth";
 
 vi.mock("../components/I18nProvider", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../components/I18nProvider")>();
@@ -30,6 +31,16 @@ const api = vi.hoisted(() => ({
   updateSharedGallery: vi.fn(),
 }));
 
+const network = vi.hoisted(() => ({
+  emitSceneSync: vi.fn(),
+}));
+
+vi.mock("../modules/metaverse3d/network/socketClient", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../modules/metaverse3d/network/socketClient")>();
+  return { ...actual, emitSceneSync: network.emitSceneSync };
+});
+
 vi.mock("../api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/client")>();
   return {
@@ -52,13 +63,16 @@ vi.mock("../features/metaverse-studio", async (importOriginal) => {
 });
 
 const initialMultiplayerState = useMultiplayerStore.getState();
+const initialStudioState = useStore.getState();
 
 describe("VirtualGalleryCreate multiplayer share flow", () => {
   beforeEach(() => {
     api.getGalleryById.mockReset();
     api.getSharedGallery.mockReset();
     api.updateSharedGallery.mockReset();
+    network.emitSceneSync.mockReset();
     useMultiplayerStore.setState(initialMultiplayerState, true);
+    useStore.setState(initialStudioState, true);
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -91,7 +105,9 @@ describe("VirtualGalleryCreate multiplayer share flow", () => {
 
   afterEach(() => {
     cleanup();
+    clearAuth();
     useMultiplayerStore.setState(initialMultiplayerState, true);
+    useStore.setState(initialStudioState, true);
   });
 
   it("loads the existing gallery share route and configures its multiplayer token", async () => {
@@ -115,12 +131,10 @@ describe("VirtualGalleryCreate multiplayer share flow", () => {
   });
 
   it("ignores a query roomId for an existing gallery session", async () => {
-    localStorage.setItem("auth_token", "jwt-owner");
-    localStorage.setItem("auth_user", JSON.stringify({
-      id: "owner-1",
-      email: "owner@example.com",
-      name: "Owner",
-    }));
+    saveAuth({
+      token: "jwt-owner",
+      user: { id: "owner-1", email: "owner@example.com", name: "Owner" },
+    });
     api.getGalleryById.mockResolvedValue(sharedGallery("gallery-1"));
     const router = createMemoryRouter(
       [{
@@ -264,13 +278,71 @@ describe("VirtualGalleryCreate multiplayer share flow", () => {
     expect(screen.getByRole("button", { name: "vgcBtnSave" })).toBeDisabled();
   });
 
+  it("persists a live gallery without issuing a competing full-scene sync", async () => {
+    api.getSharedGallery.mockResolvedValue(sharedGallery("gallery-1"));
+    api.updateSharedGallery.mockResolvedValue(sharedGallery("gallery-1"));
+    useMultiplayerStore.setState({ role: "editor", lastSceneVersion: 7 });
+    const router = createMemoryRouter(
+      [{
+        path: "/virtual-gallery/share/:token",
+        element: <VirtualGalleryCreate />,
+      }],
+      { initialEntries: ["/virtual-gallery/share/editor-token"] },
+    );
+
+    render(<RouterProvider router={router} />);
+    await screen.findByText("vgcStatusEditingShared gallery-1");
+    fireEvent.click(screen.getByRole("button", { name: "vgcBtnSave" }));
+
+    await waitFor(() => expect(api.updateSharedGallery).toHaveBeenCalled());
+    expect(network.emitSceneSync).not.toHaveBeenCalled();
+  });
+
+  it.each(["RATE_LIMITED", "COLLABORATION_UNAVAILABLE"] as const)(
+    "keeps manual and automatic persistence available for transient %s errors",
+    async (code) => {
+      api.getSharedGallery.mockResolvedValue(sharedGallery("gallery-1"));
+      api.updateSharedGallery.mockResolvedValue(sharedGallery("gallery-1"));
+      const router = createMemoryRouter(
+        [{
+          path: "/virtual-gallery/share/:token",
+          element: <VirtualGalleryCreate />,
+        }],
+        { initialEntries: ["/virtual-gallery/share/editor-token"] },
+      );
+
+      render(<RouterProvider router={router} />);
+      await screen.findByText("vgcStatusEditingShared gallery-1");
+      api.updateSharedGallery.mockClear();
+      act(() => {
+        useMultiplayerStore.getState().setRoomError({
+          code,
+          message: "temporary collaboration issue",
+        });
+        const current = useStore.getState().exportScene();
+        useStore.getState().importScene({
+          ...current,
+          roomSize: {
+            ...current.roomSize,
+            width: (current.roomSize.width ?? 10) + 1,
+          },
+        });
+      });
+
+      expect(screen.getByRole("button", { name: "vgcBtnSave" })).toBeEnabled();
+      await waitFor(
+        () => expect(api.updateSharedGallery).toHaveBeenCalled(),
+        { timeout: 2_000 },
+      );
+    },
+  );
+
   it.each([
-    ["viewer", false],
-    ["participant", false],
-    ["editor", true],
-    ["owner", true],
-    [null, false],
-  ] as const)("allows privileged scene sync for %s: %s", (role, expected) => {
-    expect(canSyncMultiplayerRole(role)).toBe(expected);
+    ["FORBIDDEN", true],
+    ["AUTH_REQUIRED", true],
+    ["RATE_LIMITED", false],
+    ["COLLABORATION_UNAVAILABLE", false],
+  ] as const)("persistence blocking for %s is %s", (code, expected) => {
+    expect(doesRoomErrorBlockPersistence(code)).toBe(expected);
   });
 });

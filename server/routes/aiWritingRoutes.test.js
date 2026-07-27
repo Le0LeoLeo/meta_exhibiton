@@ -13,7 +13,7 @@ afterEach(() => {
 
 function createDeps(overrides = {}) {
   return {
-    requireAuth: (req, res) => true,
+    requireAuth: (_req, _res) => true,
     aiWritingLimiter: (_req, _res, next) => next(),
     summarizeFeedback: async () => '摘要結果。',
     polishIntro: async (text) => `潤飾後：${text}`,

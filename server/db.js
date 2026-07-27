@@ -1,6 +1,11 @@
 import sqlite3 from 'sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
+import { initCompetitionEntrySchema } from './dbMigrations.js';
+import { checkDatabaseReadiness } from './readiness.js';
+import { getStatement, runStatement } from './repositories/sqliteHelpers.js';
+import * as userRepository from './repositories/userRepository.js';
+import * as mediaRepository from './repositories/mediaRepository.js';
 
 const dbFile = path.join(process.cwd(), 'server', 'app.db');
 
@@ -15,10 +20,28 @@ sqlite3.verbose();
 export const db = new sqlite3.Database(dbFile);
 
 // 初始化資料表
-export function initDb() {
-  db.serialize(() => {
+export function initDb(database = db) {
+  const db = database;
+  return new Promise((resolve, reject) => {
+    let queueFinished = false;
+    let migrationFinished = false;
+    let migrationError;
+    let validationStarted = false;
+
+    const finish = () => {
+      if (!queueFinished || !migrationFinished || validationStarted) return;
+      if (migrationError) reject(migrationError);
+      else {
+        validationStarted = true;
+        checkDatabaseReadiness(db).then(resolve, reject);
+      }
+    };
+
+    db.serialize(() => {
     // SQLite 預設不啟用外鍵約束，需要手動打開
     db.run('PRAGMA foreign_keys = ON');
+    db.run('PRAGMA busy_timeout = 5000');
+    db.run('PRAGMA journal_mode = WAL');
 
     db.run(`
       CREATE TABLE IF NOT EXISTS users (
@@ -47,6 +70,25 @@ export function initDb() {
 
     db.run('CREATE INDEX IF NOT EXISTS idx_galleries_owner_id ON galleries(owner_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_galleries_created_at ON galleries(created_at)');
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS media_assets (
+        id TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL,
+        gallery_id TEXT,
+        storage_file_name TEXT NOT NULL,
+        original_file_name TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY(gallery_id) REFERENCES galleries(id) ON DELETE SET NULL
+      );
+    `);
+
+    db.run('CREATE INDEX IF NOT EXISTS idx_media_assets_owner_id ON media_assets(owner_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_media_assets_gallery_id ON media_assets(gallery_id)');
 
     db.run('ALTER TABLE galleries ADD COLUMN scene_json TEXT', (err) => {
       if (err && !String(err.message || '').includes('duplicate column name')) {
@@ -255,84 +297,36 @@ export function initDb() {
         console.error('[db] failed to add submission_fields_json column:', err);
       }
     });
-    db.run('ALTER TABLE competition_entries ADD COLUMN submission_json TEXT', (err) => {
-      if (err && !String(err.message || '').includes('duplicate column name')) {
-        console.error('[db] failed to add submission_json column:', err);
-      }
-    });
-    db.get(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'competition_entries_legacy'",
-      (legacyErr, legacyRow) => {
-        if (legacyErr) {
-          console.error('[db] failed to inspect legacy competition_entries table:', legacyErr);
-          return;
-        }
-
-        if (legacyRow) return;
-
-        db.get(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'competition_entries'",
-          (currentErr, currentRow) => {
-            if (currentErr) {
-              console.error('[db] failed to inspect competition_entries table:', currentErr);
-              return;
-            }
-
-            if (!currentRow) return;
-
-            db.run('ALTER TABLE competition_entries RENAME TO competition_entries_legacy', (err) => {
-              if (err) {
-                const message = String(err?.message || '');
-                if (!message.includes('no such table') && !message.includes('already exists')) {
-                  console.error('[db] failed to rename legacy competition_entries table:', err);
-                }
-              }
-            });
-          },
-        );
+    initCompetitionEntrySchema(db).then(
+      () => {
+        migrationFinished = true;
+        finish();
+      },
+      (error) => {
+        migrationError = error;
+        migrationFinished = true;
+        finish();
       },
     );
-
-    db.run(`
-      CREATE TABLE IF NOT EXISTS competition_entries (
-        id TEXT PRIMARY KEY,
-        competition_id TEXT NOT NULL,
-        gallery_id TEXT NOT NULL,
-        gallery_owner_id TEXT NOT NULL,
-        statement TEXT NOT NULL,
-        submission_json TEXT,
-        assets_json TEXT,
-        status TEXT NOT NULL DEFAULT 'pending',
-        rank INTEGER,
-        vote_count INTEGER NOT NULL DEFAULT 0,
-        submitted_at TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY(competition_id) REFERENCES competitions(id) ON DELETE CASCADE,
-        FOREIGN KEY(gallery_id) REFERENCES galleries(id) ON DELETE CASCADE,
-        FOREIGN KEY(gallery_owner_id) REFERENCES users(id) ON DELETE CASCADE
-      );
-    `);
-
-    db.run(`
-      CREATE TABLE IF NOT EXISTS competition_votes (
-        id TEXT PRIMARY KEY,
-        competition_id TEXT NOT NULL,
-        entry_id TEXT NOT NULL,
-        voter_name TEXT NOT NULL,
-        voter_email TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(competition_id) REFERENCES competitions(id) ON DELETE CASCADE,
-        FOREIGN KEY(entry_id) REFERENCES competition_entries(id) ON DELETE CASCADE
-      );
-    `);
 
     db.run('CREATE INDEX IF NOT EXISTS idx_competitions_created_by ON competitions(created_by)');
     db.run('CREATE INDEX IF NOT EXISTS idx_competitions_host_gallery_id ON competitions(host_gallery_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_competitions_visibility ON competitions(is_public, status, registration_deadline)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_competition_entries_competition_id ON competition_entries(competition_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_competition_votes_entry_id ON competition_votes(entry_id)');
-    db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_competition_votes_unique_voter ON competition_votes(competition_id, entry_id, voter_email)');
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS file_cleanup_jobs (
+        id TEXT PRIMARY KEY,
+        owner_id TEXT,
+        kind TEXT NOT NULL CHECK(kind IN ('growth', 'media')),
+        target TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_file_cleanup_jobs_status ON file_cleanup_jobs(status, updated_at)');
 
     // Visitor memories table for persisting user preferences and visit state
     db.run(`
@@ -351,65 +345,88 @@ export function initDb() {
     `);
 
     db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_visitor_memories_user_gallery ON visitor_memories(user_id, gallery_id)');
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS exhibition_passports (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        gallery_id TEXT NOT NULL,
+        tasks_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        souvenir_json TEXT,
+        souvenir_token TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY(gallery_id) REFERENCES galleries(id) ON DELETE CASCADE,
+        UNIQUE(user_id, gallery_id)
+      );
+    `);
+
+    db.run(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_exhibition_passports_souvenir_token
+      ON exhibition_passports(souvenir_token)
+      WHERE souvenir_token IS NOT NULL
+    `);
+
+    db.run(
+      `CREATE INDEX IF NOT EXISTS idx_exhibition_passports_public_recent
+       ON exhibition_passports(completed_at DESC)
+       WHERE souvenir_token IS NOT NULL`,
+      (error) => {
+        if (error) {
+          reject(new Error(`[db] failed to finalize schema initialization: ${error.message}`, {
+            cause: error,
+          }));
+          return;
+        }
+        queueFinished = true;
+        finish();
+      },
+    );
+    });
   });
 }
 
 export function getUserByEmail(email) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
-      if (err) return reject(err);
-      resolve(row || null);
-    });
-  });
+  return userRepository.getUserByEmail(email, db);
 }
 
 export function insertUser(user) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
-      [user.id, user.email, user.name, user.passwordHash, user.createdAt],
-      (err) => {
-        if (err) return reject(err);
-        resolve();
-      }
-    );
-  });
+  return userRepository.insertUser(user, db);
 }
 
 export function getUserById(id) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM users WHERE id = ?', [id], (err, row) => {
-      if (err) return reject(err);
-      resolve(row || null);
-    });
-  });
+  return userRepository.getUserById(id, db);
 }
 
 export function updateUserName(id, name) {
-  return new Promise((resolve, reject) => {
-    db.run('UPDATE users SET name = ? WHERE id = ?', [name, id], (err) => {
-      if (err) return reject(err);
-      resolve();
-    });
-  });
+  return userRepository.updateUserName(id, name, db);
 }
 
 export function updateUserPasswordHash(id, passwordHash) {
-  return new Promise((resolve, reject) => {
-    db.run('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id], (err) => {
-      if (err) return reject(err);
-      resolve();
-    });
-  });
+  return userRepository.updateUserPasswordHash(id, passwordHash, db);
 }
 
 export function deleteUserById(id) {
-  return new Promise((resolve, reject) => {
-    db.run('DELETE FROM users WHERE id = ?', [id], (err) => {
-      if (err) return reject(err);
-      resolve();
-    });
-  });
+  return userRepository.deleteUserById(id, db);
+}
+
+export async function deleteUserAndCreateFileCleanupJobs(ownerId, requestedJobs, database = db) {
+  return userRepository.deleteUserAndCreateFileCleanupJobs(ownerId, requestedJobs, database);
+}
+
+export function markFileCleanupJobCompleted(id, database = db) {
+  return userRepository.markFileCleanupJobCompleted(id, database);
+}
+
+export function markFileCleanupJobFailed(id, errorMessage, database = db) {
+  return userRepository.markFileCleanupJobFailed(id, errorMessage, database);
+}
+
+export async function listRetryableFileCleanupJobs(database = db, limit = 100) {
+  return userRepository.listRetryableFileCleanupJobs(database, limit);
 }
 
 export function insertGallery(gallery) {
@@ -519,6 +536,42 @@ export function getGalleryById(id) {
   });
 }
 
+export function insertMediaAsset(asset, database = db) {
+  return mediaRepository.insertMediaAsset(asset, database);
+}
+
+export function getMediaAssetById(id, database = db) {
+  return mediaRepository.getMediaAssetById(id, database);
+}
+
+export function deleteMediaAssetById(id, ownerId, database = db) {
+  return mediaRepository.deleteMediaAssetById(id, ownerId, database);
+}
+
+export function listMediaStorageFileNamesByOwnerId(ownerId, database = db) {
+  return mediaRepository.listMediaStorageFileNamesByOwnerId(ownerId, database);
+}
+
+export function listMediaStorageFileNamesByGalleryId(galleryId, database = db) {
+  return mediaRepository.listMediaStorageFileNamesByGalleryId(galleryId, database);
+}
+
+export function listAllMediaStorageFileNames(database = db) {
+  return mediaRepository.listAllMediaStorageFileNames(database);
+}
+
+export function listStaleUnboundMediaAssets(cutoffIso, database = db) {
+  return mediaRepository.listStaleUnboundMediaAssets(cutoffIso, database);
+}
+
+export function deleteUnboundMediaAssetsByIds(ids, database = db) {
+  return mediaRepository.deleteUnboundMediaAssetsByIds(ids, database);
+}
+
+export function bindMediaAssetsToGallery(assetIds, galleryId, ownerId, database = db) {
+  return mediaRepository.bindMediaAssetsToGallery(assetIds, galleryId, ownerId, database);
+}
+
 export function updateGalleryById(id, ownerId, updates) {
   return new Promise((resolve, reject) => {
     const fields = [];
@@ -569,13 +622,27 @@ export function updateGalleryById(id, ownerId, updates) {
   });
 }
 
-export function deleteGalleryById(id, ownerId) {
-  return new Promise((resolve, reject) => {
-    db.run('DELETE FROM galleries WHERE id = ? AND owner_id = ?', [id, ownerId], function (err) {
-      if (err) return reject(err);
-      resolve(this.changes || 0);
-    });
-  });
+export async function deleteGalleryById(id, ownerId, database = db) {
+  await runStatement(database, 'BEGIN IMMEDIATE');
+  try {
+    await runStatement(
+      database,
+      `DELETE FROM visitor_memories
+       WHERE gallery_id = ?
+         AND EXISTS (SELECT 1 FROM galleries WHERE id = ? AND owner_id = ?)`,
+      [id, id, ownerId],
+    );
+    const deleted = await runStatement(
+      database,
+      'DELETE FROM galleries WHERE id = ? AND owner_id = ?',
+      [id, ownerId],
+    );
+    await runStatement(database, 'COMMIT');
+    return deleted.changes;
+  } catch (error) {
+    await runStatement(database, 'ROLLBACK').catch(() => {});
+    throw error;
+  }
 }
 
 export function deleteCompetitionsByHostGalleryId(hostGalleryId) {
@@ -1316,14 +1383,39 @@ export function deleteCompetitionEntryById(id) {
 export function insertCompetitionVote(vote) {
   return new Promise((resolve, reject) => {
     db.run(
-      'INSERT INTO competition_votes (id, competition_id, entry_id, voter_name, voter_email, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [vote.id, vote.competitionId, vote.entryId, vote.voterName, vote.voterEmail, vote.createdAt],
+      'INSERT INTO competition_votes (id, competition_id, entry_id, voter_user_id, voter_name, voter_email, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [vote.id, vote.competitionId, vote.entryId, vote.voterUserId, vote.voterName, vote.voterEmail, vote.createdAt],
       (err) => {
         if (err) return reject(err);
         resolve();
       },
     );
   });
+}
+
+export async function insertCompetitionVoteAndRefreshCount(vote, database = db) {
+  await runStatement(database, 'BEGIN IMMEDIATE');
+  try {
+    await runStatement(
+      database,
+      'INSERT INTO competition_votes (id, competition_id, entry_id, voter_user_id, voter_name, voter_email, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [vote.id, vote.competitionId, vote.entryId, vote.voterUserId, vote.voterName, vote.voterEmail, vote.createdAt],
+    );
+    await runStatement(
+      database,
+      `UPDATE competition_entries
+       SET vote_count = (SELECT COUNT(*) FROM competition_votes WHERE entry_id = ?),
+           updated_at = ?
+       WHERE id = ?`,
+      [vote.entryId, new Date().toISOString(), vote.entryId],
+    );
+    const entry = await getStatement(database, 'SELECT * FROM competition_entries WHERE id = ?', [vote.entryId]);
+    await runStatement(database, 'COMMIT');
+    return entry;
+  } catch (error) {
+    await runStatement(database, 'ROLLBACK').catch(() => {});
+    throw error;
+  }
 }
 
 export function countCompetitionVotesByEntryId(entryId) {
@@ -1335,11 +1427,11 @@ export function countCompetitionVotesByEntryId(entryId) {
   });
 }
 
-export function hasCompetitionVote(competitionId, entryId, voterEmail) {
+export function hasCompetitionVote(competitionId, entryId, voterUserId) {
   return new Promise((resolve, reject) => {
     db.get(
-      'SELECT id FROM competition_votes WHERE competition_id = ? AND entry_id = ? AND voter_email = ?',
-      [competitionId, entryId, voterEmail],
+      'SELECT id FROM competition_votes WHERE competition_id = ? AND entry_id = ? AND voter_user_id = ?',
+      [competitionId, entryId, voterUserId],
       (err, row) => {
         if (err) return reject(err);
         resolve(Boolean(row));
@@ -1419,6 +1511,121 @@ export function upsertVisitorMemory(memory) {
       (err) => {
         if (err) return reject(err);
         resolve();
+      },
+    );
+  });
+}
+
+// ---- Exhibition Passports ----
+
+function parsePassportRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    galleryId: row.gallery_id,
+    tasks: JSON.parse(row.tasks_json || '[]'),
+    status: row.status,
+    souvenir: row.souvenir_json ? JSON.parse(row.souvenir_json) : null,
+    souvenirToken: row.souvenir_token || null,
+    completedAt: row.completed_at || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function getExhibitionPassport(userId, galleryId, database = db) {
+  return new Promise((resolve, reject) => {
+    database.get(
+      'SELECT * FROM exhibition_passports WHERE user_id = ? AND gallery_id = ?',
+      [userId, galleryId],
+      (error, row) => error ? reject(error) : resolve(parsePassportRow(row)),
+    );
+  });
+}
+
+export function insertExhibitionPassport(passport, database = db) {
+  return new Promise((resolve, reject) => {
+    database.run(
+      `INSERT INTO exhibition_passports
+       (id, user_id, gallery_id, tasks_json, status, souvenir_json, souvenir_token,
+        completed_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        passport.id,
+        passport.userId,
+        passport.galleryId,
+        JSON.stringify(passport.tasks || []),
+        passport.status || 'active',
+        passport.souvenir ? JSON.stringify(passport.souvenir) : null,
+        passport.souvenirToken || null,
+        passport.completedAt || null,
+        passport.createdAt,
+        passport.updatedAt,
+      ],
+      (error) => error ? reject(error) : resolve(),
+    );
+  });
+}
+
+export function completeExhibitionPassport({ id, souvenir, completedAt }, database = db) {
+  return new Promise((resolve, reject) => {
+    database.run(
+      `UPDATE exhibition_passports
+       SET status = 'completed', souvenir_json = ?, completed_at = ?, updated_at = ?
+       WHERE id = ? AND status = 'active'`,
+      [JSON.stringify(souvenir), completedAt, completedAt, id],
+      function onComplete(error) {
+        if (error) reject(error);
+        else resolve(this.changes > 0);
+      },
+    );
+  });
+}
+
+export function publishExhibitionPassport({ id, souvenirToken }, database = db) {
+  return new Promise((resolve, reject) => {
+    database.run(
+      `UPDATE exhibition_passports
+       SET souvenir_token = ?, updated_at = ?
+       WHERE id = ? AND status = 'completed' AND souvenir_token IS NULL`,
+      [souvenirToken, new Date().toISOString(), id],
+      function onPublish(error) {
+        if (error) reject(error);
+        else resolve(this.changes > 0);
+      },
+    );
+  });
+}
+
+export function getPublishedSouvenirByToken(token, database = db) {
+  return new Promise((resolve, reject) => {
+    database.get(
+      `SELECT souvenir_json FROM exhibition_passports
+       WHERE souvenir_token = ? AND souvenir_json IS NOT NULL`,
+      [token],
+      (error, row) => {
+        if (error) reject(error);
+        else resolve(row ? JSON.parse(row.souvenir_json) : null);
+      },
+    );
+  });
+}
+
+export function listRecentPublishedSouvenirs(limit, database = db) {
+  const safeLimit = Math.min(12, Math.max(1, Number.isInteger(limit) ? limit : 6));
+  return new Promise((resolve, reject) => {
+    database.all(
+      `SELECT souvenir_json, souvenir_token FROM exhibition_passports
+       WHERE souvenir_token IS NOT NULL AND souvenir_json IS NOT NULL
+       ORDER BY completed_at DESC LIMIT ?`,
+      [safeLimit],
+      (error, rows) => {
+        if (error) reject(error);
+        else resolve((rows || []).map((row) => ({
+          ...JSON.parse(row.souvenir_json),
+          token: row.souvenir_token,
+        })));
       },
     );
   });

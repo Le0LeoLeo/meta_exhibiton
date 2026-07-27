@@ -4,6 +4,7 @@ import { WebGLRecoveryOverlay } from "./WebGLRecoveryOverlay";
 type Props = {
   children: ReactNode;
   onReload: () => void;
+  onUse2D?: () => void;
 };
 
 type State = {
@@ -34,7 +35,7 @@ export class WebGLCanvasBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      return <WebGLRecoveryOverlay onReload={this.handleReload} />;
+      return <WebGLRecoveryOverlay onReload={this.handleReload} onUse2D={this.props.onUse2D} />;
     }
     return this.props.children;
   }

@@ -1,15 +1,23 @@
 import {
+  db,
   getUserByEmail,
   insertUser,
   getUserById,
   updateUserName,
   updateUserPasswordHash,
-  deleteUserById,
+  deleteUserAndCreateFileCleanupJobs,
+  markFileCleanupJobCompleted,
+  markFileCleanupJobFailed,
   listGrowthAssetContentUrlsByOwnerId,
   insertGallery,
   listGalleriesByOwnerId,
   listPublishedGalleries,
   getGalleryById,
+  insertMediaAsset,
+  getMediaAssetById,
+  bindMediaAssetsToGallery,
+  deleteMediaAssetById,
+  listMediaStorageFileNamesByOwnerId,
   getPublishedGalleryById,
   updateGalleryById,
   deleteGalleryById,
@@ -53,8 +61,15 @@ import {
   updateCompetitionEntryById,
   deleteCompetitionEntryById,
   insertCompetitionVote,
+  insertCompetitionVoteAndRefreshCount,
   countCompetitionVotesByEntryId,
   hasCompetitionVote,
+  getExhibitionPassport,
+  insertExhibitionPassport,
+  completeExhibitionPassport,
+  publishExhibitionPassport,
+  getPublishedSouvenirByToken,
+  listRecentPublishedSouvenirs,
 } from '../db.js';
 import { generateGuideTtsAudio } from '../services/ttsService.js';
 import { generateAgentReply } from '../services/agentService.js';
@@ -68,32 +83,65 @@ import {
 } from '../services/exhibitionBuilderAgentService.js';
 import { getVisitorMemory, listVisitorMemoriesByGalleryOwnerId, upsertVisitorMemory } from '../db.js';
 import { resolveGalleryAccess } from '../security/galleryAccess.js';
+import { createRequireActiveUser } from '../auth/activeUser.js';
 import {
   deleteGrowthAssetFiles,
   readGrowthAssetFile,
   saveGrowthAssetFile,
 } from '../services/growthAssetService.js';
+import { exportUserData } from '../services/userDataExportService.js';
+import { deleteMediaFiles } from '../services/mediaFileService.js';
+import { deleteAccountWithCleanup } from '../services/accountDeletionService.js';
+import { createExhibitionPassportService } from '../services/exhibitionPassportService.js';
 
 export function buildAppDependencies({
   optionalAuth,
   requireAuth,
   signToken,
+  createCsrfToken,
   signGrowthAssetToken,
   verifyGrowthAssetToken,
+  signMediaPreviewToken,
+  verifyMediaPreviewToken,
   adminSecret = process.env.ADMIN_SECRET,
   rateLimiters = {},
 }) {
+  const requireActiveUser = createRequireActiveUser({ requireAuth, getUserById });
+  const exhibitionPassportService = createExhibitionPassportService({
+    getPublishedGalleryById,
+    getVisitorMemory,
+    getExhibitionPassport,
+    insertExhibitionPassport,
+    completeExhibitionPassport,
+    publishExhibitionPassport,
+    getPublishedSouvenirByToken,
+    listRecentPublishedSouvenirs,
+  });
+
   return {
     auth: {
       requireAuth,
       signToken,
+      createCsrfToken,
       authLimiter: rateLimiters.authLimiter,
       getUserByEmail,
       insertUser,
       getUserById,
       updateUserName,
       updateUserPasswordHash,
-      deleteUserById,
+      deleteAccountWithCleanup: ({ ownerId, growthAssetUrls, mediaFileNames }) => deleteAccountWithCleanup({
+        ownerId,
+        growthAssetUrls,
+        mediaFileNames,
+        deleteUserAndCreateFileCleanupJobs,
+        deleteGrowthAssetFiles,
+        deleteMediaFiles,
+        markFileCleanupJobCompleted,
+        markFileCleanupJobFailed,
+      }),
+      exportUserData: (ownerId) => exportUserData(db, ownerId),
+      listMediaStorageFileNamesByOwnerId,
+      deleteMediaFiles,
       listGrowthAssetContentUrlsByOwnerId,
       deleteGrowthAssetFiles,
     },
@@ -169,33 +217,47 @@ export function buildAppDependencies({
       updateCompetitionEntryById,
       deleteCompetitionEntryById,
       insertCompetitionVote,
+      insertCompetitionVoteAndRefreshCount,
       countCompetitionVotesByEntryId,
       hasCompetitionVote,
     },
     agent: {
-      requireAuth,
+      requireActiveUser,
       agentLimiter: rateLimiters.agentLimiter,
       generateAgentReply,
     },
     aiWriting: {
-      requireAuth,
+      requireActiveUser,
       aiWritingLimiter: rateLimiters.aiWritingLimiter,
       summarizeFeedback,
       polishIntro,
       translateText,
     },
     aiCurator: {
-      requireAuth,
+      requireActiveUser,
       aiWritingLimiter: rateLimiters.aiWritingLimiter,
       generateCuratorPlan,
     },
     exhibitionScene: {
-      requireAuth,
+      requireActiveUser,
       aiWritingLimiter: rateLimiters.aiWritingLimiter,
       generateExhibitionScene,
       createBuilderSession,
       reviewBuilderSession,
       reviseBuilderSession,
+    },
+    media: {
+      requireAuth: requireActiveUser,
+      optionalAuth,
+      uploadLimiter: rateLimiters.uploadLimiter,
+      insertMediaAsset,
+      getMediaAssetById,
+      bindMediaAssetsToGallery,
+      getGalleryById,
+      getGalleryByShareToken,
+      signMediaPreviewToken,
+      verifyMediaPreviewToken,
+      deleteMediaAssetById,
     },
     visitorMemory: {
       requireAuth,
@@ -203,8 +265,14 @@ export function buildAppDependencies({
       getVisitorMemory,
       upsertVisitorMemory,
     },
-    tts: {
+    exhibitionPassport: {
       requireAuth,
+      passportMutationLimiter: rateLimiters.passportMutationLimiter,
+      souvenirReadLimiter: rateLimiters.souvenirReadLimiter,
+      service: exhibitionPassportService,
+    },
+    tts: {
+      requireActiveUser,
       ttsLimiter: rateLimiters.ttsLimiter,
       generateGuideTtsAudio,
     },

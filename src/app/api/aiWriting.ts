@@ -1,4 +1,5 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from './base';
+import { apiFetch, LONG_API_TIMEOUT_MS } from './request';
 
 export async function requestFeedbackSummary(
   token: string,
@@ -6,11 +7,11 @@ export async function requestFeedbackSummary(
     comments: Array<{ author?: string | null; content: string }>;
   },
 ): Promise<{ result: string }> {
-  const res = await fetch(apiUrl('/api/ai/feedback-summary'), {
+  const res = await apiFetch(apiUrl('/api/ai/feedback-summary'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  });
+  }, { timeoutMs: LONG_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '反饋整理失敗');
   return data as { result: string };
@@ -22,11 +23,11 @@ export async function requestPolishIntro(
     text: string;
   },
 ): Promise<{ result: string }> {
-  const res = await fetch(apiUrl('/api/ai/polish-intro'), {
+  const res = await apiFetch(apiUrl('/api/ai/polish-intro'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  });
+  }, { timeoutMs: LONG_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '潤飾失敗');
   return data as { result: string };
@@ -39,11 +40,11 @@ export async function requestTranslate(
     targetLanguage: string;
   },
 ): Promise<{ result: string }> {
-  const res = await fetch(apiUrl('/api/ai/translate'), {
+  const res = await apiFetch(apiUrl('/api/ai/translate'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  });
+  }, { timeoutMs: LONG_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '翻譯失敗');
   return data as { result: string };

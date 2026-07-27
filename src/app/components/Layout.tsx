@@ -3,7 +3,6 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useState, useEffect, useRef } from 'react';
 import { Navigation } from './Navigation';
 import { Footer } from './Footer';
-import { useI18n } from './I18nProvider';
 
 function FrozenOutlet() {
   const currentOutlet = useOutlet();
@@ -60,7 +59,6 @@ function useCoarsePointer() {
 }
 
 export function Layout() {
-  const { t } = useI18n();
   const location = useLocation();
   const shouldReduceMotion = useReducedMotion();
   const isCoarsePointer = useCoarsePointer();

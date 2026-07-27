@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sendInternalError } from '../config/errorHandling.js';
 
 const assetSchema = z.object({
   title: z.string().optional(),
@@ -56,15 +57,18 @@ const builderReviseRequestSchema = z.object({
   sessionId: z.string().trim().min(1),
   versionId: z.string().trim().min(1),
   scene: z.unknown(),
-  review: builderReviewSchema,
+  review: builderReviewSchema.optional().nullable(),
   prompt: z.string().trim().max(3000).optional().default(''),
   revisionCount: z.number().int().min(0).max(3).optional().default(0),
+}).refine((value) => value.review || value.prompt, {
+  message: 'review or prompt is required',
 });
 
 const noRateLimit = (_req, _res, next) => next();
 
 export function registerExhibitionSceneRoutes(app, deps = {}) {
   const {
+    requireActiveUser,
     requireAuth,
     aiWritingLimiter = noRateLimit,
     generateExhibitionScene,
@@ -75,8 +79,9 @@ export function registerExhibitionSceneRoutes(app, deps = {}) {
 
   app.post('/api/ai/exhibition-scene', aiWritingLimiter, async (req, res) => {
     try {
-      const auth = requireAuth ? requireAuth(req, res) : null;
-      if (requireAuth && !auth) return;
+      const authenticate = requireActiveUser ?? requireAuth;
+      const auth = authenticate ? await authenticate(req, res) : null;
+      if (authenticate && !auth) return;
 
       const parsed = exhibitionSceneRequestSchema.safeParse(req.body || {});
       if (!parsed.success) {
@@ -86,16 +91,15 @@ export function registerExhibitionSceneRoutes(app, deps = {}) {
       const result = await generateExhibitionScene(parsed.data);
       res.json(result);
     } catch (err) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : 'internal error';
-      res.status(500).json({ message });
+      return sendInternalError(res, err, { code: 'EXHIBITION_SCENE_FAILED', message: 'exhibition scene request failed' });
     }
   });
 
   app.post('/api/ai/exhibition-builder/start', aiWritingLimiter, async (req, res) => {
     try {
-      const auth = requireAuth ? requireAuth(req, res) : null;
-      if (requireAuth && !auth) return;
+      const authenticate = requireActiveUser ?? requireAuth;
+      const auth = authenticate ? await authenticate(req, res) : null;
+      if (authenticate && !auth) return;
 
       const parsed = exhibitionSceneRequestSchema.safeParse(req.body || {});
       if (!parsed.success) {
@@ -108,16 +112,15 @@ export function registerExhibitionSceneRoutes(app, deps = {}) {
       });
       res.json(result);
     } catch (err) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : 'internal error';
-      res.status(500).json({ message });
+      return sendInternalError(res, err, { code: 'EXHIBITION_BUILDER_FAILED', message: 'exhibition builder request failed' });
     }
   });
 
   app.post('/api/ai/exhibition-builder/review', aiWritingLimiter, async (req, res) => {
     try {
-      const auth = requireAuth ? requireAuth(req, res) : null;
-      if (requireAuth && !auth) return;
+      const authenticate = requireActiveUser ?? requireAuth;
+      const auth = authenticate ? await authenticate(req, res) : null;
+      if (authenticate && !auth) return;
 
       const parsed = builderReviewRequestSchema.safeParse(req.body || {});
       if (!parsed.success) {
@@ -127,16 +130,15 @@ export function registerExhibitionSceneRoutes(app, deps = {}) {
       const result = await reviewBuilderSession(parsed.data);
       res.json(result);
     } catch (err) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : 'internal error';
-      res.status(500).json({ message });
+      return sendInternalError(res, err, { code: 'EXHIBITION_REVIEW_FAILED', message: 'exhibition review request failed' });
     }
   });
 
   app.post('/api/ai/exhibition-builder/revise', aiWritingLimiter, async (req, res) => {
     try {
-      const auth = requireAuth ? requireAuth(req, res) : null;
-      if (requireAuth && !auth) return;
+      const authenticate = requireActiveUser ?? requireAuth;
+      const auth = authenticate ? await authenticate(req, res) : null;
+      if (authenticate && !auth) return;
 
       const parsed = builderReviseRequestSchema.safeParse(req.body || {});
       if (!parsed.success) {
@@ -149,9 +151,7 @@ export function registerExhibitionSceneRoutes(app, deps = {}) {
       });
       res.json(result);
     } catch (err) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : 'internal error';
-      res.status(500).json({ message });
+      return sendInternalError(res, err, { code: 'EXHIBITION_REVISION_FAILED', message: 'exhibition revision request failed' });
     }
   });
 }

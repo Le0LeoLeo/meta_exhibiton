@@ -115,9 +115,9 @@ export function runAgentBehaviors(ctx: AgentBehaviorContext) {
   const { exhibit: playerNearestExhibit, distance: playerToExhibitDistance } = findClosestExhibit(playerPos, nearbyExhibits);
   const { exhibit: agentNearestExhibit, distance: agentToExhibitDistance } = findClosestExhibit(current, nearbyExhibits);
   const distanceToPlayer = current.distanceTo(playerPos);
-  let target = current.clone();
-  let nextMode = agent.mode;
-  let nextActiveExhibit = playerNearestExhibit ?? null;
+  const target = current.clone();
+  let nextMode: AgentState["mode"];
+  let nextActiveExhibit: ExhibitItem | null;
 
   const roomMinX = -ctx.roomSize.width / 2 + 0.8;
   const roomMaxX = ctx.roomSize.width / 2 - 0.8;

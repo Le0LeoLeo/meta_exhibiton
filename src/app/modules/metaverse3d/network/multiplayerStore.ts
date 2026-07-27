@@ -63,8 +63,20 @@ type MultiplayerState = {
   pushChatMessage: (payload: ChatMessagePayload) => void;
   clearChatMessages: () => void;
   sceneSyncPayload: SceneSyncPayload | null;
+  lastSceneVersion: number | null;
+  sceneResyncRequested: boolean;
+  sceneResyncEpoch: number;
+  sceneRecoveryRequested: boolean;
+  sceneRecoveryInFlightId: string | null;
+  sceneRecoveryAttempts: number;
+  pendingSceneOpIds: string[];
+  bufferedSceneOps: SceneOpPayload[];
   lastSceneSyncAt: number | null;
   setSceneSyncPayload: (payload: SceneSyncPayload | null) => void;
+  requestSceneResync: () => void;
+  resetSceneOrdering: () => void;
+  beginSceneRecoverySync: (clientSyncId: string) => void;
+  registerPendingSceneOp: (clientOpId: string) => void;
   sceneOpPayloads: SceneOpPayload[];
   lastSceneOpAt: number | null;
   setSceneOpPayload: (payload: SceneOpPayload | null) => void;
@@ -80,7 +92,7 @@ type MultiplayerState = {
   clearSession: () => void;
 };
 
-const rawMultiplayerUrl = (import.meta as any)?.env?.VITE_MULTIPLAYER_URL as string | undefined;
+const rawMultiplayerUrl = import.meta.env.VITE_MULTIPLAYER_URL;
 const defaultServerUrl = rawMultiplayerUrl?.trim() || "http://localhost:3001";
 
 function normalizeRoomId(input: string): string {
@@ -128,6 +140,14 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   remotePlayers: {},
   remoteEditorFocuses: {},
   sceneSyncPayload: null,
+  lastSceneVersion: null,
+  sceneResyncRequested: false,
+  sceneResyncEpoch: 0,
+  sceneRecoveryRequested: false,
+  sceneRecoveryInFlightId: null,
+  sceneRecoveryAttempts: 0,
+  pendingSceneOpIds: [],
+  bufferedSceneOps: [],
   lastSceneSyncAt: null,
   sceneOpPayloads: [],
   lastSceneOpAt: null,
@@ -137,21 +157,63 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   setEnabled: (enabled) => set({ enabled }),
   setIsHost: (isHost) => set({ isHost }),
   setServerUrl: (url) => set({ serverUrl: url.trim() || defaultServerUrl }),
-  setRoomId: (roomId) => set({ roomId: normalizeRoomId(roomId) }),
+  setRoomId: (roomId) =>
+    set((state) => {
+      const normalizedRoomId = normalizeRoomId(roomId);
+      if (normalizedRoomId === state.roomId) return { roomId: normalizedRoomId };
+      return {
+        roomId: normalizedRoomId,
+        sceneSyncPayload: null,
+        lastSceneVersion: null,
+        sceneResyncRequested: false,
+        sceneResyncEpoch: 0,
+        sceneRecoveryRequested: false,
+        sceneRecoveryInFlightId: null,
+        sceneRecoveryAttempts: 0,
+        pendingSceneOpIds: [],
+        bufferedSceneOps: [],
+        lastSceneSyncAt: null,
+        sceneOpPayloads: [],
+        lastSceneOpAt: null,
+        sceneOpAckPayload: null,
+      };
+    }),
   setNickname: (nickname) => set({ nickname: normalizeNickname(nickname) }),
-  setConnected: (connected) => set({ connected }),
+  setConnected: (connected) =>
+    set(() => connected
+      ? { connected }
+      : {
+          connected,
+          lastSceneVersion: null,
+          sceneResyncRequested: false,
+          sceneResyncEpoch: 0,
+          sceneRecoveryRequested: false,
+          sceneRecoveryInFlightId: null,
+          sceneRecoveryAttempts: 0,
+          pendingSceneOpIds: [],
+          bufferedSceneOps: [],
+          sceneSyncPayload: null,
+          sceneOpPayloads: [],
+          sceneOpAckPayload: null,
+        }),
   setShareToken: (shareToken) => set({ shareToken: shareToken.trim() }),
   setRole: (role) => set({ role }),
   setRoomError: (roomError) => {
-    const clearsAuthorization = roomError && [
-      "AUTH_REQUIRED",
-      "FORBIDDEN",
-      "INVALID_SHARE",
-      "SHARE_EXPIRED",
-    ].includes(roomError.code);
+    set((state) => {
+      if (roomError?.roomId && roomError.roomId !== state.roomId) return state;
 
-    set(clearsAuthorization
-      ? {
+      const settlesPendingOperation = Boolean(
+        roomError?.clientOpId
+        && state.pendingSceneOpIds.includes(roomError.clientOpId),
+      );
+      const clearsAuthorization = roomError && [
+        "AUTH_REQUIRED",
+        "FORBIDDEN",
+        "INVALID_SHARE",
+        "SHARE_EXPIRED",
+      ].includes(roomError.code);
+      if (clearsAuthorization) {
+        return {
           roomError,
           role: null,
           selfId: null,
@@ -160,13 +222,76 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           remotePlayers: {},
           remoteEditorFocuses: {},
           sceneSyncPayload: null,
+          lastSceneVersion: null,
+          sceneResyncRequested: false,
+          sceneResyncEpoch: 0,
+          sceneRecoveryRequested: false,
+          sceneRecoveryInFlightId: null,
+          sceneRecoveryAttempts: 0,
+          pendingSceneOpIds: [],
+          bufferedSceneOps: [],
           lastSceneSyncAt: null,
           sceneOpPayloads: [],
           lastSceneOpAt: null,
           sceneOpAckPayload: null,
           sceneFocusPayload: null,
+        };
+      }
+
+      const rejectsRecoverySync = Boolean(
+        roomError?.clientSyncId
+        && roomError.clientSyncId === state.sceneRecoveryInFlightId,
+      );
+      if (rejectsRecoverySync) {
+        if (roomError?.code === "SCENE_CONFLICT") {
+          return {
+            roomError,
+            sceneRecoveryRequested: true,
+          };
         }
-      : { roomError });
+        const recoverable = [
+          "RATE_LIMITED",
+          "COLLABORATION_UNAVAILABLE",
+          "SCENE_MISSING",
+        ].includes(roomError!.code);
+        return {
+          roomError,
+          sceneRecoveryRequested: recoverable,
+          sceneRecoveryInFlightId: null,
+          sceneResyncRequested: false,
+          sceneOpPayloads: [],
+        };
+      }
+
+      if (settlesPendingOperation) {
+        return {
+          roomError,
+          pendingSceneOpIds: state.pendingSceneOpIds.filter(
+            (clientOpId) => clientOpId !== roomError!.clientOpId,
+          ),
+          sceneResyncRequested: true,
+          sceneResyncEpoch: state.sceneResyncRequested
+            ? state.sceneResyncEpoch
+            : state.sceneResyncEpoch + 1,
+          sceneRecoveryRequested:
+            state.sceneRecoveryRequested || roomError?.code === "SCENE_MISSING",
+          sceneOpPayloads: [],
+        };
+      }
+      if (roomError?.code === "SCENE_MISSING" && roomError.roomId) {
+        return {
+          roomError,
+          sceneRecoveryRequested: true,
+          sceneResyncRequested: true,
+          sceneResyncEpoch: state.sceneResyncRequested
+            ? state.sceneResyncEpoch
+            : state.sceneResyncEpoch + 1,
+          sceneOpPayloads: [],
+        };
+      }
+
+      return { roomError };
+    });
   },
 
   applyRoomJoined: (payload) => {
@@ -183,6 +308,19 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       roomError: null,
       chatMessages: [],
       remotePlayers,
+      sceneSyncPayload: null,
+      lastSceneVersion: null,
+      sceneResyncRequested: false,
+      sceneResyncEpoch: 0,
+      sceneRecoveryRequested: false,
+      sceneRecoveryInFlightId: null,
+      sceneRecoveryAttempts: 0,
+      pendingSceneOpIds: [],
+      bufferedSceneOps: [],
+      lastSceneSyncAt: null,
+      sceneOpPayloads: [],
+      lastSceneOpAt: null,
+      sceneOpAckPayload: null,
     });
   },
 
@@ -253,19 +391,206 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   clearChatMessages: () => set({ chatMessages: [] }),
 
   setSceneSyncPayload: (payload) =>
-    set({ sceneSyncPayload: payload, lastSceneSyncAt: payload ? Date.now() : null }),
-  setSceneOpPayload: (payload) => set((state) => ({
-    sceneOpPayloads: payload
-      ? [...state.sceneOpPayloads, payload].slice(-200)
-      : [],
-    lastSceneOpAt: payload ? Date.now() : null,
-  })),
+    set((state) => {
+      if (!payload) return { sceneSyncPayload: null };
+      if (payload.roomId !== state.roomId) return state;
+      const confirmsRecovery = Boolean(
+        payload.clientSyncId
+        && payload.clientSyncId === state.sceneRecoveryInFlightId,
+      );
+      if (state.pendingSceneOpIds.length > 0) {
+        return {
+          sceneResyncRequested: true,
+          sceneResyncEpoch: state.sceneResyncRequested
+            ? state.sceneResyncEpoch
+            : state.sceneResyncEpoch + 1,
+          sceneOpPayloads: [],
+        };
+      }
+      const isSceneRecovery = state.sceneResyncRequested
+        || state.roomError?.code === "SCENE_CONFLICT"
+        || state.roomError?.code === "SCENE_MISSING";
+      if (!Number.isSafeInteger(payload.version) || payload.version < 1) {
+        return state;
+      }
+      if (
+        state.lastSceneVersion !== null
+        && payload.version < state.lastSceneVersion
+      ) {
+        return state.sceneResyncRequested
+          ? { sceneResyncEpoch: state.sceneResyncEpoch + 1 }
+          : state;
+      }
+      if (
+        state.lastSceneVersion !== null
+        && payload.version === state.lastSceneVersion
+        && !isSceneRecovery
+      ) return state;
+
+      const buffered = [...state.bufferedSceneOps]
+        .filter((operation) => operation.version > payload.version)
+        .sort((left, right) => left.version - right.version);
+      const contiguous: SceneOpPayload[] = [];
+      const remaining: SceneOpPayload[] = [];
+      let nextVersion = payload.version + 1;
+      for (const operation of buffered) {
+        if (operation.version < nextVersion) continue;
+        if (operation.version === nextVersion) {
+          contiguous.push(operation);
+          nextVersion += 1;
+        } else {
+          remaining.push(operation);
+        }
+      }
+      const hasGap = remaining.length > 0;
+      return {
+        sceneSyncPayload: payload,
+        lastSceneVersion: nextVersion - 1,
+        sceneResyncRequested: hasGap,
+        sceneResyncEpoch: state.sceneResyncEpoch + (hasGap ? 1 : 0),
+        lastSceneSyncAt: Date.now(),
+        sceneOpPayloads: contiguous.slice(-200),
+        bufferedSceneOps: remaining.slice(-200),
+        lastSceneOpAt: contiguous.length > 0 ? Date.now() : null,
+        ...(confirmsRecovery
+          ? {
+              roomError: null,
+              sceneRecoveryRequested: false,
+              sceneRecoveryInFlightId: null,
+              sceneRecoveryAttempts: 0,
+            }
+          : {}),
+      };
+    }),
+  requestSceneResync: () =>
+    set((state) => state.sceneResyncRequested ? state : {
+      sceneResyncRequested: true,
+      sceneResyncEpoch: state.sceneResyncEpoch + 1,
+      sceneOpPayloads: [],
+    }),
+  resetSceneOrdering: () =>
+    set({
+      sceneSyncPayload: null,
+      lastSceneVersion: null,
+      sceneResyncRequested: false,
+      sceneResyncEpoch: 0,
+      sceneRecoveryRequested: false,
+      sceneRecoveryInFlightId: null,
+      sceneRecoveryAttempts: 0,
+      pendingSceneOpIds: [],
+      bufferedSceneOps: [],
+      lastSceneSyncAt: null,
+      sceneOpPayloads: [],
+      lastSceneOpAt: null,
+      sceneOpAckPayload: null,
+    }),
+  beginSceneRecoverySync: (clientSyncId) =>
+    set((state) => {
+      if (
+        !state.sceneRecoveryRequested
+        || state.sceneRecoveryInFlightId
+        || state.pendingSceneOpIds.length > 0
+      ) return state;
+      return {
+        sceneRecoveryInFlightId: clientSyncId,
+        sceneRecoveryAttempts: state.sceneRecoveryAttempts + 1,
+        sceneSyncPayload: null,
+        lastSceneVersion: null,
+        sceneResyncRequested: false,
+        bufferedSceneOps: [],
+        sceneOpPayloads: [],
+        sceneOpAckPayload: null,
+      };
+    }),
+  registerPendingSceneOp: (clientOpId) =>
+    set((state) => state.pendingSceneOpIds.includes(clientOpId)
+      ? state
+      : { pendingSceneOpIds: [...state.pendingSceneOpIds, clientOpId] }),
+  setSceneOpPayload: (payload) => set((state) => {
+    if (!payload) {
+      return { sceneOpPayloads: [], lastSceneOpAt: null };
+    }
+    if (
+      payload.roomId !== state.roomId
+      || !Number.isSafeInteger(payload.version)
+      || payload.version < 1
+    ) {
+      return state;
+    }
+    if (payload.version <= (state.lastSceneVersion ?? 0)) return state;
+    if (state.sceneResyncRequested || state.lastSceneVersion === null) {
+      const duplicate = state.bufferedSceneOps.some(
+        (operation) =>
+          operation.version === payload.version
+          || operation.clientOpId === payload.clientOpId,
+      );
+      return {
+        bufferedSceneOps: duplicate
+          ? state.bufferedSceneOps
+          : [...state.bufferedSceneOps, payload]
+              .sort((left, right) => left.version - right.version)
+              .slice(-200),
+        sceneResyncRequested: true,
+        sceneResyncEpoch: state.sceneResyncRequested
+          ? state.sceneResyncEpoch
+          : state.sceneResyncEpoch + 1,
+      };
+    }
+    if (state.lastSceneVersion === null || payload.version > state.lastSceneVersion + 1) {
+      return {
+        sceneResyncRequested: true,
+        sceneResyncEpoch: state.sceneResyncEpoch + 1,
+        bufferedSceneOps: [payload],
+        sceneOpPayloads: [],
+      };
+    }
+    return {
+      sceneOpPayloads: [...state.sceneOpPayloads, payload].slice(-200),
+      lastSceneVersion: payload.version,
+      lastSceneOpAt: Date.now(),
+    };
+  }),
   dequeueSceneOpPayload: (clientOpId) => set((state) => ({
     sceneOpPayloads: state.sceneOpPayloads.filter(
       (payload) => payload.clientOpId !== clientOpId,
     ),
   })),
-  setSceneOpAckPayload: (payload) => set({ sceneOpAckPayload: payload }),
+  setSceneOpAckPayload: (payload) =>
+    set((state) => {
+      if (!payload) return { sceneOpAckPayload: null };
+      if (
+        payload.roomId !== state.roomId
+        || !Number.isSafeInteger(payload.version)
+        || payload.version < 1
+      ) {
+        return state;
+      }
+      const pendingSceneOpIds = state.pendingSceneOpIds.filter(
+        (clientOpId) => clientOpId !== payload.clientOpId,
+      );
+      if (state.sceneResyncRequested) {
+        return {
+          pendingSceneOpIds,
+          sceneOpAckPayload: payload,
+          lastSceneVersion: Math.max(state.lastSceneVersion ?? 0, payload.version),
+        };
+      }
+      if (state.lastSceneVersion === null || payload.version > state.lastSceneVersion + 1) {
+        return {
+          sceneResyncRequested: true,
+          sceneResyncEpoch: state.sceneResyncEpoch + 1,
+          sceneOpPayloads: [],
+          sceneOpAckPayload: null,
+          pendingSceneOpIds,
+        };
+      }
+      if (payload.version <= state.lastSceneVersion) return { pendingSceneOpIds };
+      return {
+        sceneOpAckPayload: payload,
+        lastSceneVersion: payload.version,
+        pendingSceneOpIds,
+      };
+    }),
   setSceneFocusPayload: (payload) => set({ sceneFocusPayload: payload }),
 
   upsertRemoteEditorFocus: (focus) =>
@@ -338,6 +663,14 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       remotePlayers: {},
       remoteEditorFocuses: {},
       sceneSyncPayload: null,
+      lastSceneVersion: null,
+      sceneResyncRequested: false,
+      sceneResyncEpoch: 0,
+      sceneRecoveryRequested: false,
+      sceneRecoveryInFlightId: null,
+      sceneRecoveryAttempts: 0,
+      pendingSceneOpIds: [],
+      bufferedSceneOps: [],
       lastSceneSyncAt: null,
       sceneOpPayloads: [],
       lastSceneOpAt: null,

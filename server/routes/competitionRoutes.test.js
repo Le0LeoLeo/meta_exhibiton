@@ -19,6 +19,11 @@ const otherToken = jwt.signToken({
   email: 'other@example.com',
   name: 'Other',
 });
+const voterToken = jwt.signToken({
+  id: 'voter-1',
+  email: 'voter@example.com',
+  name: 'Verified Voter',
+});
 
 const publicCompetition = {
   id: 'public-competition',
@@ -119,6 +124,11 @@ function createDeps(overrides = {}) {
       entries.map((entry) => ({ ...entry, competition_id: competitionId }))
     ),
     getCompetitionEntryById: async (id) => entries.find((entry) => entry.id === id) || null,
+    getUserById: async (id) => (id === 'voter-1' ? {
+      id,
+      email: 'voter@example.com',
+      name: 'Verified Voter',
+    } : null),
     updateCompetitionEntryById: async () => true,
     updateCompetitionById: async () => true,
     updateGalleryPublishById: async () => true,
@@ -155,6 +165,16 @@ function patchJson(baseUrl, path, body, { token, adminSecret } = {}) {
   if (adminSecret !== undefined) headers['x-admin-secret'] = adminSecret;
   return fetch(`${baseUrl}${path}`, {
     method: 'PATCH',
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
+function postJson(baseUrl, path, body = {}, { token } = {}) {
+  const headers = { 'content-type': 'application/json' };
+  if (token) headers.authorization = `Bearer ${token}`;
+  return fetch(`${baseUrl}${path}`, {
+    method: 'POST',
     headers,
     body: JSON.stringify(body),
   });
@@ -436,6 +456,136 @@ describe('competition entry review', () => {
 
     expect(response.status).toBe(403);
     expect(updates).toBe(0);
+  });
+});
+
+describe('competition voting', () => {
+  const votePath = `/api/competitions/${publicCompetition.id}/entries/${entries[0].id}/vote`;
+
+  it('rejects anonymous votes before creating a vote', async () => {
+    let inserts = 0;
+    const response = await postJson(await startApp({
+      insertCompetitionVote: async () => { inserts += 1; },
+    }), votePath);
+
+    expect(response.status).toBe(401);
+    expect(inserts).toBe(0);
+  });
+
+  it('rejects votes after the competition is completed', async () => {
+    let inserts = 0;
+    const response = await postJson(await startApp({
+      getCompetitionById: async () => ({ ...publicCompetition, status: 'completed' }),
+      insertCompetitionVote: async () => { inserts += 1; },
+    }), votePath, {}, { token: voterToken });
+
+    expect(response.status).toBe(409);
+    expect(inserts).toBe(0);
+  });
+
+  it('derives voter identity from the authenticated token', async () => {
+    const insertedVotes = [];
+    const response = await postJson(await startApp({
+      getCompetitionById: async () => ({ ...publicCompetition, status: 'voting' }),
+      hasCompetitionVote: async () => false,
+      insertCompetitionVote: async (vote) => { insertedVotes.push(vote); },
+      countCompetitionVotesByEntryId: async () => 2,
+      getCompetitionEntryById: async () => ({ ...entries[0], vote_count: 2 }),
+    }), votePath, {
+      voterName: 'Spoofed Name',
+      voterEmail: 'spoofed@example.com',
+    }, { token: voterToken });
+
+    expect(response.status).toBe(201);
+    expect(insertedVotes).toHaveLength(1);
+    expect(insertedVotes[0]).toMatchObject({
+      voterUserId: 'voter-1',
+      voterName: 'Verified Voter',
+      voterEmail: 'voter@example.com',
+    });
+  });
+
+  it('returns a deterministic conflict for a duplicate vote by user identity', async () => {
+    const identityChecks = [];
+    let inserts = 0;
+    const response = await postJson(await startApp({
+      getCompetitionById: async () => ({ ...publicCompetition, status: 'voting' }),
+      hasCompetitionVote: async (...args) => {
+        identityChecks.push(args);
+        return true;
+      },
+      insertCompetitionVote: async () => { inserts += 1; },
+    }), votePath, {}, { token: voterToken });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ message: 'you have already voted for this entry' });
+    expect(identityChecks).toEqual([[publicCompetition.id, entries[0].id, 'voter-1']]);
+    expect(inserts).toBe(0);
+  });
+
+  it('maps a concurrent database uniqueness conflict to the same response', async () => {
+    const uniqueError = Object.assign(
+      new Error('SQLITE_CONSTRAINT: UNIQUE constraint failed'),
+      { code: 'SQLITE_CONSTRAINT' },
+    );
+    const response = await postJson(await startApp({
+      getCompetitionById: async () => ({ ...publicCompetition, status: 'voting' }),
+      hasCompetitionVote: async () => false,
+      insertCompetitionVote: async () => { throw uniqueError; },
+    }), votePath, {}, { token: voterToken });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ message: 'you have already voted for this entry' });
+  });
+});
+
+describe('competition submission asset contract', () => {
+  const entryPath = '/api/competitions/entries';
+  const competitionWithFileField = {
+    ...publicCompetition,
+    submission_fields_json: JSON.stringify([{
+      id: 'portfolio',
+      label: 'Portfolio',
+      type: 'file',
+      required: true,
+    }]),
+  };
+
+  it('rejects a missing required file instead of silently dropping it', async () => {
+    const response = await postJson(await startApp({
+      getCompetitionById: async () => competitionWithFileField,
+    }), entryPath, {
+      competitionId: competitionWithFileField.id,
+      submission: {},
+    }, { token: creatorToken });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).message).toMatch(/completed uploaded asset/i);
+  });
+
+  it('rejects a browser-local blob value for a file field', async () => {
+    const response = await postJson(await startApp({
+      getCompetitionById: async () => competitionWithFileField,
+    }), entryPath, {
+      competitionId: competitionWithFileField.id,
+      submission: { portfolio: 'blob:https://example.com/local-file' },
+    }, { token: creatorToken });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).message).toMatch(/server-managed asset/i);
+  });
+
+  it('rejects unverified URL assets until the server-managed Asset model exists', async () => {
+    const response = await postJson(await startApp({
+      getCompetitionById: async () => ({ ...publicCompetition, submission_fields_json: '[]' }),
+    }), entryPath, {
+      competitionId: publicCompetition.id,
+      submission: {},
+      assets: [{ name: 'portfolio.pdf', url: 'https://example.com/unverified.pdf' }],
+    }, { token: creatorToken });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).message).toMatch(/server-managed asset/i);
   });
 });
 

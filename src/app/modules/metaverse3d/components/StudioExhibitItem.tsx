@@ -1,4 +1,5 @@
 import { Text, TransformControls, useGLTF } from "@react-three/drei";
+import type { ThreeEvent } from "@react-three/fiber";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { ExhibitItem } from "../types";
@@ -20,7 +21,7 @@ function StudioExhibitItemImpl({ item }: { item: ExhibitItem }) {
   const hl = roomSize.length / 2;
 
   const onPointerDown = useCallback(
-    (e: any) => {
+    (e: ThreeEvent<PointerEvent>) => {
       if (mode !== "edit") return;
       if (typeof e.button === "number" && e.button !== 0) return;
       e.stopPropagation();
@@ -61,7 +62,7 @@ function StudioExhibitItemImpl({ item }: { item: ExhibitItem }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [isSelected]);
 
-  const flowerScene = useGLTF(flowerModelUrl) as any;
+  const flowerScene = useGLTF(flowerModelUrl);
 
   const content = useMemo(() => {
     if (item.type === "painting") {
@@ -148,7 +149,7 @@ function StudioExhibitItemImpl({ item }: { item: ExhibitItem }) {
           mode={transformMode}
           translationSnap={0.5}
           rotationSnap={Math.PI / 12}
-          onMouseUp={(e: any) => {
+          onMouseUp={(e) => {
             if (typeof e.button === "number" && e.button !== 0) return;
             if (!groupRef.current) return;
             const [x, y, z] = groupRef.current.position.toArray();

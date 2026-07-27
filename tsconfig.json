@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client", "vitest/globals"],
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": [
+    "config/**/*.ts",
+    "src/app/api/agent.ts",
+    "src/app/api/aiCurator.ts",
+    "src/app/api/aiWriting.ts",
+    "src/app/api/auth.ts",
+    "src/app/api/base.ts",
+    "src/app/api/client.ts",
+    "src/app/api/competition.ts",
+    "src/app/api/exhibitions.ts",
+    "src/app/api/gallery.ts",
+    "src/app/api/growth.ts",
+    "src/app/api/tts.ts",
+    "src/app/api/visitorMemory.ts",
+    "vite.config.ts",
+    "vite.config.test.ts"
+  ]
+}

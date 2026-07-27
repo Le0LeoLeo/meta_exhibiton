@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sendInternalError } from '../config/errorHandling.js';
 
 const ttsSchema = z.object({
   text: z.string().trim().min(1).max(4000),
@@ -8,6 +9,7 @@ const noRateLimit = (_req, _res, next) => next();
 
 export function registerTtsRoutes(app, deps = {}) {
   const {
+    requireActiveUser,
     requireAuth,
     ttsLimiter = noRateLimit,
     generateGuideTtsAudio,
@@ -15,8 +17,9 @@ export function registerTtsRoutes(app, deps = {}) {
 
   app.post('/api/tts/qwen', ttsLimiter, async (req, res) => {
     try {
-      const auth = requireAuth ? requireAuth(req, res) : null;
-      if (requireAuth && !auth) return;
+      const authenticate = requireActiveUser ?? requireAuth;
+      const auth = authenticate ? await authenticate(req, res) : null;
+      if (authenticate && !auth) return;
 
       const parsed = ttsSchema.safeParse(req.body || {});
       if (!parsed.success) {
@@ -32,9 +35,7 @@ export function registerTtsRoutes(app, deps = {}) {
       res.setHeader('Cache-Control', 'no-store');
       res.send(Buffer.from(audioBuffer));
     } catch (err) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : 'internal error';
-      res.status(500).json({ message });
+      return sendInternalError(res, err, { code: 'TTS_FAILED', message: 'TTS generation failed' });
     }
   });
 }

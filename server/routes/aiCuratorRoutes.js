@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sendInternalError } from '../config/errorHandling.js';
 
 const curatorIntentSchema = z.enum([
   'warm-memory',
@@ -46,6 +47,7 @@ const defaultAiWritingLimiter = createDefaultAiWritingLimiter();
 
 export function registerAiCuratorRoutes(app, deps = {}) {
   const {
+    requireActiveUser,
     requireAuth,
     aiWritingLimiter = defaultAiWritingLimiter,
     generateCuratorPlan,
@@ -53,8 +55,9 @@ export function registerAiCuratorRoutes(app, deps = {}) {
 
   app.post('/api/ai/curator-plan', aiWritingLimiter, async (req, res) => {
     try {
-      const auth = requireAuth ? requireAuth(req, res) : null;
-      if (requireAuth && !auth) return;
+      const authenticate = requireActiveUser ?? requireAuth;
+      const auth = authenticate ? await authenticate(req, res) : null;
+      if (authenticate && !auth) return;
 
       const parsed = curatorPlanSchema.safeParse(req.body || {});
       if (!parsed.success) {
@@ -66,9 +69,7 @@ export function registerAiCuratorRoutes(app, deps = {}) {
       const plan = await generateCuratorPlan(parsed.data);
       return res.json(plan);
     } catch (err) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : 'internal error';
-      return res.status(500).json({ message });
+      return sendInternalError(res, err, { code: 'AI_CURATOR_FAILED', message: 'AI curator request failed' });
     }
   });
 }

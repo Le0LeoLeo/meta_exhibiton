@@ -1,19 +1,11 @@
 import { createServer } from 'node:http';
+import { isDeepStrictEqual } from 'node:util';
 import { Server } from 'socket.io';
 
 import { resolveGalleryAccess } from '../security/galleryAccess.js';
 import { createRateTokenConsumer } from '../security/rateLimit.js';
-import {
-  addPlayer,
-  applyRoomSceneOp,
-  clearRooms,
-  getPlayers,
-  getRoomScene,
-  normalizeNickname,
-  removePlayer,
-  setRoomScene,
-  updatePlayerMove,
-} from './rooms.js';
+import { createMemorySceneStore } from './memorySceneStore.js';
+import { normalizeNickname } from './rooms.js';
 
 const MOVE_RATE_LIMIT_PER_SEC = 25;
 const CHAT_RATE_LIMIT_PER_SEC = 3;
@@ -21,7 +13,7 @@ const CHAT_MAX_LENGTH = 300;
 const ROOM_ID_MAX_LENGTH = 128;
 const CLIENT_OP_ID_MAX_LENGTH = 128;
 const ITEM_ID_MAX_LENGTH = 256;
-const DEFAULT_SCENE_LIMITS = Object.freeze({
+export const DEFAULT_SCENE_LIMITS = Object.freeze({
   maxBytes: 1024 * 1024,
   maxItems: 500,
   maxFloorPlanElements: 500,
@@ -137,6 +129,9 @@ const ERROR_MESSAGES = Object.freeze({
   NOT_JOINED: 'join a room before sending events',
   INVALID_PAYLOAD: 'invalid event payload',
   RATE_LIMITED: 'too many events',
+  SCENE_CONFLICT: 'scene state has changed; resync required',
+  SCENE_MISSING: 'live scene is missing; send a full scene to rebuild it',
+  COLLABORATION_UNAVAILABLE: 'collaboration service is unavailable',
 });
 
 function isPlainObject(value) {
@@ -336,7 +331,7 @@ function isValidEntityCollection(collection, maxLength, validateEntity) {
   return true;
 }
 
-function isValidScene(scene, limits, { allowNullRoomSize = false } = {}) {
+export function isValidScene(scene, limits, { allowNullRoomSize = false } = {}) {
   if (!isPlainObject(scene) || !isSafeStructure(scene)) return false;
   if (serializedBytes(scene) > limits.maxBytes) return false;
   if (!isValidEntityCollection(
@@ -475,12 +470,34 @@ function scenePayload(snapshot) {
   };
 }
 
+export async function fetchRoomPlayers(io, roomId, { includeSocketId } = {}) {
+  const candidates = await io.in(roomId).fetchSockets();
+  return candidates.flatMap((candidate) => {
+    const player = candidate.data?.player;
+    if (
+      candidate.data?.galleryId !== roomId
+      || !player
+      || player.id !== candidate.id
+      || (
+        candidate.data?.playerAnnounced !== true
+        && candidate.id !== includeSocketId
+      )
+    ) {
+      return [];
+    }
+    return [player];
+  });
+}
+
 export function startMultiplayerServer({
   initialPort,
   corsOrigin,
   verifyToken,
   getGalleryById,
   getGalleryByShareToken,
+  collaboration = null,
+  sceneStore: injectedSceneStore,
+  sceneTtlMs,
   sceneLimits,
   allowMissingOrigin = false,
   allowWildcardOrigin = process.env.NODE_ENV !== 'production',
@@ -507,6 +524,30 @@ export function startMultiplayerServer({
   }
 
   const limits = normalizeSceneLimits(sceneLimits);
+  const sceneStore = injectedSceneStore || createMemorySceneStore({
+    ...(sceneTtlMs === undefined ? {} : { ttlMs: sceneTtlMs }),
+  });
+  if (
+    !sceneStore
+    || typeof sceneStore.initialize !== 'function'
+    || typeof sceneStore.get !== 'function'
+    || typeof sceneStore.replace !== 'function'
+    || typeof sceneStore.applyOperation !== 'function'
+    || typeof sceneStore.checkReadiness !== 'function'
+    || typeof sceneStore.close !== 'function'
+  ) {
+    throw new TypeError('sceneStore must implement the live scene store contract');
+  }
+  if (
+    collaboration
+    && (
+      typeof collaboration.attach !== 'function'
+      || typeof collaboration.checkReadiness !== 'function'
+      || typeof collaboration.close !== 'function'
+    )
+  ) {
+    throw new TypeError('collaboration must implement attach, checkReadiness, and close');
+  }
   const startup = normalizeStartupLimits(startupLimits);
   const connections = normalizePositiveIntegerLimits(
     DEFAULT_CONNECTION_LIMITS,
@@ -542,6 +583,8 @@ export function startMultiplayerServer({
   let closing = false;
   let retryCount = 0;
   let readySettled = false;
+  let closePromise = null;
+  let cleanupPromise = null;
   let resolveReady;
   let rejectReady;
   const ready = new Promise((resolve, reject) => {
@@ -560,45 +603,121 @@ export function startMultiplayerServer({
     windowMs: joins.globalWindowMs,
     maxKeys: 1,
   });
+  const membershipTransitions = new WeakMap();
 
-  function emitRoomError(socket, code) {
+  function enqueueMembershipTransition(socket, transition) {
+    const previous = membershipTransitions.get(socket) || Promise.resolve();
+    const current = previous.then(transition, transition);
+    membershipTransitions.set(socket, current.catch(() => {}));
+    return current;
+  }
+
+  function emitRoomError(socket, code, metadata = {}) {
     socket.emit('room:error', {
       code,
       message: ERROR_MESSAGES[code],
+      ...metadata,
     });
   }
 
-  function requireJoined(socket, payload) {
+  function parsePersistedScene(gallery) {
+    if (gallery?.scene_json === null || gallery?.scene_json === undefined) {
+      return null;
+    }
+    try {
+      const scene = typeof gallery.scene_json === 'string'
+        ? JSON.parse(gallery.scene_json)
+        : gallery.scene_json;
+      return isValidScene(scene, limits) ? scene : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function emitAuthoritativeScene(
+    socket,
+    roomId,
+    session,
+    by = 'server',
+    metadata = {},
+  ) {
+    const current = await sceneStore.get(roomId);
+    if (!sessionIsCurrent(socket, session)) return { stale: true, current };
+    if (!current) return { stale: false, current: null };
+    socket.emit('scene:synced', {
+      roomId,
+      by,
+      scene: scenePayload(current.scene),
+      version: current.version,
+      updatedAt: current.updatedAt,
+      ...metadata,
+    });
+    return { stale: false, current };
+  }
+
+  async function reportSceneStoreFailure(socket, error, metadata = {}) {
+    console.error('[multiplayer] scene store operation failed', error);
+    emitRoomError(socket, 'COLLABORATION_UNAVAILABLE', metadata);
+  }
+
+  function requireJoined(socket, payload, metadata = {}) {
     if (!socket.data.galleryId) {
-      emitRoomError(socket, 'NOT_JOINED');
+      emitRoomError(socket, 'NOT_JOINED', metadata);
       return false;
     }
     if (!isPlainObject(payload) || payload.roomId !== socket.data.galleryId) {
-      emitRoomError(socket, 'INVALID_PAYLOAD');
+      emitRoomError(socket, 'INVALID_PAYLOAD', metadata);
       return false;
     }
     return true;
   }
 
-  function leaveCurrentRoom(socket) {
+  async function leaveCurrentRoomUnlocked(socket, {
+    leaveAdapter = true,
+    emitPresence = true,
+  } = {}) {
     const roomId = socket.data.galleryId;
-    if (!roomId) return;
-    socket.leave(roomId);
-    const removed = removePlayer(socket.id, roomId);
-    if (removed?.removed) {
-      socket.to(roomId).emit('player:left', { roomId, id: socket.id });
-    }
+    const player = socket.data.player;
+    const playerAnnounced = socket.data.playerAnnounced;
+    if (!roomId) return false;
+
     socket.data.galleryId = null;
     socket.data.role = null;
     socket.data.shareToken = null;
+    socket.data.player = null;
+    socket.data.playerAnnounced = false;
     socket.data.sessionGeneration += 1;
+    if (leaveAdapter) {
+      await socket.leave(roomId);
+    }
+    if (
+      emitPresence
+      && playerAnnounced
+      && player?.id === socket.id
+    ) {
+      io.to(roomId).except(socket.id).emit('player:left', {
+        roomId,
+        id: socket.id,
+      });
+      return true;
+    }
+    return false;
   }
 
-  function denyJoin(socket, roomId, code) {
-    if (socket.data.galleryId === roomId) {
-      leaveCurrentRoom(socket);
-    }
-    emitRoomError(socket, code);
+  function denyJoin(socket, roomId, code, isCurrent) {
+    return enqueueMembershipTransition(socket, async () => {
+      if (
+        socket.data.membershipClosed
+        || !socket.connected
+        || !isCurrent()
+      ) {
+        return;
+      }
+      if (socket.data.galleryId === roomId) {
+        await leaveCurrentRoomUnlocked(socket);
+      }
+      emitRoomError(socket, code);
+    });
   }
 
   function captureSession(socket) {
@@ -618,32 +737,41 @@ export function startMultiplayerServer({
     );
   }
 
-  function rejectStaleSession(socket, emitError = true) {
-    if (emitError) emitRoomError(socket, 'FORBIDDEN');
+  function rejectStaleSession(socket, emitError = true, errorMetadata = {}) {
+    if (emitError) emitRoomError(socket, 'FORBIDDEN', errorMetadata);
     return null;
   }
 
-  async function refreshRoomAccess(socket, session, { emitStaleError = true } = {}) {
+  async function refreshRoomAccess(
+    socket,
+    session,
+    { emitStaleError = true, errorMetadata = {} } = {},
+  ) {
     if (!session?.galleryId || !sessionIsCurrent(socket, session)) {
-      return rejectStaleSession(socket, emitStaleError);
+      return rejectStaleSession(socket, emitStaleError, errorMetadata);
     }
 
     try {
       const auth = verifyToken(socket.data.handshakeToken) || null;
       const gallery = await getGalleryById(session.galleryId);
       if (!sessionIsCurrent(socket, session)) {
-        return rejectStaleSession(socket, emitStaleError);
+        return rejectStaleSession(socket, emitStaleError, errorMetadata);
       }
       const share = session.shareToken
         ? await getGalleryByShareToken(session.shareToken)
         : null;
       if (!sessionIsCurrent(socket, session)) {
-        return rejectStaleSession(socket, emitStaleError);
+        return rejectStaleSession(socket, emitStaleError, errorMetadata);
       }
       if (session.shareToken && !share) {
-        leaveCurrentRoom(socket);
-        emitRoomError(socket, 'INVALID_SHARE');
-        return null;
+        return enqueueMembershipTransition(socket, async () => {
+          if (!sessionIsCurrent(socket, session)) {
+            return rejectStaleSession(socket, emitStaleError, errorMetadata);
+          }
+          await leaveCurrentRoomUnlocked(socket);
+          emitRoomError(socket, 'INVALID_SHARE', errorMetadata);
+          return null;
+        });
       }
       const access = resolveGalleryAccess({
         gallery,
@@ -654,15 +782,25 @@ export function startMultiplayerServer({
 
       socket.data.auth = auth;
       if (!access.allowed) {
-        leaveCurrentRoom(socket);
-        emitRoomError(socket, mapAccessReason(access.reason));
-        return null;
+        return enqueueMembershipTransition(socket, async () => {
+          if (!sessionIsCurrent(socket, session)) {
+            return rejectStaleSession(socket, emitStaleError, errorMetadata);
+          }
+          await leaveCurrentRoomUnlocked(socket);
+          emitRoomError(socket, mapAccessReason(access.reason), errorMetadata);
+          return null;
+        });
       }
 
       if (access.role !== socket.data.role) {
-        leaveCurrentRoom(socket);
-        emitRoomError(socket, 'FORBIDDEN');
-        return null;
+        return enqueueMembershipTransition(socket, async () => {
+          if (!sessionIsCurrent(socket, session)) {
+            return rejectStaleSession(socket, emitStaleError, errorMetadata);
+          }
+          await leaveCurrentRoomUnlocked(socket);
+          emitRoomError(socket, 'FORBIDDEN', errorMetadata);
+          return null;
+        });
       }
 
       return {
@@ -672,9 +810,17 @@ export function startMultiplayerServer({
       };
     } catch (error) {
       console.error('[multiplayer] room authorization refresh failed', error);
-      leaveCurrentRoom(socket);
-      emitRoomError(socket, 'FORBIDDEN');
-      return null;
+      if (!sessionIsCurrent(socket, session)) {
+        return rejectStaleSession(socket, emitStaleError, errorMetadata);
+      }
+      return enqueueMembershipTransition(socket, async () => {
+        if (!sessionIsCurrent(socket, session)) {
+          return rejectStaleSession(socket, emitStaleError, errorMetadata);
+        }
+        await leaveCurrentRoomUnlocked(socket);
+        emitRoomError(socket, 'FORBIDDEN', errorMetadata);
+        return null;
+      });
     }
   }
 
@@ -733,6 +879,9 @@ export function startMultiplayerServer({
     socket.data.galleryId = null;
     socket.data.role = null;
     socket.data.shareToken = null;
+    socket.data.player = null;
+    socket.data.playerAnnounced = false;
+    socket.data.membershipClosed = false;
     socket.data.sessionGeneration = 0;
     let joinSequence = 0;
 
@@ -749,7 +898,12 @@ export function startMultiplayerServer({
         const attemptedRoomId = typeof payload?.roomId === 'string'
           ? payload.roomId.trim()
           : null;
-        denyJoin(socket, attemptedRoomId, 'INVALID_PAYLOAD');
+        await denyJoin(
+          socket,
+          attemptedRoomId,
+          'INVALID_PAYLOAD',
+          () => sequence === joinSequence,
+        );
         return;
       }
 
@@ -761,7 +915,12 @@ export function startMultiplayerServer({
       const ipJoin = consumeIpJoinToken(socket.data.connectionIp);
       const globalJoin = consumeGlobalJoinToken('global');
       if (!socketJoin.allowed || !ipJoin.allowed || !globalJoin.allowed) {
-        denyJoin(socket, roomId, 'RATE_LIMITED');
+        await denyJoin(
+          socket,
+          roomId,
+          'RATE_LIMITED',
+          () => sequence === joinSequence,
+        );
         return;
       }
 
@@ -771,7 +930,12 @@ export function startMultiplayerServer({
         const gallery = await getGalleryById(roomId);
         if (sequence !== joinSequence || !socket.connected) return;
         if (!gallery) {
-          denyJoin(socket, roomId, 'NOT_FOUND');
+          await denyJoin(
+            socket,
+            roomId,
+            'NOT_FOUND',
+            () => sequence === joinSequence,
+          );
           return;
         }
 
@@ -780,7 +944,12 @@ export function startMultiplayerServer({
           : null;
         if (sequence !== joinSequence || !socket.connected) return;
         if (shareToken && !share) {
-          denyJoin(socket, roomId, 'INVALID_SHARE');
+          await denyJoin(
+            socket,
+            roomId,
+            'INVALID_SHARE',
+            () => sequence === joinSequence,
+          );
           return;
         }
 
@@ -791,60 +960,161 @@ export function startMultiplayerServer({
           shareToken,
         });
         if (!access.allowed) {
-          denyJoin(socket, roomId, mapAccessReason(access.reason));
+          await denyJoin(
+            socket,
+            roomId,
+            mapAccessReason(access.reason),
+            () => sequence === joinSequence,
+          );
           return;
         }
 
-        const wasAlreadyJoined = socket.data.galleryId === roomId;
-        if (socket.data.galleryId && socket.data.galleryId !== roomId) {
-          leaveCurrentRoom(socket);
-        }
-
-        socket.data.galleryId = roomId;
-        socket.data.role = access.role;
-        socket.data.shareToken = shareToken;
-        socket.data.sessionGeneration += 1;
-        socket.join(roomId);
-
         const nickname = normalizeNickname(payload.nickname);
-        const existing = getPlayers(roomId).find((player) => player.id === socket.id);
-        const snapshot = addPlayer(roomId, {
-          ...(existing || {
-            id: socket.id,
-            position: { x: 0, y: 2.6, z: 5 },
-            yaw: 0,
-            lastSeq: 0,
-          }),
-          nickname,
-          updatedAt: Date.now(),
-        });
+        await enqueueMembershipTransition(socket, async () => {
+          if (
+            sequence !== joinSequence
+            || !socket.connected
+            || socket.data.membershipClosed
+          ) {
+            return;
+          }
 
-        socket.emit('room:joined', {
-          selfId: socket.id,
-          roomId,
-          role: access.role,
-          players: snapshot.players,
-        });
+          const wasAlreadyJoined = socket.data.galleryId === roomId;
+          const existing = wasAlreadyJoined ? socket.data.player : null;
+          const existingRole = socket.data.role;
+          const existingShareToken = socket.data.shareToken;
+          const existingAnnounced = socket.data.playerAnnounced;
+          if (socket.data.galleryId && !wasAlreadyJoined) {
+            await leaveCurrentRoomUnlocked(socket);
+            if (
+              sequence !== joinSequence
+              || !socket.connected
+              || socket.data.membershipClosed
+            ) {
+              return;
+            }
+          }
 
-        const currentScene = getRoomScene(roomId);
-        if (currentScene) {
-          socket.emit('scene:synced', {
-            roomId,
-            by: 'server',
-            scene: scenePayload(currentScene),
-            updatedAt: currentScene.updatedAt,
+          socket.data.galleryId = roomId;
+          socket.data.role = access.role;
+          socket.data.shareToken = shareToken;
+          socket.data.sessionGeneration += 1;
+          const generation = socket.data.sessionGeneration;
+          socket.data.player = {
+            ...(existing || {
+              id: socket.id,
+              position: { x: 0, y: 2.6, z: 5 },
+              yaw: 0,
+              lastSeq: 0,
+            }),
+            nickname,
+            updatedAt: Date.now(),
+          };
+          socket.data.playerAnnounced = existingAnnounced && wasAlreadyJoined;
+          await socket.join(roomId);
+          if (
+            sequence !== joinSequence
+            || !socket.connected
+            || socket.data.membershipClosed
+            || socket.data.sessionGeneration !== generation
+          ) {
+            if (wasAlreadyJoined) {
+              socket.data.role = existingRole;
+              socket.data.shareToken = existingShareToken;
+              socket.data.player = existing;
+              socket.data.playerAnnounced = existingAnnounced;
+              socket.data.sessionGeneration += 1;
+            } else {
+              await leaveCurrentRoomUnlocked(socket, { emitPresence: false });
+            }
+            return;
+          }
+
+          const players = await fetchRoomPlayers(io, roomId, {
+            includeSocketId: socket.id,
           });
-        }
+          if (
+            sequence !== joinSequence
+            || !socket.connected
+            || socket.data.membershipClosed
+            || socket.data.sessionGeneration !== generation
+          ) {
+            if (wasAlreadyJoined) {
+              socket.data.role = existingRole;
+              socket.data.shareToken = existingShareToken;
+              socket.data.player = existing;
+              socket.data.playerAnnounced = existingAnnounced;
+              socket.data.sessionGeneration += 1;
+            } else {
+              await leaveCurrentRoomUnlocked(socket, { emitPresence: false });
+            }
+            return;
+          }
 
-        if (!wasAlreadyJoined) {
-          socket.to(roomId).emit('player:joined', {
+          let currentScene;
+          try {
+            const persistedScene = parsePersistedScene(gallery);
+            currentScene = persistedScene
+              ? await sceneStore.initialize(roomId, persistedScene)
+              : await sceneStore.get(roomId);
+          } catch (error) {
+            await reportSceneStoreFailure(socket, error);
+            await leaveCurrentRoomUnlocked(socket, { emitPresence: false });
+            return;
+          }
+          if (
+            sequence !== joinSequence
+            || !socket.connected
+            || socket.data.membershipClosed
+            || socket.data.sessionGeneration !== generation
+          ) {
+            if (wasAlreadyJoined) {
+              socket.data.role = existingRole;
+              socket.data.shareToken = existingShareToken;
+              socket.data.player = existing;
+              socket.data.playerAnnounced = existingAnnounced;
+              socket.data.sessionGeneration += 1;
+            } else {
+              await leaveCurrentRoomUnlocked(socket, { emitPresence: false });
+            }
+            return;
+          }
+
+          socket.emit('room:joined', {
+            selfId: socket.id,
             roomId,
-            player: snapshot.players.find((player) => player.id === socket.id),
+            role: access.role,
+            players,
           });
-        }
+          socket.data.playerAnnounced = true;
+
+          if (currentScene) {
+            socket.emit('scene:synced', {
+              roomId,
+              by: 'server',
+              scene: scenePayload(currentScene.scene),
+              version: currentScene.version,
+              updatedAt: currentScene.updatedAt,
+            });
+          }
+
+          if (!wasAlreadyJoined) {
+            socket.to(roomId).emit('player:joined', {
+              roomId,
+              player: socket.data.player,
+            });
+          }
+        });
       } catch (error) {
         console.error('[multiplayer] room join failed', error);
-        denyJoin(socket, roomId, 'FORBIDDEN');
+        if (sequence === joinSequence && socket.connected) {
+          await denyJoin(
+            socket,
+            roomId,
+            'FORBIDDEN',
+            () => sequence === joinSequence,
+          );
+        }
       }
     });
 
@@ -864,11 +1134,19 @@ export function startMultiplayerServer({
       }
 
       if (!sessionIsCurrent(socket, session)) {
-        rejectStaleSession(socket);
+        rejectStaleSession(socket, true);
         return;
       }
-      const updated = updatePlayerMove(socket.id, payload);
-      if (!updated) return;
+      const currentPlayer = socket.data.player;
+      if (!currentPlayer || payload.seq <= currentPlayer.lastSeq) return;
+      const updated = {
+        ...currentPlayer,
+        position: payload.position,
+        yaw: payload.yaw,
+        lastSeq: payload.seq,
+        updatedAt: Date.now(),
+      };
+      socket.data.player = updated;
       socket.to(roomId).emit('player:moved', {
         roomId,
         id: socket.id,
@@ -903,7 +1181,7 @@ export function startMultiplayerServer({
       }
 
       if (!sessionIsCurrent(socket, session)) {
-        rejectStaleSession(socket);
+        rejectStaleSession(socket, true);
         return;
       }
       io.to(roomId).emit('chat:new', {
@@ -918,62 +1196,161 @@ export function startMultiplayerServer({
     });
 
     socket.on('scene:sync', async (payload) => {
-      if (!requireJoined(socket, payload)) return;
+      const clientSyncId = isPlainObject(payload)
+        && isSafeString(payload.clientSyncId, CLIENT_OP_ID_MAX_LENGTH)
+        ? payload.clientSyncId
+        : undefined;
+      const syncErrorMetadata = {
+        ...(socket.data.galleryId ? { roomId: socket.data.galleryId } : {}),
+        ...(clientSyncId ? { clientSyncId } : {}),
+      };
+      if (!requireJoined(socket, payload, syncErrorMetadata)) return;
+      if (payload.clientSyncId !== undefined && !clientSyncId) {
+        emitRoomError(socket, 'INVALID_PAYLOAD', syncErrorMetadata);
+        return;
+      }
       const session = captureSession(socket);
-      const authorized = await refreshRoomAccess(socket, session);
+      const authorized = await refreshRoomAccess(socket, session, {
+        errorMetadata: syncErrorMetadata,
+      });
       if (!authorized || !EDIT_ROLES.has(authorized.access.role)) {
-        if (authorized) emitRoomError(socket, 'FORBIDDEN');
+        if (authorized) emitRoomError(socket, 'FORBIDDEN', syncErrorMetadata);
         return;
       }
       const roomId = authorized.galleryId;
       if (payload.roomId !== roomId) {
-        emitRoomError(socket, 'INVALID_PAYLOAD');
+        emitRoomError(socket, 'INVALID_PAYLOAD', syncErrorMetadata);
         return;
       }
       if (!isValidScene(payload.scene, limits)) {
-        emitRoomError(socket, 'INVALID_PAYLOAD');
+        emitRoomError(socket, 'INVALID_PAYLOAD', syncErrorMetadata);
         return;
       }
       if (!consumeSceneOperationToken('socket').allowed) {
-        emitRoomError(socket, 'RATE_LIMITED');
+        emitRoomError(socket, 'RATE_LIMITED', syncErrorMetadata);
         return;
       }
 
       if (!sessionIsCurrent(socket, session)) {
-        rejectStaleSession(socket);
+        rejectStaleSession(socket, true, syncErrorMetadata);
         return;
       }
-      const snapshot = setRoomScene(roomId, payload.scene);
-      socket.to(roomId).emit('scene:synced', {
-        roomId,
-        by: socket.id,
-        scene: scenePayload(snapshot),
-        updatedAt: snapshot.updatedAt,
-      });
+      try {
+        const current = await sceneStore.get(roomId);
+        if (!sessionIsCurrent(socket, session)) {
+          rejectStaleSession(socket, true, syncErrorMetadata);
+          return;
+        }
+        let result;
+        if (!current) {
+          const initialized = await sceneStore.initialize(roomId, payload.scene);
+          if (!isDeepStrictEqual(initialized.scene, payload.scene)) {
+            if (sessionIsCurrent(socket, session)) {
+              emitRoomError(socket, 'SCENE_CONFLICT', syncErrorMetadata);
+              socket.emit('scene:synced', {
+                roomId,
+                by: 'server',
+                scene: scenePayload(initialized.scene),
+                version: initialized.version,
+                updatedAt: initialized.updatedAt,
+                ...(clientSyncId ? { clientSyncId } : {}),
+              });
+            }
+            return;
+          }
+          result = {
+            accepted: true,
+            ...initialized,
+          };
+        } else {
+          if (
+            !Number.isSafeInteger(payload.expectedVersion)
+            || payload.expectedVersion < 1
+          ) {
+            emitRoomError(socket, 'INVALID_PAYLOAD', syncErrorMetadata);
+            return;
+          }
+          result = await sceneStore.replace(
+            roomId,
+            payload.scene,
+            (candidate) => isValidScene(candidate, limits),
+            { expectedVersion: payload.expectedVersion },
+          );
+        }
+
+        if (result.accepted) {
+          const syncedEvent = {
+            roomId,
+            by: socket.id,
+            scene: scenePayload(result.scene),
+            version: result.version,
+            updatedAt: result.updatedAt,
+          };
+          if (clientSyncId && sessionIsCurrent(socket, session)) {
+            io.to(roomId).except(socket.id).emit('scene:synced', syncedEvent);
+            socket.emit('scene:synced', { ...syncedEvent, clientSyncId });
+          } else {
+            io.to(roomId).emit('scene:synced', syncedEvent);
+          }
+          return;
+        }
+        if (!sessionIsCurrent(socket, session)) {
+          rejectStaleSession(socket, true, syncErrorMetadata);
+          return;
+        }
+        if (result.reason === 'conflict') {
+          emitRoomError(socket, 'SCENE_CONFLICT', syncErrorMetadata);
+          await emitAuthoritativeScene(
+            socket,
+            roomId,
+            session,
+            'server',
+            clientSyncId ? { clientSyncId } : {},
+          );
+        } else if (result.reason === 'missing_scene') {
+          emitRoomError(socket, 'SCENE_MISSING', syncErrorMetadata);
+        } else {
+          emitRoomError(socket, 'INVALID_PAYLOAD', syncErrorMetadata);
+        }
+      } catch (error) {
+        if (sessionIsCurrent(socket, session)) {
+          await reportSceneStoreFailure(socket, error, syncErrorMetadata);
+        }
+      }
     });
 
     socket.on('scene:op', async (payload) => {
-      if (!requireJoined(socket, payload)) return;
+      const clientOpId = isPlainObject(payload)
+        && isSafeString(payload.clientOpId, CLIENT_OP_ID_MAX_LENGTH)
+        ? payload.clientOpId
+        : undefined;
+      const operationErrorMetadata = {
+        ...(socket.data.galleryId ? { roomId: socket.data.galleryId } : {}),
+        ...(clientOpId ? { clientOpId } : {}),
+      };
+      if (!requireJoined(socket, payload, operationErrorMetadata)) return;
       const session = captureSession(socket);
-      const authorized = await refreshRoomAccess(socket, session);
+      const authorized = await refreshRoomAccess(socket, session, {
+        errorMetadata: operationErrorMetadata,
+      });
       if (!authorized || !EDIT_ROLES.has(authorized.access.role)) {
-        if (authorized) emitRoomError(socket, 'FORBIDDEN');
+        if (authorized) emitRoomError(socket, 'FORBIDDEN', operationErrorMetadata);
         return;
       }
       const roomId = authorized.galleryId;
       if (payload.roomId !== roomId) {
-        emitRoomError(socket, 'INVALID_PAYLOAD');
+        emitRoomError(socket, 'INVALID_PAYLOAD', operationErrorMetadata);
         return;
       }
       if (
         !isSafeString(payload.clientOpId, CLIENT_OP_ID_MAX_LENGTH)
         || !isValidSceneOp(payload.op, limits)
       ) {
-        emitRoomError(socket, 'INVALID_PAYLOAD');
+        emitRoomError(socket, 'INVALID_PAYLOAD', operationErrorMetadata);
         return;
       }
       if (!consumeSceneOperationToken('socket').allowed) {
-        emitRoomError(socket, 'RATE_LIMITED');
+        emitRoomError(socket, 'RATE_LIMITED', operationErrorMetadata);
         return;
       }
 
@@ -981,32 +1358,75 @@ export function startMultiplayerServer({
         rejectStaleSession(socket);
         return;
       }
-      const snapshot = applyRoomSceneOp(
-        roomId,
-        payload.op,
-        (candidate) => isValidScene(
-          candidate,
-          limits,
-          { allowNullRoomSize: true },
-        ),
-      );
-      if (!snapshot) {
-        emitRoomError(socket, 'INVALID_PAYLOAD');
-        return;
+      try {
+        const result = await sceneStore.applyOperation(
+          roomId,
+          payload.op,
+          (candidate) => isValidScene(
+            candidate,
+            limits,
+            { allowNullRoomSize: true },
+          ),
+        );
+        if (result.accepted) {
+          const event = {
+            roomId,
+            by: socket.id,
+            clientOpId: payload.clientOpId,
+            op: payload.op,
+            version: result.version,
+            updatedAt: result.updatedAt,
+          };
+          if (sessionIsCurrent(socket, session)) {
+            io.to(roomId).except(socket.id).emit('scene:oped', event);
+            socket.emit('scene:op:ack', {
+              roomId,
+              clientOpId: payload.clientOpId,
+              version: result.version,
+              updatedAt: result.updatedAt,
+            });
+          } else {
+            io.to(roomId).emit('scene:oped', event);
+          }
+          return;
+        }
+        if (!sessionIsCurrent(socket, session)) return;
+        if (result.reason === 'conflict') {
+          emitRoomError(socket, 'SCENE_CONFLICT', operationErrorMetadata);
+          await emitAuthoritativeScene(socket, roomId, session);
+        } else if (result.reason === 'missing_scene') {
+          emitRoomError(socket, 'SCENE_MISSING', operationErrorMetadata);
+        } else {
+          emitRoomError(socket, 'INVALID_PAYLOAD', operationErrorMetadata);
+        }
+      } catch (error) {
+        if (sessionIsCurrent(socket, session)) {
+          await reportSceneStoreFailure(socket, error, operationErrorMetadata);
+        }
       }
+    });
 
-      socket.emit('scene:op:ack', {
-        roomId,
-        clientOpId: payload.clientOpId,
-        updatedAt: snapshot.updatedAt,
-      });
-      socket.to(roomId).emit('scene:oped', {
-        roomId,
-        by: socket.id,
-        clientOpId: payload.clientOpId,
-        op: payload.op,
-        updatedAt: snapshot.updatedAt,
-      });
+    socket.on('scene:request-sync', async (payload) => {
+      if (!requireJoined(socket, payload)) return;
+      const session = captureSession(socket);
+      const authorized = await refreshRoomAccess(socket, session);
+      if (!authorized) return;
+      try {
+        const result = await emitAuthoritativeScene(
+          socket,
+          authorized.galleryId,
+          session,
+        );
+        if (!result.stale && !result.current) {
+          emitRoomError(socket, 'SCENE_MISSING', {
+            roomId: authorized.galleryId,
+          });
+        }
+      } catch (error) {
+        if (sessionIsCurrent(socket, session)) {
+          await reportSceneStoreFailure(socket, error);
+        }
+      }
     });
 
     socket.on('scene:focus', async (payload) => {
@@ -1048,8 +1468,16 @@ export function startMultiplayerServer({
       });
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnecting', () => {
       joinSequence += 1;
+      socket.data.membershipClosed = true;
+      socket.data.sessionGeneration += 1;
+      void enqueueMembershipTransition(socket, () => (
+        leaveCurrentRoomUnlocked(socket, { leaveAdapter: false })
+      ));
+    });
+
+    socket.on('disconnect', () => {
       if (socket.data.connectionSlotReserved) {
         const ip = socket.data.connectionIp;
         const remaining = (connectionsByIp.get(ip) || 1) - 1;
@@ -1057,14 +1485,6 @@ export function startMultiplayerServer({
         else connectionsByIp.delete(ip);
         activeConnectionCount = Math.max(0, activeConnectionCount - 1);
         socket.data.connectionSlotReserved = false;
-      }
-      const roomId = socket.data.galleryId;
-      const removed = removePlayer(socket.id, roomId || undefined);
-      if (removed?.removed) {
-        socket.to(removed.roomId).emit('player:left', {
-          roomId: removed.roomId,
-          id: socket.id,
-        });
       }
     });
   });
@@ -1124,16 +1544,8 @@ export function startMultiplayerServer({
     }
   });
 
-  listen();
-
-  return {
-    io,
-    httpServer,
-    ready,
-    port: () => httpServer.address()?.port,
-    close: async () => {
-      if (closing) return;
-      closing = true;
+  function cleanupResources() {
+    cleanupPromise ||= (async () => {
       if (retryTimer) {
         clearTimeout(retryTimer);
         retryTimer = null;
@@ -1151,7 +1563,58 @@ export function startMultiplayerServer({
           httpServer.close((error) => (error ? reject(error) : resolve()));
         });
       }
-      clearRooms();
+
+      const results = await Promise.allSettled([
+        sceneStore.close(),
+        collaboration?.close?.(),
+      ]);
+      const failures = results
+        .filter((result) => result.status === 'rejected')
+        .map((result) => result.reason);
+      if (failures.length > 0) {
+        throw new AggregateError(failures, 'multiplayer collaboration cleanup failed');
+      }
+    })();
+    return cleanupPromise;
+  }
+
+  void (async () => {
+    try {
+      if (collaboration) {
+        await collaboration.attach(io);
+        await collaboration.checkReadiness();
+      }
+      await sceneStore.checkReadiness();
+      if (closing) throw new Error('multiplayer server closed during startup');
+      listen();
+    } catch (error) {
+      closing = true;
+      await cleanupResources().catch(() => {});
+      if (!readySettled) {
+        readySettled = true;
+        rejectReady(error);
+      }
+    }
+  })();
+
+  return {
+    io,
+    httpServer,
+    ready,
+    port: () => httpServer.address()?.port,
+    checkReadiness: async () => {
+      await sceneStore.checkReadiness();
+      if (collaboration) await collaboration.checkReadiness();
+    },
+    close: () => {
+      if (closePromise) return closePromise;
+      closing = true;
+      if (!readySettled) {
+        readySettled = true;
+        rejectReady(new Error('multiplayer server closed before becoming ready'));
+      }
+      closePromise = cleanupResources();
+      return closePromise;
     },
   };
 }

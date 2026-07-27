@@ -10,13 +10,12 @@ import {
   setKeyboardKey,
   type PlayerInputState,
 } from "../input/playerInput";
+import { DEFAULT_EYE_HEIGHT } from "../sceneScale";
 
 const LOOK_SENSITIVITY = 0.002;
 const MOVE_SPEED = 5;
-const EYE_HEIGHT = 2.6;
 const AUTO_INTRO_DISTANCE = 2.4;
 const REMINDER_OUTSIDE_RANGE_MS = 60000;
-const AUTO_INTRO_COOLDOWN_MS = 15000;
 
 type Side = "north" | "south" | "east" | "west";
 
@@ -78,8 +77,6 @@ export function Player({
   const viewingItem = useStore((state) => state.viewingItem);
   const setViewingItem = useStore((state) => state.setViewingItem);
   const personality = useStore((state) => state.agent.personality);
-  const setAgentNearbyExhibit = useStore((state) => state.setAgentNearbyExhibit);
-  const setAgentActiveExhibit = useStore((state) => state.setAgentActiveExhibit);
   const setLocalTransform = useLocalPlayerStore((state) => state.setTransform);
   const wallThickness = Math.max(0.12, roomSize.wallThickness);
 
@@ -199,8 +196,8 @@ export function Player({
     return colliders;
   }, [roomBounds, wallThickness]);
 
-  const { camera, gl, scene } = useThree();
-  const playerPosRef = useRef(new THREE.Vector3(0, EYE_HEIGHT, 5));
+  const { camera, gl } = useThree();
+  const playerPosRef = useRef(new THREE.Vector3(0, DEFAULT_EYE_HEIGHT, 5));
   const yawRef = useRef(0);
   const pitchRef = useRef(0);
   const isLockedRef = useRef(false);
@@ -240,7 +237,7 @@ export function Player({
   useEffect(() => {
     camera.rotation.order = "YXZ";
     if (mode === "view") {
-      playerPosRef.current.set(0, EYE_HEIGHT, 5);
+      playerPosRef.current.set(0, DEFAULT_EYE_HEIGHT, 5);
       yawRef.current = 0;
       pitchRef.current = 0;
       camera.position.copy(playerPosRef.current);
@@ -359,10 +356,6 @@ export function Player({
     }),
   ], [floorPlanWallColliders, collidableItems]);
 
-  const _wallRaycaster = useMemo(() => new THREE.Raycaster(), []);
-  const _down = useMemo(() => new THREE.Vector3(0, -1, 0), []);
-
-  const blocksBySceneWall = (_x: number, _z: number, _playerRadius: number) => false;
   const exhibitItems = useMemo(
     () => items.filter((item) => item.type === "painting" || item.type === "pedestal" || item.type === "text" || item.type === "sculpture"),
     [items],
@@ -430,17 +423,12 @@ export function Player({
           }
         }
 
-        if (blocksBySceneWall(resolvedX, resolvedZ, playerRadius)) {
-          resolvedX = playerPosRef.current.x;
-          resolvedZ = playerPosRef.current.z;
-        }
-
         playerPosRef.current.x = resolvedX;
         playerPosRef.current.z = resolvedZ;
       }
     }
 
-    playerPosRef.current.y = EYE_HEIGHT;
+    playerPosRef.current.y = DEFAULT_EYE_HEIGHT;
     camera.position.copy(playerPosRef.current);
     camera.rotation.set(pitchRef.current, yawRef.current, 0);
     setLocalTransform({ x: playerPosRef.current.x, y: playerPosRef.current.y, z: playerPosRef.current.z }, yawRef.current);

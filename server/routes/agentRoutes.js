@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sendInternalError } from '../config/errorHandling.js';
 
 const sceneExhibitSchema = z.object({
   id: z.string().trim().min(1),
@@ -57,6 +58,7 @@ const noRateLimit = (_req, _res, next) => next();
 
 export function registerAgentRoutes(app, deps = {}) {
   const {
+    requireActiveUser,
     requireAuth,
     agentLimiter = noRateLimit,
     generateAgentReply,
@@ -64,8 +66,9 @@ export function registerAgentRoutes(app, deps = {}) {
 
   app.post('/api/agent/reply', agentLimiter, async (req, res) => {
     try {
-      const auth = requireAuth ? requireAuth(req, res) : null;
-      if (requireAuth && !auth) return;
+      const authenticate = requireActiveUser ?? requireAuth;
+      const auth = authenticate ? await authenticate(req, res) : null;
+      if (authenticate && !auth) return;
 
       const parsed = replySchema.safeParse(req.body || {});
       if (!parsed.success) {
@@ -75,9 +78,7 @@ export function registerAgentRoutes(app, deps = {}) {
       const result = await generateAgentReply(parsed.data);
       res.json(result);
     } catch (err) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : 'internal error';
-      res.status(500).json({ message });
+      return sendInternalError(res, err, { code: 'AGENT_REPLY_FAILED', message: 'agent reply request failed' });
     }
   });
 }

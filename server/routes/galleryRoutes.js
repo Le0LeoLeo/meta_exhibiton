@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
+import { assertPersistentScenePayload } from '../services/exhibitionSceneService.js';
 
 const SHARE_ROLE_VIEWER = 'viewer';
 const SHARE_ROLE_EDITOR = 'editor';
@@ -57,6 +58,18 @@ const competitionPublishSchema = z.object({
   })).max(10, 'too many assets').optional(),
 }).optional();
 
+function rejectNonPersistentScene(res, sceneJson) {
+  try {
+    assertPersistentScenePayload(sceneJson);
+    return false;
+  } catch (error) {
+    res.status(400).json({
+      message: error instanceof Error ? error.message : 'scene contains a non-persistent asset URL',
+    });
+    return true;
+  }
+}
+
 export function registerGalleryRoutes(app, deps) {
   const {
     requireAuth,
@@ -76,7 +89,6 @@ export function registerGalleryRoutes(app, deps) {
     updateGalleryPublishById,
     getGalleryByShareToken,
     insertGalleryUploadLink,
-    listGalleryUploadLinksByGalleryId,
     getGalleryUploadLinkByToken,
     revokeGalleryUploadLink,
     insertExhibitComment,
@@ -350,6 +362,7 @@ export function registerGalleryRoutes(app, deps) {
           .status(400)
           .json({ message: parsed.error.issues[0]?.message ?? 'invalid payload' });
       }
+      if (rejectNonPersistentScene(res, parsed.data.sceneJson)) return;
 
       const now = new Date().toISOString();
       const gallery = {
@@ -611,6 +624,7 @@ export function registerGalleryRoutes(app, deps) {
       if (!hasAnyField) {
         return res.status(400).json({ message: 'no updatable fields provided' });
       }
+      if (rejectNonPersistentScene(res, body.sceneJson)) return;
 
       const changed = await updateGalleryById(id, payload.sub, {
         title: body.title,
@@ -654,6 +668,7 @@ export function registerGalleryRoutes(app, deps) {
       if (!row || row.owner_id !== payload.sub) {
         return res.status(404).json({ message: 'gallery not found' });
       }
+      if (rejectNonPersistentScene(res, row.scene_json)) return;
 
       const publishedAt = row.published_at || new Date().toISOString();
       const changed = await updateGalleryPublishById(id, payload.sub, {
@@ -886,6 +901,7 @@ export function registerGalleryRoutes(app, deps) {
 
       items[itemIndex] = nextItem;
       const nextScene = { ...scene, items };
+      if (rejectNonPersistentScene(res, nextScene)) return;
       const changed = await updateGalleryById(link.gallery_id, gallery.owner_id, { sceneJson: JSON.stringify(nextScene) });
       if (!changed) return res.status(404).json({ message: 'gallery not found' });
 
@@ -1001,6 +1017,7 @@ export function registerGalleryRoutes(app, deps) {
       if (!hasAnyField) {
         return res.status(400).json({ message: 'no updatable fields provided' });
       }
+      if (rejectNonPersistentScene(res, body.sceneJson)) return;
 
       const changed = await updateGalleryById(row.id, row.owner_id, {
         title: body.title,

@@ -1,7 +1,9 @@
 import jwt from 'jsonwebtoken';
+import { readSessionCookie } from './sessionCookie.js';
 
 export function createJwtHelpers({ secret }) {
   const growthAssetAudience = 'growth-asset';
+  const mediaPreviewAudience = 'media-preview';
 
   function signToken(user) {
     return jwt.sign(
@@ -40,26 +42,48 @@ export function createJwtHelpers({ secret }) {
     }
   }
 
+  function signMediaPreviewToken(assetId) {
+    return jwt.sign(
+      { assetId, kind: mediaPreviewAudience },
+      secret,
+      { audience: mediaPreviewAudience, expiresIn: '15m' },
+    );
+  }
+
+  function verifyMediaPreviewToken(token, assetId) {
+    if (!token || typeof token !== 'string' || !assetId) return false;
+    try {
+      const payload = jwt.verify(token, secret, { audience: mediaPreviewAudience });
+      return payload?.kind === mediaPreviewAudience && payload?.assetId === assetId;
+    } catch {
+      return false;
+    }
+  }
+
   function optionalAuth(req) {
     const auth = req.header('authorization') || '';
     const match = auth.match(/^Bearer\s+(.+)$/i);
-    return match ? verifyToken(match[1]) : null;
+    const payload = match ? verifyToken(match[1]) : verifyToken(readSessionCookie(req));
+    if (payload) req.authSource = match ? 'bearer' : 'cookie';
+    return payload;
   }
 
   function requireAuth(req, res) {
     const auth = req.header('authorization') || '';
     const m = auth.match(/^Bearer\s+(.+)$/i);
-    if (!m) {
+    const token = m?.[1] || readSessionCookie(req);
+    if (!token) {
       res.status(401).json({ message: 'missing bearer token' });
       return null;
     }
 
-    const payload = verifyToken(m[1]);
+    const payload = verifyToken(token);
     if (!payload) {
       res.status(401).json({ message: 'invalid or expired token' });
       return null;
     }
 
+    req.authSource = m ? 'bearer' : 'cookie';
     return payload;
   }
 
@@ -68,6 +92,8 @@ export function createJwtHelpers({ secret }) {
     verifyToken,
     signGrowthAssetToken,
     verifyGrowthAssetToken,
+    signMediaPreviewToken,
+    verifyMediaPreviewToken,
     optionalAuth,
     requireAuth,
   };

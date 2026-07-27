@@ -16,7 +16,7 @@ const STATUS_LABELS: Record<Competition['status'], string> = {
 
 export default function CompetitionAdmin() {
   const { t } = useI18n();
-  const [adminSecret, setAdminSecret] = useState('');
+  const [adminSecret] = useState('');
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>('');
   const [entries, setEntries] = useState<CompetitionEntry[]>([]);
@@ -81,14 +81,12 @@ export default function CompetitionAdmin() {
 
   useEffect(() => {
     void loadCompetitions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (selectedCompetitionId) {
       void loadEntries(selectedCompetitionId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCompetitionId]);
 
   const handleUpdateStatus = async (competition: Competition, status: Competition['status']) => {

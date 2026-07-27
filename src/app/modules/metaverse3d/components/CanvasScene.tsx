@@ -25,6 +25,14 @@ import { WebGLRecoveryOverlay } from "./WebGLRecoveryOverlay";
 import { BuilderInspectionCaptureBridge } from "../aiBuilder/BuilderInspectionCaptureBridge";
 import { WebGLCanvasBoundary } from "./WebGLCanvasBoundary";
 import { canCreateWebGLContext } from "./webglSupport";
+import { GalleryLighting } from "./GalleryLighting";
+import { GalleryArtworkLighting } from "./GalleryArtworkLighting";
+import {
+  DEFAULT_CAMERA_FAR,
+  DEFAULT_CAMERA_FOV,
+  DEFAULT_CAMERA_NEAR,
+  DEFAULT_EYE_HEIGHT,
+} from "../sceneScale";
 
 const ViewCanvas = lazy(() => import("./ViewCanvas").then((mod) => ({ default: mod.ViewCanvas })));
 const EditCanvas = lazy(() => import("./EditCanvas").then((mod) => ({ default: mod.EditCanvas })));
@@ -38,9 +46,13 @@ interface CanvasSceneProps {
   floorPlanIsTransforming: boolean;
   selectedFloorPlanElementId: string | null;
   onPointerMissed: () => void;
-  shouldPreload?: boolean;
   playerInput?: MutableRefObject<PlayerInputState>;
   onNearbyItemChange?: (title: string | null) => void;
+  onUse2D?: () => void;
+}
+
+export function shouldPreserveDrawingBuffer(mode: string, isFloorPlan: boolean) {
+  return mode === "edit" || isFloorPlan;
 }
 
 export function CanvasScene({
@@ -51,9 +63,9 @@ export function CanvasScene({
   floorPlanIsTransforming,
   selectedFloorPlanElementId,
   onPointerMissed,
-  shouldPreload: _shouldPreload = false,
   playerInput,
   onNearbyItemChange,
+  onUse2D,
 }: CanvasSceneProps) {
   const requestedMode = useStore((state) => state.performanceMode);
   const setEffectivePerformanceMode = useStore(
@@ -68,14 +80,15 @@ export function CanvasScene({
   const performanceProfile = useRenderPerformanceProfile();
   const lifecycle = useSceneLifecycle({ detailOpen: viewingItem !== null });
   const envBrightness = roomSize.environmentBrightness ?? 1;
+  const preserveDrawingBuffer = shouldPreserveDrawingBuffer(mode, isFloorPlan);
   const createRendererProbe = useCallback(
     () =>
       new THREE.WebGLRenderer({
         antialias: !isFloorPlan,
         powerPreference: "high-performance",
-        preserveDrawingBuffer: true,
+        preserveDrawingBuffer,
       }),
-    [isFloorPlan],
+    [isFloorPlan, preserveDrawingBuffer],
   );
   const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null);
   const [canvasVersion, setCanvasVersion] = useState(0);
@@ -124,29 +137,38 @@ export function CanvasScene({
   return (
     <div className="relative h-full w-full">
       {webglSupported ? (
-        <WebGLCanvasBoundary onReload={reloadCanvas}>
+        <WebGLCanvasBoundary onReload={reloadCanvas} onUse2D={onUse2D}>
         <Canvas
           key={`${canvasKey}-${canvasVersion}`}
-          shadows={enableShadows}
+          shadows={enableShadows ? THREE.PCFShadowMap : false}
           dpr={isFloorPlan ? [1, 1.2] : performanceProfile.dpr}
           frameloop={frameloop}
           gl={{
             antialias: !isFloorPlan,
             powerPreference: "high-performance",
-            preserveDrawingBuffer: true,
+            preserveDrawingBuffer,
             toneMapping: THREE.ACESFilmicToneMapping,
-            toneMappingExposure: isFloorPlan ? 1 : 1.03,
+            toneMappingExposure: isFloorPlan
+              ? 1
+              : performanceProfile.effectiveMode === "quality"
+                ? 1
+                : 1.02,
           }}
           onCreated={({ gl, scene }) => {
             setCanvasElement(gl.domElement);
             gl.physicallyCorrectLights = true;
             gl.shadowMap.enabled = enableShadows;
-            gl.shadowMap.type = THREE.PCFSoftShadowMap;
-            scene.fog = isFloorPlan ? null : new THREE.FogExp2("#0f172a", 0.028);
-            scene.background = new THREE.Color("#0f172a");
+            gl.shadowMap.type = THREE.PCFShadowMap;
+            scene.fog = isFloorPlan ? null : new THREE.FogExp2("#34383b", 0.014);
+            scene.background = new THREE.Color(isFloorPlan ? "#0f172a" : "#171a1c");
           }}
           orthographic={isFloorPlan}
-          camera={isFloorPlan ? { position: [0, 40, 0], zoom: 28, near: 0.1, far: 500 } : { position: [0, 5, 10], fov: 55 }}
+          camera={isFloorPlan ? { position: [0, 40, 0], zoom: 28, near: 0.1, far: 500 } : {
+            position: [0, DEFAULT_EYE_HEIGHT, 5],
+            fov: DEFAULT_CAMERA_FOV,
+            near: DEFAULT_CAMERA_NEAR,
+            far: DEFAULT_CAMERA_FAR,
+          }}
           onPointerMissed={onPointerMissed}
         >
           <Suspense fallback={null}>
@@ -155,13 +177,21 @@ export function CanvasScene({
               onSample={adaptivePerformance.reportSample}
             />
             {!isFloorPlan && performanceProfile.enableEnvironment && <Environment preset="warehouse" background={false} blur={0.1} />}
-            <ambientLight intensity={isFloorPlan ? 0.42 : (performanceProfile.effectiveMode === "performance" ? 0.12 : 0.028) * envBrightness} color={isFloorPlan ? "#ffffff" : "#b7c7ff"} />
-            {!isFloorPlan && <hemisphereLight skyColor="#cfe3ff" groundColor="#1e293b" intensity={(performanceProfile.effectiveMode === "performance" ? 0.14 : 0.05) * envBrightness} />}
-            {!isFloorPlan && <directionalLight castShadow={enableShadows} position={[8, 12, 6]} intensity={0.16 * envBrightness} color="#ffffff" shadow-mapSize={[performanceProfile.shadowMapSize, performanceProfile.shadowMapSize]} shadow-bias={-0.00012} shadow-normalBias={0.02} />}
-            {!isFloorPlan && <spotLight castShadow={enableShadows} position={[0, 5.8, 0]} angle={0.42} penumbra={0.7} intensity={0.56 * envBrightness} distance={28} color="#f8fafc" shadow-mapSize={[performanceProfile.shadowMapSize, performanceProfile.shadowMapSize]} shadow-bias={-0.00008} shadow-normalBias={0.02} />}
-            {!isFloorPlan && performanceProfile.enableExtraAccentLights && <spotLight castShadow={enableShadows} position={[-4.5, 5.4, -3.5]} angle={0.35} penumbra={0.78} intensity={0.24 * envBrightness} distance={18} color="#dbeafe" shadow-mapSize={[256, 256]} shadow-bias={-0.00008} />}
-            {!isFloorPlan && performanceProfile.enableExtraAccentLights && <spotLight castShadow={enableShadows} position={[4.5, 5.4, 3.5]} angle={0.35} penumbra={0.78} intensity={0.24 * envBrightness} distance={18} color="#f5f3ff" shadow-mapSize={[256, 256]} shadow-bias={-0.00008} />}
-            {!isFloorPlan && performanceProfile.enableExtraAccentLights && <pointLight position={[0, 2.2, -9.4]} intensity={0.02 * envBrightness} distance={6.6} decay={2} color="#93c5fd" />}
+            {isFloorPlan ? (
+              <ambientLight intensity={0.42} color="#ffffff" />
+            ) : (
+              <GalleryLighting
+                profile={performanceProfile}
+                environmentBrightness={envBrightness}
+              />
+            )}
+            {!isFloorPlan && (
+              <GalleryArtworkLighting
+                items={items}
+                mode={performanceProfile.effectiveMode}
+                environmentBrightness={envBrightness}
+              />
+            )}
             {!isFloorPlan && <BuilderInspectionCaptureBridge enabled />}
 
             {isFloorPlan ? (
@@ -180,9 +210,9 @@ export function CanvasScene({
         </Canvas>
         </WebGLCanvasBoundary>
       ) : (
-        <WebGLRecoveryOverlay onReload={reloadCanvas} />
+        <WebGLRecoveryOverlay onReload={reloadCanvas} onUse2D={onUse2D} />
       )}
-      {webglContextLost && <WebGLRecoveryOverlay onReload={reloadCanvas} />}
+      {webglContextLost && <WebGLRecoveryOverlay onReload={reloadCanvas} onUse2D={onUse2D} />}
     </div>
   );
 }

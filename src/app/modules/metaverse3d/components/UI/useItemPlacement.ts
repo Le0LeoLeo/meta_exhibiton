@@ -329,8 +329,8 @@ export function useItemPlacement({
   const handleAddItem = (type: ExhibitItem["type"]) => {
     const sourceSelectedItem = selectedItem ?? sourcePartition;
     clearSelection();
-    let position: [number, number, number] = [0, 1.5, 0];
-    let rotation: [number, number, number] = [0, 0, 0];
+    let position: [number, number, number];
+    let rotation: [number, number, number];
 
     const shouldAutoLight = autoAddTopLightstrip && AUTO_LIGHT_ELIGIBLE_TYPES.includes(type);
     const buildPlacement = (

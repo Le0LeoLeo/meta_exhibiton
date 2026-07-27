@@ -19,7 +19,7 @@ const CenterReticle = memo(function CenterReticle() {
   );
 });
 
-export function StudioCanvasRoot() {
+export function StudioCanvasRoot({ onUse2D }: { onUse2D?: () => void }) {
   const mode = useStore((state) => state.mode);
   const roomSize = useStore((state) => state.roomSize);
   const items = useStore((state) => state.items);
@@ -55,11 +55,10 @@ export function StudioCanvasRoot() {
     shouldPreloadScene ? [] : items,
   );
   const previousShouldPreloadScene = useRef(shouldPreloadScene);
-  const suppressStaleCompletion = useRef(false);
   const enteringPreloadScene =
     !previousShouldPreloadScene.current && shouldPreloadScene;
   const effectiveBackgroundComplete =
-    backgroundComplete && !enteringPreloadScene && !suppressStaleCompletion.current;
+    backgroundComplete && !enteringPreloadScene;
   const hasEnteredScene = enteredScene && !enteringPreloadScene;
   const showOverlay =
     shouldPreloadScene && !hasEnteredScene && !effectiveBackgroundComplete;
@@ -74,18 +73,11 @@ export function StudioCanvasRoot() {
 
   useEffect(() => {
     if (!previousShouldPreloadScene.current && shouldPreloadScene) {
-      suppressStaleCompletion.current = true;
       setEnteredScene(false);
       setLastReadyItems([]);
     }
     previousShouldPreloadScene.current = shouldPreloadScene;
   }, [shouldPreloadScene]);
-
-  useEffect(() => {
-    if (shouldPreloadScene && !backgroundComplete) {
-      suppressStaleCompletion.current = false;
-    }
-  }, [backgroundComplete, shouldPreloadScene]);
 
   useEffect(() => {
     if (effectiveBackgroundComplete) {
@@ -132,10 +124,10 @@ export function StudioCanvasRoot() {
         isFloorPlan={isFloorPlan}
         floorPlanIsTransforming={floorPlanIsTransforming}
         selectedFloorPlanElementId={selectedFloorPlanElementId}
-        shouldPreload={shouldPreloadScene}
         playerInput={playerInputRef}
         onNearbyItemChange={setNearbyItemTitle}
         onPointerMissed={handlePointerMissed}
+        onUse2D={onUse2D}
       />
 
       {mode === "view" && (

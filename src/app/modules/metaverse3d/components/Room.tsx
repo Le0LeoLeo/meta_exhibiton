@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useRef, useState, memo } from "react";
 import { useStore } from "../store/useStore";
 import { ExhibitItem, WallAnchor, WallFace, WallMaterialSettings } from "../types";
-import { useTexture } from "@react-three/drei";
-import { useThree } from "@react-three/fiber";
-import { Plane, Raycaster, RepeatWrapping, Vector3 } from "three";
+import { useThree, type ThreeEvent, type ThreeElements } from "@react-three/fiber";
+import { Group, Plane, Raycaster, Vector3 } from "three";
 import { ReactNode } from "react";
 import { buildWallTopology, getFloorPlanCenter, getFloorPlanRoomBounds } from "../store/floorPlanGeometry";
+import {
+  GallerySurfaceMaterial,
+  LegacySurfaceMaterial,
+  getSurfaceTextureTransform,
+} from "./GallerySurfaceMaterial";
+import { resolveGalleryMaterialPreset } from "../materials/galleryMaterialPresets";
+import { getGalleryWallFinish } from "../materials/galleryWallFinish";
+import { ArchitecturalTrim } from "./ArchitecturalTrim";
+import { GalleryCeiling } from "./GalleryCeiling";
+import { useRenderPerformanceProfile } from "../performanceProfile";
 
 type WallSegment = {
   id: string;
@@ -75,7 +84,7 @@ const PreviewGhost = memo(function PreviewGhost({
   );
 });
 
-const Collision = memo(function Collision({ enabled, children, ...props }: { enabled: boolean; children: ReactNode; [key: string]: any }) {
+const Collision = memo(function Collision({ enabled, children, ...props }: { enabled: boolean; children: ReactNode } & ThreeElements["group"]) {
   if (!enabled) {
     return (
       <group position={props.position} rotation={props.rotation} scale={props.scale}>
@@ -91,30 +100,8 @@ const Collision = memo(function Collision({ enabled, children, ...props }: { ena
   );
 });
 
-function createSegments(start: number, end: number, cuts: Array<[number, number]>) {
-  const normalized = cuts
-    .map(([s, e]) => [Math.max(start, Math.min(s, e)), Math.min(end, Math.max(s, e))] as [number, number])
-    .filter(([s, e]) => e - s > 0.05)
-    .sort((a, b) => a[0] - b[0]);
-
-  const merged: Array<[number, number]> = [];
-  for (const [s, e] of normalized) {
-    const last = merged[merged.length - 1];
-    if (!last || s > last[1]) merged.push([s, e]);
-    else last[1] = Math.max(last[1], e);
-  }
-
-  const result: Array<[number, number]> = [];
-  let cursor = start;
-  for (const [s, e] of merged) {
-    if (s - cursor > 0.08) result.push([cursor, s]);
-    cursor = Math.max(cursor, e);
-  }
-  if (end - cursor > 0.08) result.push([cursor, end]);
-  return result;
-}
-
 export function Room() {
+  const performanceProfile = useRenderPerformanceProfile();
   const mode = useStore((state) => state.mode);
   const roomSize = useStore((state) => state.roomSize);
   const selectedWallFace = useStore((state) => state.selectedWallFace);
@@ -131,7 +118,7 @@ export function Room() {
   const floorPlanElements = useStore((state) => state.floorPlanElements);
   const isView = mode === "view";
   const [hoveredWallId, setHoveredWallId] = useState<string | null>(null);
-  const previewRef = useRef<any>(null);
+  const previewRef = useRef<Group>(null);
   const isWallMountedPending = pendingPlacement?.type === "painting" || pendingPlacement?.type === "text" || pendingPlacement?.type === "lightstrip";
   const { camera, pointer } = useThree();
 
@@ -162,10 +149,15 @@ export function Room() {
       }));
   }, [items]);
 
-  const wallSegments = useMemo<WallSegment[]>(() => {
-    const topology = buildWallTopology(roomBounds, roomSize.height, Math.max(0.12, roomSize.wallThickness), center);
-    return topology.segments;
+  const wallTopology = useMemo(() => {
+    return buildWallTopology(
+      roomBounds,
+      roomSize.height,
+      Math.max(0.12, roomSize.wallThickness),
+      center,
+    );
   }, [roomBounds, roomSize.height, roomSize.wallThickness, center]);
+  const wallSegments: WallSegment[] = wallTopology.segments;
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -437,7 +429,7 @@ export function Room() {
     };
   };
 
-  const handleWallPointerDown = (wall: WallSegment, e: any) => {
+  const handleWallPointerDown = (wall: WallSegment, e: ThreeEvent<PointerEvent>) => {
     if (mode !== "edit") return;
     e.stopPropagation();
     console.log("[Room] wall pointer down", {
@@ -475,7 +467,7 @@ export function Room() {
     setSelectedWallFace(wall.face);
   };
 
-  const handlePartitionPointerDown = (partition: PartitionSurface, e: any) => {
+  const handlePartitionPointerDown = (partition: PartitionSurface, e: ThreeEvent<PointerEvent>) => {
     if (mode !== "edit") return;
     e.stopPropagation();
 
@@ -526,7 +518,7 @@ export function Room() {
 
   useEffect(() => {
     if (previewRef.current) {
-      previewRef.current.traverse((child: any) => {
+      previewRef.current.traverse((child) => {
         if (child) {
           child.raycast = () => null;
         }
@@ -572,43 +564,6 @@ export function Room() {
 
   const resolvedWallTextureUrl = roomSize.wallTextureUrl || "/textures/wall-paint.svg";
   const resolvedFloorTextureUrl = roomSize.floorTextureUrl || "/textures/wall-concrete.svg";
-
-  const textureUrls = useMemo(() => {
-    const urls = new Set<string>([resolvedWallTextureUrl, resolvedFloorTextureUrl]);
-    Object.values(wallMaterialOverrides).forEach((override) => {
-      if (override.wallTextureUrl) {
-        urls.add(override.wallTextureUrl);
-      }
-    });
-    return Array.from(urls).filter(Boolean);
-  }, [resolvedWallTextureUrl, resolvedFloorTextureUrl, wallMaterialOverrides]);
-
-  const loadedTextures = useTexture(textureUrls);
-  const textureMap = useMemo(() => {
-    const textures = Array.isArray(loadedTextures) ? loadedTextures : [loadedTextures];
-    return textureUrls.reduce<Record<string, any>>((acc, url, index) => {
-      const texture = textures[index];
-      if (texture) {
-        acc[url] = texture;
-      }
-      return acc;
-    }, {});
-  }, [loadedTextures, textureUrls]);
-
-  useEffect(() => {
-    Object.entries(textureMap).forEach(([url, texture]) => {
-      texture.wrapS = RepeatWrapping;
-      texture.wrapT = RepeatWrapping;
-      const tiling =
-        url === resolvedFloorTextureUrl
-          ? roomSize.floorTextureTiling
-          : Object.values(wallMaterialOverrides).find((override) => override.wallTextureUrl === url)?.wallTextureTiling ??
-            roomSize.wallTextureTiling;
-      texture.repeat.set(tiling, tiling);
-      texture.center.set(0.5, 0.5);
-      texture.needsUpdate = true;
-    });
-  }, [textureMap, resolvedFloorTextureUrl, roomSize.floorTextureTiling, roomSize.wallTextureTiling, wallMaterialOverrides]);
 
   const resolveWallMaterial = (segmentId: string): WallMaterialSettings => {
     const override = wallMaterialOverrides[segmentId] || {};
@@ -723,7 +678,7 @@ export function Room() {
         const cx = (room.minX + room.maxX) / 2 - center.x;
         const cz = (room.minZ + room.maxZ) / 2 - center.z;
 
-        const floorTexture = textureMap[resolvedFloorTextureUrl];
+        const floorPbrPreset = resolveGalleryMaterialPreset(resolvedFloorTextureUrl, "floor");
 
         return (
           <group key={`room-surface-${room.id}-${idx}`}>
@@ -759,29 +714,50 @@ export function Room() {
                 }}
               >
                 <boxGeometry args={[width, 0.1, length]} />
-                <meshPhysicalMaterial
-                  map={floorTexture}
-                  color={roomSize.floorColor}
-                  roughness={Math.max(0.25, roomSize.floorRoughness)}
-                  metalness={Math.min(0.12, roomSize.floorMetalness ?? 0)}
-                  envMapIntensity={Math.max(0.12, roomSize.environmentBrightness * 0.42)}
-                  clearcoat={0.08}
-                  clearcoatRoughness={0.92}
-                />
+                {floorPbrPreset ? (
+                  <GallerySurfaceMaterial
+                    preset={floorPbrPreset}
+                    worldWidth={width}
+                    worldHeight={length}
+                    color={roomSize.floorColor}
+                    surfaceVariation={
+                      isView && performanceProfile.effectiveMode !== "performance"
+                        ? "subtle"
+                        : "none"
+                    }
+                  />
+                ) : (
+                  <LegacySurfaceMaterial
+                    textureUrl={resolvedFloorTextureUrl}
+                    repeat={[roomSize.floorTextureTiling, roomSize.floorTextureTiling]}
+                    color={roomSize.floorColor}
+                    roughness={Math.max(0.25, roomSize.floorRoughness)}
+                    metalness={Math.min(0.12, roomSize.floorMetalness ?? 0)}
+                    envMapIntensity={Math.max(0.12, roomSize.environmentBrightness * 0.42)}
+                  />
+                )}
               </mesh>
             </Collision>
 
             {isView && (
-              <Collision enabled type="fixed" position={[cx, roomSize.height + 0.05, cz]}>
-                <mesh receiveShadow>
-                  <boxGeometry args={[width, 0.1, length]} />
-                  <meshStandardMaterial color="#f3f4f6" />
-                </mesh>
-              </Collision>
+              <group position={[cx, 0, cz]}>
+                <GalleryCeiling
+                  width={width}
+                  length={length}
+                  height={roomSize.height}
+                  mode={performanceProfile.effectiveMode}
+                />
+              </group>
             )}
           </group>
         );
       })}
+
+      <ArchitecturalTrim
+        wallSegments={wallTopology.segments}
+        doorOpenings={wallTopology.doorOpenings}
+        showCeilingShadowGap={isView}
+      />
 
       {partitionSurfaces.map((partition) => {
         const isSelectedWall = selectedWallSegmentId === partition.id;
@@ -828,14 +804,29 @@ export function Room() {
         const isSelectedWall = selectedWallSegmentId === wall.id;
         const isHovered = hoveredWallId === wall.id;
         const wallMaterial = resolveWallMaterial(wall.id);
-        const wallTexture = textureMap[wallMaterial.wallTextureUrl];
         const hasCustomWallTexture = /^data:|^blob:/.test(wallMaterial.wallTextureUrl);
-        const useWallTexture = Boolean(wallTexture) && (wallMaterial.wallMaterialPreset !== "paint" || hasCustomWallTexture);
+        const wallPbrPreset = hasCustomWallTexture
+          ? null
+          : resolveGalleryMaterialPreset(wallMaterial.wallTextureUrl, "wall");
         const appliedWallColor = hasCustomWallTexture ? "#ffffff" : wallMaterial.wallColor;
+        const wallOverride = wallMaterialOverrides[wall.id];
+        const hasExplicitFinishOverride = Boolean(
+          wallOverride?.wallColor ||
+          wallOverride?.wallTextureUrl ||
+          wallOverride?.wallMaterialPreset,
+        );
+        const galleryWallFinish = getGalleryWallFinish(
+          wall.id,
+          appliedWallColor,
+          isView && wallPbrPreset === "plaster-wall" && !hasExplicitFinishOverride,
+        );
+        const finishedWallColor =
+          isView && wallPbrPreset === "plaster-wall"
+            ? galleryWallFinish.color
+            : appliedWallColor;
         const wallMaterialProps = {
           roughness: wallMaterial.wallRoughness,
           metalness: wallMaterial.wallMetalness,
-          bumpScale: wallMaterial.wallBumpScale,
           envMapIntensity: wallMaterial.wallEnvIntensity,
           transparent:
             wallMaterial.wallMaterialPreset === "glass" ||
@@ -845,6 +836,15 @@ export function Room() {
           transmission: wallMaterial.wallTransmission,
           ior: wallMaterial.wallIor,
         };
+        const displayWallColor = isSelectedWall
+          ? "#c7d2fe"
+          : isHovered
+            ? "#eef2ff"
+            : isSelectedFace
+              ? "#f1f5f9"
+              : finishedWallColor;
+        const wallWidth = Math.max(wall.size[0], wall.size[2]);
+        const wallTextureTransform = getSurfaceTextureTransform(wall.id);
 
         return (
           <Collision
@@ -891,29 +891,36 @@ export function Room() {
                 }}
               >
                 <boxGeometry args={wall.size} />
-                <meshPhysicalMaterial
-                map={useWallTexture ? wallTexture : undefined}
-                bumpMap={useWallTexture ? wallTexture : undefined}
-                  color={
-                    isSelectedWall
-                      ? "#c7d2fe"
-                      : isHovered
-                        ? "#eef2ff"
-                        : isSelectedFace
-                          ? "#f1f5f9"
-                        : appliedWallColor
-                }
-                roughness={Math.max(0.42, wallMaterialProps.roughness)}
-                metalness={Math.min(0.06, wallMaterialProps.metalness)}
-                bumpScale={Math.max(0.02, wallMaterialProps.bumpScale)}
-                envMapIntensity={Math.max(0.18, wallMaterialProps.envMapIntensity)}
-                  transparent={wallMaterialProps.transparent}
-                  opacity={wallMaterialProps.opacity}
-                  transmission={wallMaterialProps.transmission}
-                  ior={wallMaterialProps.ior}
-                clearcoat={wallMaterial.wallMaterialPreset === "paint" ? 0.04 : 0}
-                clearcoatRoughness={0.95}
-                />
+                {wallMaterial.wallMaterialPreset === "glass" ? (
+                  <meshPhysicalMaterial
+                    color={displayWallColor}
+                    roughness={wallMaterialProps.roughness}
+                    metalness={0}
+                    envMapIntensity={wallMaterialProps.envMapIntensity}
+                    transparent={wallMaterialProps.transparent}
+                    opacity={wallMaterialProps.opacity}
+                    transmission={wallMaterialProps.transmission}
+                    ior={wallMaterialProps.ior}
+                  />
+                ) : wallPbrPreset ? (
+                  <GallerySurfaceMaterial
+                    preset={wallPbrPreset}
+                    worldWidth={wallWidth}
+                    worldHeight={wall.size[1]}
+                    color={displayWallColor}
+                    textureOffset={wallTextureTransform.offset}
+                    textureRotation={wallTextureTransform.rotation}
+                  />
+                ) : (
+                  <LegacySurfaceMaterial
+                    textureUrl={wallMaterial.wallTextureUrl}
+                    repeat={[wallMaterial.wallTextureTiling, wallMaterial.wallTextureTiling]}
+                    color={displayWallColor}
+                    roughness={Math.max(0.42, wallMaterialProps.roughness)}
+                    metalness={Math.min(0.06, wallMaterialProps.metalness)}
+                    envMapIntensity={Math.max(0.18, wallMaterialProps.envMapIntensity)}
+                  />
+                )}
               </mesh>
           </Collision>
         );

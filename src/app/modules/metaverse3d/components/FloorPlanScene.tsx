@@ -6,8 +6,6 @@ import { buildWallTopology, getFloorPlanRoomBounds } from "../store/floorPlanGeo
 
 const ROOM_SNAP_THRESHOLD = 0.8;
 const GRID_SNAP_STEP = 0.5;
-const DOOR_OFFSET_LIMIT = 3;
-
 function snapToGrid(value: number, step = GRID_SNAP_STEP) {
   return Math.round(value / step) * step;
 }

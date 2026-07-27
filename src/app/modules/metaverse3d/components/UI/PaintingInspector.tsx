@@ -286,8 +286,8 @@ export function PaintingInspector({
                   const { result } = await requestPolishIntro(token, { text: desc });
                   updateItem(selectedItem.id, { description: result });
                   toast.success("潤飾完成");
-                } catch (e: any) {
-                  toast.error(e?.message || "潤飾失敗");
+                } catch (e: unknown) {
+                  toast.error(e instanceof Error ? e.message : "潤飾失敗");
                 } finally {
                   setWritingLoading(null);
                 }
@@ -306,8 +306,8 @@ export function PaintingInspector({
                   const token = loadAuth();
                   const { result } = await requestTranslate(token, { text: desc, targetLanguage: "英文" });
                   toast.success(`英文翻譯：${result}`);
-                } catch (e: any) {
-                  toast.error(e?.message || "翻譯失敗");
+                } catch (e: unknown) {
+                  toast.error(e instanceof Error ? e.message : "翻譯失敗");
                 } finally {
                   setWritingLoading(null);
                 }
@@ -326,8 +326,8 @@ export function PaintingInspector({
                   const token = loadAuth();
                   const { result } = await requestTranslate(token, { text: desc, targetLanguage: "葡萄牙文" });
                   toast.success(`葡萄牙文翻譯：${result}`);
-                } catch (e: any) {
-                  toast.error(e?.message || "翻譯失敗");
+                } catch (e: unknown) {
+                  toast.error(e instanceof Error ? e.message : "翻譯失敗");
                 } finally {
                   setWritingLoading(null);
                 }

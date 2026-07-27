@@ -16,11 +16,13 @@ describe("gallery capability API", () => {
   it("sends capability tokens in a header for GET", async () => {
     await getSharedGallery("secret-token");
 
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(new Headers(init?.headers).get("x-gallery-share-token")).toBe("secret-token");
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/share/galleries"),
-      {
-        headers: { "x-gallery-share-token": "secret-token" },
-      },
+      url,
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
     );
     expect(vi.mocked(fetch).mock.calls[0][0]).not.toContain("secret-token");
   });
@@ -28,13 +30,14 @@ describe("gallery capability API", () => {
   it("sends capability tokens in a header for PATCH", async () => {
     await updateSharedGallery("secret-token", { title: "Changed" });
 
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    const headers = new Headers(init?.headers);
+    expect(headers.get("x-gallery-share-token")).toBe("secret-token");
+    expect(headers.get("Content-Type")).toBe("application/json");
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/share/galleries"),
+      url,
       expect.objectContaining({
         method: "PATCH",
-        headers: expect.objectContaining({
-          "x-gallery-share-token": "secret-token",
-        }),
       }),
     );
     expect(vi.mocked(fetch).mock.calls[0][0]).not.toContain("secret-token");

@@ -15,6 +15,7 @@ import type {
   SceneOpEnvelope,
   SceneOpPayload,
   SceneSyncPayload,
+  SceneSnapshot,
 } from "./protocol";
 
 let socket: Socket | null = null;
@@ -144,27 +145,36 @@ export function emitPlayerMove(payload: PlayerMovePayload) {
 
 export function emitSceneSync(payload: {
   roomId: string;
-  scene: {
-    roomSize: any;
-    items: any[];
-    floorPlanElements: any[];
-    wallMaterialOverrides: Record<string, any>;
-  };
+  scene: SceneSnapshot;
+  expectedVersion?: number;
+  clientSyncId?: string;
 }) {
   const currentSocket = socket;
-  if (!currentSocket || !currentSocket.connected) return;
-  if (!EDIT_ROLES.has(useMultiplayerStore.getState().role || "")) return;
+  if (!currentSocket || !currentSocket.connected) return false;
+  if (!EDIT_ROLES.has(useMultiplayerStore.getState().role || "")) return false;
   currentSocket.emit("scene:sync", payload);
+  return true;
+}
+
+export function emitSceneRequestSync(payload: { roomId: string }) {
+  const currentSocket = socket;
+  if (!currentSocket || !currentSocket.connected) return;
+  currentSocket.emit("scene:request-sync", payload);
 }
 
 export function emitSceneOp(payload: SceneOpEnvelope) {
   const currentSocket = socket;
-  if (!currentSocket || !currentSocket.connected) return;
-  if (!EDIT_ROLES.has(useMultiplayerStore.getState().role || "")) return;
+  if (!currentSocket || !currentSocket.connected) return false;
+  if (!EDIT_ROLES.has(useMultiplayerStore.getState().role || "")) return false;
   currentSocket.emit("scene:op", payload);
+  return true;
 }
 
-export function emitSceneFocus(payload: { roomId: string; itemId: string | null }) {
+export function emitSceneFocus(payload: {
+  roomId: string;
+  itemId: string | null;
+  nickname?: string;
+}) {
   const currentSocket = socket;
   if (!currentSocket || !currentSocket.connected) return;
   if (!EDIT_ROLES.has(useMultiplayerStore.getState().role || "")) return;

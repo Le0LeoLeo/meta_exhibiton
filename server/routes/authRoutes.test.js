@@ -12,7 +12,17 @@ afterEach(() => {
 async function startApp(overrides = {}) {
   const deps = {
     requireAuth: () => ({ sub: 'user-1' }),
-    deleteUserById: vi.fn().mockResolvedValue(undefined),
+    signToken: vi.fn(() => 'signed-session-token'),
+    createCsrfToken: vi.fn(() => 'nonce.signature'),
+    exportUserData: vi.fn().mockResolvedValue({
+      schemaVersion: 1,
+      profile: { id: 'user-1', email: 'user@example.com', name: 'User' },
+    }),
+    deleteAccountWithCleanup: vi.fn().mockResolvedValue({ cleanupPending: false, cleanupJobs: 3 }),
+    listMediaStorageFileNamesByOwnerId: vi.fn().mockResolvedValue([
+      '00000000-0000-4000-8000-000000000001.jpg',
+    ]),
+    deleteMediaFiles: vi.fn().mockResolvedValue(undefined),
     listGrowthAssetContentUrlsByOwnerId: vi.fn().mockResolvedValue([
       '/uploads/growth/one.png',
       '/uploads/growth/two.mp4',
@@ -30,31 +40,122 @@ async function startApp(overrides = {}) {
   return { baseUrl: `http://127.0.0.1:${server.address().port}`, deps };
 }
 
+describe('browser session cookies', () => {
+  it('sets session and CSRF cookies after login', async () => {
+    const { baseUrl } = await startApp({
+      getUserByEmail: vi.fn().mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        name: 'User',
+        password_hash: await import('bcryptjs').then(({ default: bcrypt }) => bcrypt.hash('password123', 4)),
+      }),
+    });
+
+    const res = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'user@example.com', password: 'password123' }),
+    });
+    const cookies = res.headers.get('set-cookie');
+
+    expect(res.status).toBe(200);
+    expect(cookies).toContain('mrei_session=signed-session-token');
+    expect(cookies).toContain('HttpOnly');
+    expect(cookies).toContain('mrei_csrf=nonce.signature');
+  });
+
+  it('clears both browser cookies on logout', async () => {
+    const { baseUrl } = await startApp();
+    const res = await fetch(`${baseUrl}/api/auth/logout`, { method: 'POST' });
+    const cookies = res.headers.get('set-cookie');
+
+    expect(res.status).toBe(200);
+    expect(cookies).toContain('mrei_session=');
+    expect(cookies).toContain('mrei_csrf=');
+    expect(cookies).toContain('Max-Age=0');
+  });
+
+  it('refreshes browser and compatibility tokens from the session-backed me route', async () => {
+    const { baseUrl } = await startApp({
+      getUserById: vi.fn().mockResolvedValue({
+        id: 'user-1', email: 'user@example.com', name: 'User',
+      }),
+    });
+    const res = await fetch(`${baseUrl}/api/auth/me`);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      token: 'signed-session-token',
+      user: { id: 'user-1', email: 'user@example.com', name: 'User' },
+    });
+    expect(res.headers.get('set-cookie')).toContain('mrei_session=signed-session-token');
+  });
+});
+
+describe('GET /api/users/me/export', () => {
+  it('returns an authenticated JSON attachment that must not be cached', async () => {
+    const { baseUrl, deps } = await startApp();
+    const res = await fetch(`${baseUrl}/api/users/me/export`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(res.headers.get('content-disposition')).toBe(
+      'attachment; filename="personal-data.json"',
+    );
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({
+      schemaVersion: 1,
+      profile: { id: 'user-1', email: 'user@example.com', name: 'User' },
+    });
+    expect(deps.exportUserData).toHaveBeenCalledWith('user-1');
+  });
+
+  it('returns 404 when the authenticated account no longer exists', async () => {
+    const { baseUrl } = await startApp({ exportUserData: vi.fn().mockResolvedValue(null) });
+    const res = await fetch(`${baseUrl}/api/users/me/export`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('DELETE /api/users/me', () => {
-  it('removes private growth media after deleting the account data', async () => {
+  it('removes private growth and gallery media after deleting the account data', async () => {
     const { baseUrl, deps } = await startApp();
     const res = await fetch(`${baseUrl}/api/users/me`, { method: 'DELETE' });
 
     expect(res.status).toBe(200);
     expect(deps.listGrowthAssetContentUrlsByOwnerId).toHaveBeenCalledWith('user-1');
-    expect(deps.deleteUserById).toHaveBeenCalledWith('user-1');
-    expect(deps.deleteGrowthAssetFiles).toHaveBeenCalledWith([
-      '/uploads/growth/one.png',
-      '/uploads/growth/two.mp4',
-    ]);
-    expect(deps.deleteUserById.mock.invocationCallOrder[0]).toBeLessThan(
-      deps.deleteGrowthAssetFiles.mock.invocationCallOrder[0],
-    );
+    expect(deps.listMediaStorageFileNamesByOwnerId).toHaveBeenCalledWith('user-1');
+    expect(deps.deleteAccountWithCleanup).toHaveBeenCalledWith({
+      ownerId: 'user-1',
+      growthAssetUrls: ['/uploads/growth/one.png', '/uploads/growth/two.mp4'],
+      mediaFileNames: ['00000000-0000-4000-8000-000000000001.jpg'],
+      deleteGrowthAssetFiles: deps.deleteGrowthAssetFiles,
+      deleteMediaFiles: deps.deleteMediaFiles,
+    });
   });
 
   it('still completes account deletion when an orphan file cannot be removed', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { baseUrl, deps } = await startApp({
-      deleteGrowthAssetFiles: vi.fn().mockRejectedValue(new Error('disk unavailable')),
+      deleteAccountWithCleanup: vi.fn().mockResolvedValue({ cleanupPending: true, cleanupJobs: 3 }),
     });
     const res = await fetch(`${baseUrl}/api/users/me`, { method: 'DELETE' });
 
-    expect(res.status).toBe(200);
-    expect(deps.deleteUserById).toHaveBeenCalledOnce();
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ ok: true, cleanupPending: true, cleanupJobs: 3 });
+    expect(deps.deleteAccountWithCleanup).toHaveBeenCalledOnce();
+  });
+
+  it('still completes account deletion when gallery media cleanup fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { baseUrl, deps } = await startApp({
+      deleteAccountWithCleanup: vi.fn().mockResolvedValue({ cleanupPending: true, cleanupJobs: 3 }),
+    });
+    const res = await fetch(`${baseUrl}/api/users/me`, { method: 'DELETE' });
+
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ ok: true, cleanupPending: true, cleanupJobs: 3 });
+    expect(deps.deleteAccountWithCleanup).toHaveBeenCalledOnce();
   });
 });

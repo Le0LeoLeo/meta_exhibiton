@@ -34,6 +34,25 @@ const items = [
 ] as ExhibitItem[];
 
 describe("useScenePreloader", () => {
+  it("tracks cached completion as a new preload cycle when returning from floor plan", async () => {
+    const loadAsset = vi.fn(() => Promise.resolve());
+    const { result, rerender } = renderHook(
+      ({ mode }: { mode: "edit" | "floor-plan" }) =>
+        useScenePreloader({ mode, roomSize, items: [], loadAsset }),
+      { initialProps: { mode: "floor-plan" as const } },
+    );
+
+    expect(result.current.backgroundComplete).toBe(true);
+
+    rerender({ mode: "edit" });
+
+    expect(result.current.backgroundComplete).toBe(false);
+    expect(result.current.progress).toBe(0);
+
+    await waitFor(() => expect(result.current.backgroundComplete).toBe(true));
+    expect(result.current.progress).toBe(100);
+  });
+
   it("allows entry after core room assets settle while background assets keep loading", async () => {
     const coreWall = createDeferred();
     const coreFloor = createDeferred();

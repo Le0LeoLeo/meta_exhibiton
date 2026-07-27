@@ -141,6 +141,57 @@ describe("useMetaverseStudioStore editor arrangement actions", () => {
     expect(useMetaverseStudioStore.getState().undoStack).toHaveLength(0);
   });
 
+  it("preserves the existing room geometry when adding an exhibit", () => {
+    useMetaverseStudioStore.setState({
+      roomSize: {
+        ...defaultGalleryScene.roomSize,
+        width: 20,
+        length: 20,
+      },
+      floorPlanElements: [{
+        id: "legacy-rectangular-room",
+        type: "room",
+        position: [0, 0.02, 0],
+        rotation: [0, 0, 0],
+        scale: [9, 0.04, 50],
+        color: "#dbeafe",
+        isLocked: true,
+      }],
+    });
+
+    useMetaverseStudioStore.getState().addItem("painting");
+
+    expect(useMetaverseStudioStore.getState().floorPlanElements[0].scale).toEqual([9, 0.04, 50]);
+  });
+
+  it("enters floor-plan mode without creating an undo entry", () => {
+    useMetaverseStudioStore.setState({ mode: "edit", undoStack: [], redoStack: [] });
+
+    useMetaverseStudioStore.getState().setMode("floor-plan");
+
+    expect(useMetaverseStudioStore.getState().mode).toBe("floor-plan");
+    expect(useMetaverseStudioStore.getState().undoStack).toHaveLength(0);
+  });
+
+  it("creates a new wall inside the primary room", () => {
+    useMetaverseStudioStore.setState({
+      floorPlanElements: [{
+        id: "primary-room",
+        type: "room",
+        position: [4, 0.02, 6],
+        rotation: [0, 0, 0],
+        scale: [12, 0.04, 10],
+        color: "#dbeafe",
+        isLocked: true,
+      }],
+    });
+
+    useMetaverseStudioStore.getState().addFloorPlanElement("wall");
+
+    const wall = useMetaverseStudioStore.getState().floorPlanElements.find((element) => element.type === "wall");
+    expect(wall?.position).toEqual([4, 0.1, 6]);
+  });
+
   it("does not add history when updating a missing item", () => {
     useMetaverseStudioStore.setState({
       items: [createItem("painting-1", [0, 1.5, 0])],

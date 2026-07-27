@@ -10,7 +10,7 @@ import {
   getPublishedGalleryById,
   type ExhibitionDetail,
 } from '../api/exhibitions';
-import { useStore } from '../features/metaverse-studio';
+import { useMetaverseStudioStore as useStore } from '../modules/metaverse3d/store/useMetaverseStudioStore';
 import ExhibitionView, {
   resetExhibitionViewCacheForTests,
 } from './ExhibitionView';
@@ -21,17 +21,23 @@ vi.mock('../api/exhibitions', () => ({
   getPublishedGalleryById: vi.fn(),
 }));
 
-vi.mock('../features/metaverse-studio', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../features/metaverse-studio')>();
+const { studioModuleLoad, studioRender } = vi.hoisted(() => ({
+  studioModuleLoad: vi.fn(),
+  studioRender: vi.fn(),
+}));
 
+vi.mock('../features/metaverse-studio', () => {
+  studioModuleLoad();
   return {
-    ...actual,
-    default: () => <div>Studio loaded</div>,
+    default: (props: unknown) => {
+      studioRender(props);
+      return <div>Studio loaded</div>;
+    },
   };
 });
 
 beforeEach(() => {
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ({}) as WebGLRenderingContext);
   localStorage.clear();
   sessionStorage.clear();
   useStore.setState(initialStoreState, true);
@@ -102,6 +108,43 @@ function renderExhibition(initialEntry: InitialEntry) {
 }
 
 describe('ExhibitionView', () => {
+  it('defaults to semantic 2D without loading or rendering the studio when WebGL is unavailable', async () => {
+    vi.mocked(HTMLCanvasElement.prototype.getContext).mockReturnValue(null);
+    vi.mocked(getPublishedGalleryById).mockResolvedValue({
+      gallery: createGallery('exhibition-2d', {
+        version: 1,
+        items: [{
+          id: 'photo',
+          type: 'painting',
+          title: '低效能裝置也能看的作品',
+          content: '/photo.jpg',
+        }],
+      }),
+    });
+
+    renderExhibition('/exhibitions/exhibition-2d');
+
+    expect(await screen.findByRole('heading', { name: '低效能裝置也能看的作品' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: '展品清單' })).toBeInTheDocument();
+    expect(screen.queryByText('Studio loaded')).not.toBeInTheDocument();
+    expect(studioModuleLoad).not.toHaveBeenCalled();
+    expect(studioRender).not.toHaveBeenCalled();
+  });
+
+  it('lets visitors switch from 2D to 3D explicitly', async () => {
+    vi.mocked(HTMLCanvasElement.prototype.getContext).mockReturnValue(null);
+    vi.mocked(getPublishedGalleryById).mockResolvedValue({
+      gallery: createGallery('exhibition-switch', { version: 1, items: [] }),
+    });
+    renderExhibition('/exhibitions/exhibition-switch');
+    await screen.findByRole('heading', { name: 'Public exhibition exhibition-switch' });
+
+    act(() => screen.getByRole('button', { name: '3D 展廳' }).click());
+
+    expect(await screen.findByText('Studio loaded')).toBeInTheDocument();
+    expect(studioRender).toHaveBeenCalled();
+  });
+
   it('does not reload or re-import when the same instance rerenders', async () => {
     const scene = { version: 1, items: [] };
     vi.mocked(getPublishedGalleryById).mockResolvedValue({
