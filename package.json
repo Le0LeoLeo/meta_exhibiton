@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "check": "npm run check:server && npm run typecheck && npm run lint && npm run test && npm run build && npm run check:bundle",
+    "check": "npm run check:server && npm run check:avatar && npm run typecheck && npm run lint && npm run test && npm run build && npm run check:bundle",
+    "check:avatar": "node scripts/validate-avatar-kit.mjs",
+    "check:avatar:required": "node scripts/validate-avatar-kit.mjs --required",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "check:server": "node scripts/check-server-syntax.mjs",
     "dev": "vite",
