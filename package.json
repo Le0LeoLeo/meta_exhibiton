@@ -6,8 +6,8 @@
   "scripts": {
     "build": "vite build",
     "check": "npm run check:server && npm run check:avatar && npm run typecheck && npm run lint && npm run test && npm run build && npm run check:bundle",
-    "check:avatar": "node scripts/validate-avatar-kit.mjs",
-    "check:avatar:required": "node scripts/validate-avatar-kit.mjs --required",
+    "check:avatar": "node scripts/validate-quaternius-avatar.mjs",
+    "check:avatar:required": "node scripts/validate-quaternius-avatar.mjs",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "check:server": "node scripts/check-server-syntax.mjs",
     "dev": "vite",
@@ -15,6 +15,7 @@
     "dev:all": "concurrently -n server,client -c green,cyan \"bun run dev:server\" \"bun run dev\"",
     "lint": "eslint config scripts server src/app vite.config.ts vite.config.test.ts --max-warnings 0",
     "media:cleanup": "node scripts/cleanup-media.mjs",
+    "prepare:avatar": "node scripts/prepare-quaternius-avatar.mjs",
     "test": "vitest run",
     "test:multiplayer:redis": "vitest run server/multiplayer/multiInstance.integration.test.js",
     "test:watch": "vitest",
@@ -102,6 +103,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@gltf-transform/core": "^4.4.2",
+    "@gltf-transform/extensions": "^4.4.2",
+    "@gltf-transform/functions": "^4.4.2",
     "@tailwindcss/vite": "4.1.12",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

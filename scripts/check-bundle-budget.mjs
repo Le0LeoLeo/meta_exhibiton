@@ -1,14 +1,15 @@
 import { readdirSync, statSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 
-const assetsDirectory = join(process.cwd(), 'dist', 'assets');
+const distDirectory = join(process.cwd(), 'dist');
 const kibibyte = 1024;
 const limits = {
   largestJavaScript: 800 * kibibyte,
   totalJavaScript: 4800 * kibibyte,
   totalCss: 220 * kibibyte,
   largestGlb: 1800 * kibibyte,
-  totalGlb: 5400 * kibibyte,
+  // Includes both editor assets and the lazy-loaded Quaternius avatar kit.
+  totalGlb: 12500 * kibibyte,
 };
 
 function collectFiles(directory) {
@@ -22,7 +23,7 @@ function formatKibibytes(bytes) {
   return `${(bytes / kibibyte).toFixed(1)} KiB`;
 }
 
-const files = collectFiles(assetsDirectory);
+const files = collectFiles(distDirectory);
 const javascript = files.filter((file) => extname(file) === '.js');
 const css = files.filter((file) => extname(file) === '.css');
 const glb = files.filter((file) => extname(file) === '.glb');

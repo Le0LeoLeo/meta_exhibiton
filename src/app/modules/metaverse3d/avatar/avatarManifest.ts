@@ -1,6 +1,6 @@
 export const AVATAR_MANIFEST = {
-  modelUrl: "/models/avatars/v1/avatar-kit-v1.glb",
-  assetReady: false,
+  modelUrl: "/models/avatars/quaternius-v1/body01.glb",
+  assetReady: true,
   nodes: {
     body: {
       body01: "Body_body01",
