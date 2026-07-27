@@ -128,10 +128,10 @@ export function Navigation() {
 
             <div className="flex items-center gap-2 xl:hidden">
               {isLoggedIn ? (
-                <button type="button" onClick={handleLogout} className="inline-flex h-10 items-center gap-1 rounded-md border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground md:hidden">
+                <Link to="/profile" className="inline-flex h-10 items-center gap-1 rounded-md border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground md:hidden">
                   <UserCircle2 className="size-4" />
                   {initials}
-                </button>
+                </Link>
               ) : (
                 <Link to="/login" className="hidden rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:inline-flex md:hidden">{t('login')}</Link>
               )}

@@ -18,6 +18,27 @@ describe("remote player appearance", () => {
     );
   });
 
+  it("uses saved appearance colors for the procedural fallback", () => {
+    const palette = getRemoteAvatarPalette("visitor", {
+      ...DEFAULT_AVATAR_APPEARANCE,
+      colors: {
+        skin: "skin04",
+        hair: "hairRed",
+        top: "violet",
+        bottom: "brown",
+        shoes: "white",
+      },
+    });
+
+    expect(palette).toMatchObject({
+      skin: "#936044",
+      hair: "#9a422f",
+      jacket: "#7862a6",
+      trousers: "#60483c",
+      shoes: "#e8e6df",
+    });
+  });
+
   it("keeps the idle pose still", () => {
     const pose = { armSwing: 1, legSwing: 1, bob: 1, lean: 1 };
 

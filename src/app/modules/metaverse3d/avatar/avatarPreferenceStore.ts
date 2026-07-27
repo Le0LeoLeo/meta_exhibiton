@@ -11,6 +11,7 @@ export type AvatarPreferenceSource = "default" | "guest" | "account";
 
 export type AvatarPreferenceState = {
   appearance: AvatarAppearanceV1;
+  savedAppearance: AvatarAppearanceV1;
   source: AvatarPreferenceSource;
   dirty: boolean;
   setAppearance: (value: AvatarAppearanceV1) => void;
@@ -56,16 +57,13 @@ function removeGuestAppearance(): void {
 export const useAvatarPreferenceStore = create<AvatarPreferenceState>(
   (set, get) => ({
     appearance: defaultAppearance(),
+    savedAppearance: defaultAppearance(),
     source: "default",
     dirty: false,
 
     setAppearance: (value) => {
       const appearance = normalizeAvatarAppearance(value);
       const source = get().source === "account" ? "account" : "guest";
-
-      if (source === "guest") {
-        storeGuestAppearance(appearance);
-      }
 
       set({
         appearance,
@@ -87,6 +85,7 @@ export const useAvatarPreferenceStore = create<AvatarPreferenceState>(
       if (storedValue === null) {
         set({
           appearance: defaultAppearance(),
+          savedAppearance: defaultAppearance(),
           source: "default",
           dirty: false,
         });
@@ -98,6 +97,7 @@ export const useAvatarPreferenceStore = create<AvatarPreferenceState>(
         storeGuestAppearance(appearance);
         set({
           appearance,
+          savedAppearance: appearance,
           source: "guest",
           dirty: false,
         });
@@ -105,6 +105,7 @@ export const useAvatarPreferenceStore = create<AvatarPreferenceState>(
         removeGuestAppearance();
         set({
           appearance: defaultAppearance(),
+          savedAppearance: defaultAppearance(),
           source: "default",
           dirty: false,
         });
@@ -114,6 +115,7 @@ export const useAvatarPreferenceStore = create<AvatarPreferenceState>(
     hydrateAccount: (value) =>
       set({
         appearance: normalizeAvatarAppearance(value),
+        savedAppearance: normalizeAvatarAppearance(value),
         source: "account",
         dirty: false,
       }),
@@ -123,13 +125,14 @@ export const useAvatarPreferenceStore = create<AvatarPreferenceState>(
       if (source === "guest") {
         storeGuestAppearance(appearance);
       }
-      set({ dirty: false });
+      set({ savedAppearance: appearance, dirty: false });
     },
 
     reset: () => {
       removeGuestAppearance();
       set({
         appearance: defaultAppearance(),
+        savedAppearance: defaultAppearance(),
         source: "default",
         dirty: false,
       });

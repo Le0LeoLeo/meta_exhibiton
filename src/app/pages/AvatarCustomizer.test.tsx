@@ -55,6 +55,7 @@ describe("AvatarCustomizer", () => {
     authMocks.emitPlayerAppearance.mockReset();
     useAvatarPreferenceStore.setState({
       appearance: { ...DEFAULT_AVATAR_APPEARANCE, colors: { ...DEFAULT_AVATAR_APPEARANCE.colors } },
+      savedAppearance: { ...DEFAULT_AVATAR_APPEARANCE, colors: { ...DEFAULT_AVATAR_APPEARANCE.colors } },
       source: "default",
       dirty: false,
     });

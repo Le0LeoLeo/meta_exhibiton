@@ -133,6 +133,53 @@ describe("multiplayer credentials and server roles", () => {
     });
   });
 
+  it("hydrates a saved guest avatar before joining directly after reload", async () => {
+    const appearance = {
+      ...DEFAULT_AVATAR_APPEARANCE,
+      hair: "hair03" as const,
+      top: "top02" as const,
+    };
+    localStorage.setItem("mrei.avatar.v1", JSON.stringify(appearance));
+    const { connectMultiplayer, joinCurrentRoom, store } = await loadNetwork();
+    store.getState().setRoomId("gallery-1");
+    connectMultiplayer();
+
+    joinCurrentRoom();
+
+    expect(latestSocket().emit).toHaveBeenCalledWith(
+      "room:join",
+      expect.objectContaining({ appearance }),
+    );
+  });
+
+  it("hydrates the authenticated account avatar before joining directly", async () => {
+    const { saveAuth } = await import("../../../api/auth");
+    const appearance = {
+      ...DEFAULT_AVATAR_APPEARANCE,
+      hair: "hair02" as const,
+      accessory: "hat01" as const,
+    };
+    saveAuth({
+      token: "account-token",
+      user: {
+        id: "user-1",
+        email: "user@example.com",
+        name: "User",
+        avatarAppearance: appearance,
+      },
+    });
+    const { connectMultiplayer, joinCurrentRoom, store } = await loadNetwork();
+    store.getState().setRoomId("gallery-1");
+    connectMultiplayer();
+
+    joinCurrentRoom();
+
+    expect(latestSocket().emit).toHaveBeenCalledWith(
+      "room:join",
+      expect.objectContaining({ appearance }),
+    );
+  });
+
   it("emits a dedicated appearance update for an authorized room member", async () => {
     const {
       connectMultiplayer,

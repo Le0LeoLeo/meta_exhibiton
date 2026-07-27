@@ -39,16 +39,15 @@ describe("useAvatarPreferenceStore", () => {
     expect(state.dirty).toBe(false);
   });
 
-  it("normalizes and persists guest edits", () => {
+  it("keeps guest edits as a draft until they are saved", () => {
     useAvatarPreferenceStore.getState().setAppearance(CUSTOM_APPEARANCE);
 
     const state = useAvatarPreferenceStore.getState();
     expect(state.appearance).toEqual(CUSTOM_APPEARANCE);
+    expect(state.savedAppearance).toEqual(DEFAULT_AVATAR_APPEARANCE);
     expect(state.source).toBe("guest");
     expect(state.dirty).toBe(true);
-    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null")).toEqual(
-      CUSTOM_APPEARANCE,
-    );
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it("hydrates and canonicalizes a stored guest preference", () => {
@@ -77,6 +76,7 @@ describe("useAvatarPreferenceStore", () => {
         top: DEFAULT_AVATAR_APPEARANCE.colors.top,
       },
     });
+    expect(state.savedAppearance).toEqual(state.appearance);
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null")).toEqual(
       state.appearance,
     );
@@ -114,6 +114,12 @@ describe("useAvatarPreferenceStore", () => {
     useAvatarPreferenceStore.getState().markSaved();
 
     expect(useAvatarPreferenceStore.getState().dirty).toBe(false);
+    expect(useAvatarPreferenceStore.getState().savedAppearance).toEqual(
+      CUSTOM_APPEARANCE,
+    );
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null")).toEqual(
+      CUSTOM_APPEARANCE,
+    );
   });
 
   it("reset clears guest storage and restores the initial state", () => {

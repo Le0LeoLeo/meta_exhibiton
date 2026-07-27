@@ -62,8 +62,8 @@ export function RemotePlayer({ player }: RemotePlayerProps) {
     lean: 0,
   });
   const palette = useMemo(
-    () => getRemoteAvatarPalette(player.id),
-    [player.id],
+    () => getRemoteAvatarPalette(player.id, player.appearance),
+    [player.id, player.appearance],
   );
 
   latestPositionRef.current.set(

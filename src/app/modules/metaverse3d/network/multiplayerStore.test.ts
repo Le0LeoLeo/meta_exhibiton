@@ -97,6 +97,35 @@ describe("multiplayer avatar appearance", () => {
 
     expect(useMultiplayerStore.getState().remotePlayers).toEqual({});
   });
+
+  it("ignores an appearance event older than the last applied appearance", () => {
+    const store = useMultiplayerStore.getState();
+    store.applyRoomJoined({
+      selfId: "self-1",
+      roomId: "gallery-1",
+      role: "viewer",
+      players: [{
+        id: "remote-1",
+        nickname: "Visitor",
+        appearance: { ...DEFAULT_AVATAR_APPEARANCE, hair: "hair03" },
+        position: { x: 0, y: 1.7, z: 0 },
+        yaw: 0,
+        lastSeq: 0,
+        updatedAt: 20,
+      }],
+    });
+
+    store.applyPlayerAppearance({
+      roomId: "gallery-1",
+      id: "remote-1",
+      appearance: { ...DEFAULT_AVATAR_APPEARANCE, hair: "hair01" },
+      updatedAt: 19,
+    });
+
+    expect(
+      useMultiplayerStore.getState().remotePlayers["remote-1"].appearance.hair,
+    ).toBe("hair03");
+  });
 });
 
 describe("multiplayer scene version ordering", () => {

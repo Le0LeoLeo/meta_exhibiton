@@ -137,11 +137,19 @@ export function joinCurrentRoom() {
   const currentSocket = socket;
   if (!currentSocket || !currentSocket.connected) return;
 
+  const auth = loadAuth();
+  const preference = useAvatarPreferenceStore.getState();
+  if (auth.user && preference.source !== "account") {
+    preference.hydrateAccount(auth.user.avatarAppearance);
+  } else if (!auth.user && preference.source === "default" && !preference.dirty) {
+    preference.hydrateGuest();
+  }
+
   const { roomId, nickname, shareToken } = useMultiplayerStore.getState();
   const payload: RoomJoinPayload = {
     roomId,
     nickname,
-    appearance: useAvatarPreferenceStore.getState().appearance,
+    appearance: useAvatarPreferenceStore.getState().savedAppearance,
     ...(shareToken ? { shareToken } : {}),
   };
   currentSocket.emit("room:join", payload);
@@ -155,7 +163,7 @@ export function emitPlayerMove(payload: PlayerMovePayload) {
 }
 
 export function emitPlayerAppearance(
-  appearance = useAvatarPreferenceStore.getState().appearance,
+  appearance = useAvatarPreferenceStore.getState().savedAppearance,
 ) {
   const currentSocket = socket;
   if (!currentSocket || !currentSocket.connected) return false;

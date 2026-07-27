@@ -1,4 +1,6 @@
 import { DEFAULT_EYE_HEIGHT } from "../../sceneScale";
+import { AVATAR_MANIFEST } from "../../avatar/avatarManifest";
+import type { AvatarAppearanceV1 } from "../../avatar/avatarAppearance";
 
 export type RemoteAvatarPalette = {
   jacket: string;
@@ -67,7 +69,21 @@ function hashNickname(value: string) {
   return hash >>> 0;
 }
 
-export function getRemoteAvatarPalette(seed: string): RemoteAvatarPalette {
+export function getRemoteAvatarPalette(
+  seed: string,
+  appearance?: AvatarAppearanceV1,
+): RemoteAvatarPalette {
+  if (appearance) {
+    return {
+      jacket: AVATAR_MANIFEST.colors.top[appearance.colors.top],
+      shirt: "#f5f5f4",
+      trousers: AVATAR_MANIFEST.colors.bottom[appearance.colors.bottom],
+      shoes: AVATAR_MANIFEST.colors.shoes[appearance.colors.shoes],
+      accent: AVATAR_MANIFEST.colors.top[appearance.colors.top],
+      hair: AVATAR_MANIFEST.colors.hair[appearance.colors.hair],
+      skin: AVATAR_MANIFEST.colors.skin[appearance.colors.skin],
+    };
+  }
   return REMOTE_AVATAR_PALETTES[
     hashNickname(seed.trim().toLocaleLowerCase()) % REMOTE_AVATAR_PALETTES.length
   ];

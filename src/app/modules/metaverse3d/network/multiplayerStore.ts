@@ -31,6 +31,7 @@ export type RemotePlayerState = {
   renderYaw: number;
   seq: number;
   updatedAt: number;
+  appearanceUpdatedAt?: number;
 };
 
 export type RemoteEditorFocus = {
@@ -131,6 +132,7 @@ function toRemoteState(snapshot: PlayerSnapshot): RemotePlayerState {
     renderYaw: snapshot.yaw,
     seq: snapshot.lastSeq,
     updatedAt: snapshot.updatedAt,
+    appearanceUpdatedAt: snapshot.updatedAt,
   };
 }
 
@@ -353,12 +355,19 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
       const existing = state.remotePlayers[payload.id];
       if (!existing) return state;
+      if (
+        payload.updatedAt <
+        (existing.appearanceUpdatedAt ?? existing.updatedAt)
+      ) {
+        return state;
+      }
       return {
         remotePlayers: {
           ...state.remotePlayers,
           [payload.id]: {
             ...existing,
             appearance: normalizeAvatarAppearance(payload.appearance),
+            appearanceUpdatedAt: payload.updatedAt,
             updatedAt: Math.max(existing.updatedAt, payload.updatedAt),
           },
         },
@@ -384,6 +393,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             id: payload.id,
             appearance: existing?.appearance
               ?? normalizeAvatarAppearance(DEFAULT_AVATAR_APPEARANCE),
+            appearanceUpdatedAt:
+              existing?.appearanceUpdatedAt ?? existing?.updatedAt ?? payload.updatedAt,
             nickname: existing?.nickname || "訪客",
             targetPosition: { ...payload.position },
             renderPosition: { ...baseRender },
