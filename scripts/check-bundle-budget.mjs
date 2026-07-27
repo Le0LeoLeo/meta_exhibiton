@@ -9,7 +9,7 @@ const limits = {
   totalCss: 220 * kibibyte,
   largestGlb: 1800 * kibibyte,
   // Includes both editor assets and the lazy-loaded Quaternius avatar kit.
-  totalGlb: 15000 * kibibyte,
+  totalGlb: 11000 * kibibyte,
 };
 
 function collectFiles(directory) {

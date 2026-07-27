@@ -50,7 +50,7 @@ export function AvatarPreviewCanvas({
       <Canvas
         shadows
         dpr={[1, 1.5]}
-        camera={{ position: [0, 1.15, 3.1], fov: 35, near: 0.1, far: 20 }}
+        camera={{ position: [0, 1.3, 3.35], fov: 35, near: 0.1, far: 20 }}
         fallback={
           <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
             {unavailableLabel}
@@ -90,7 +90,7 @@ export function AvatarPreviewCanvas({
           makeDefault
           enablePan={false}
           enableDamping
-          target={[0, 0.9, 0]}
+          target={[0, 1, 0]}
           minDistance={2.25}
           maxDistance={4.2}
           minPolarAngle={Math.PI * 0.32}

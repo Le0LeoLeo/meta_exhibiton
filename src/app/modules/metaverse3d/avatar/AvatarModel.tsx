@@ -3,10 +3,10 @@ import { useAnimations, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { AvatarAppearanceV1 } from "./avatarAppearance";
 import {
-  createQuaterniusAvatarScene,
-  disposeQuaterniusAvatarScene,
-  QUATERNIUS_AVATAR_ASSETS,
-} from "./quaterniusAvatar";
+  CASUAL_AVATAR_ASSETS,
+  createCasualAvatarScene,
+  disposeCasualAvatarScene,
+} from "./casualAvatar";
 import { AVATAR_MANIFEST } from "./avatarManifest";
 import {
   selectAvatarAnimation,
@@ -173,24 +173,20 @@ export function AvatarModel({
   playerSeed,
   castShadow = true,
 }: AvatarModelProps) {
-  const bodyUrl = QUATERNIUS_AVATAR_ASSETS.bodies[appearance.body];
-  const hairUrl = QUATERNIUS_AVATAR_ASSETS.hair[appearance.hair];
-  const bodyGltf = useGLTF(bodyUrl);
-  const hairGltf = useGLTF(hairUrl);
-  const animationGltf = useGLTF(QUATERNIUS_AVATAR_ASSETS.animations);
+  const modelUrl = CASUAL_AVATAR_ASSETS[appearance.body][appearance.hair];
+  const modelGltf = useGLTF(modelUrl);
   const configured = useMemo(
     () =>
-      createQuaterniusAvatarScene(
-        bodyGltf.scene,
-        hairGltf.scene,
+      createCasualAvatarScene(
+        modelGltf.scene,
         appearance,
         castShadow,
       ),
-    [appearance, bodyGltf.scene, castShadow, hairGltf.scene],
+    [appearance, castShadow, modelGltf.scene],
   );
 
   useEffect(
-    () => () => disposeQuaterniusAvatarScene(configured),
+    () => () => disposeCasualAvatarScene(configured),
     [configured],
   );
 
@@ -198,7 +194,7 @@ export function AvatarModel({
     <>
       <AvatarModelAnimations
         key={configured.scene.uuid}
-        animations={animationGltf.animations}
+        animations={modelGltf.animations}
         scene={configured.scene}
         speed={speed}
         emote={emote}
@@ -210,11 +206,7 @@ export function AvatarModel({
 }
 
 if (AVATAR_MANIFEST.assetReady) {
-  Object.values(QUATERNIUS_AVATAR_ASSETS.bodies).forEach((url) =>
-    useGLTF.preload(url),
+  Object.values(CASUAL_AVATAR_ASSETS).forEach((body) =>
+    Object.values(body).forEach((url) => useGLTF.preload(url)),
   );
-  Object.values(QUATERNIUS_AVATAR_ASSETS.hair).forEach((url) =>
-    useGLTF.preload(url),
-  );
-  useGLTF.preload(QUATERNIUS_AVATAR_ASSETS.animations);
 }
