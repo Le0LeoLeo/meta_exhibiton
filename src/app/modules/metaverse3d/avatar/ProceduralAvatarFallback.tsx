@@ -126,7 +126,7 @@ export const ProceduralAvatarFallback = forwardRef<
         <meshStandardMaterial color={palette.shirt} roughness={0.78} />
       </mesh>
 
-      <group ref={leftArmRef} position={[-0.285, 0.43, 0]}>
+      <group ref={leftArmRef} position={[-0.235, 0.43, 0]}>
         <mesh
           geometry={SHARED_GEOMETRIES.limb}
           position={[0, -0.21, 0]}
@@ -142,7 +142,7 @@ export const ProceduralAvatarFallback = forwardRef<
           <meshStandardMaterial color={palette.skin} roughness={0.72} />
         </mesh>
       </group>
-      <group ref={rightArmRef} position={[0.285, 0.43, 0]}>
+      <group ref={rightArmRef} position={[0.235, 0.43, 0]}>
         <mesh
           geometry={SHARED_GEOMETRIES.limb}
           position={[0, -0.21, 0]}
