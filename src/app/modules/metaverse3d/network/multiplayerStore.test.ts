@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { SceneOpPayload, SceneSyncPayload } from "./protocol";
+import { DEFAULT_AVATAR_APPEARANCE } from "../avatar/avatarAppearance";
 import { useMultiplayerStore } from "./multiplayerStore";
 
 const initialState = useMultiplayerStore.getState();
@@ -33,6 +34,69 @@ function operation(version: number, clientOpId = `op-${version}`): SceneOpPayloa
 
 afterEach(() => {
   useMultiplayerStore.setState(initialState, true);
+});
+
+describe("multiplayer avatar appearance", () => {
+  it("hydrates and updates a remote appearance without resetting movement", () => {
+    const store = useMultiplayerStore.getState();
+    store.applyRoomJoined({
+      selfId: "self-1",
+      roomId: "gallery-1",
+      role: "viewer",
+      players: [{
+        id: "remote-1",
+        nickname: "Visitor",
+        appearance: DEFAULT_AVATAR_APPEARANCE,
+        position: { x: 1, y: 1.7, z: 2 },
+        yaw: 0,
+        lastSeq: 4,
+        updatedAt: 10,
+      }],
+    });
+    const before = useMultiplayerStore.getState().remotePlayers["remote-1"];
+
+    store.applyPlayerAppearance({
+      roomId: "gallery-1",
+      id: "remote-1",
+      appearance: {
+        ...DEFAULT_AVATAR_APPEARANCE,
+        hair: "hair03",
+        top: "top02",
+      },
+      updatedAt: 11,
+    });
+    const after = useMultiplayerStore.getState().remotePlayers["remote-1"];
+
+    expect(after.appearance).toMatchObject({ hair: "hair03", top: "top02" });
+    expect(after.targetPosition).toEqual(before.targetPosition);
+    expect(after.renderPosition).toEqual(before.renderPosition);
+    expect(after.seq).toBe(4);
+  });
+
+  it("ignores appearance events from another room or the local player", () => {
+    const store = useMultiplayerStore.getState();
+    store.applyRoomJoined({
+      selfId: "self-1",
+      roomId: "gallery-1",
+      role: "viewer",
+      players: [],
+    });
+
+    store.applyPlayerAppearance({
+      roomId: "gallery-2",
+      id: "remote-1",
+      appearance: DEFAULT_AVATAR_APPEARANCE,
+      updatedAt: 1,
+    });
+    store.applyPlayerAppearance({
+      roomId: "gallery-1",
+      id: "self-1",
+      appearance: DEFAULT_AVATAR_APPEARANCE,
+      updatedAt: 1,
+    });
+
+    expect(useMultiplayerStore.getState().remotePlayers).toEqual({});
+  });
 });
 
 describe("multiplayer scene version ordering", () => {

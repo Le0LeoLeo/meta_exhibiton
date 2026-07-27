@@ -11,6 +11,7 @@ import {
   startMultiplayerServer,
 } from './socketServer.js';
 import { createMemorySceneStore } from './memorySceneStore.js';
+import { DEFAULT_AVATAR_APPEARANCE } from '../schemas/avatarAppearanceSchema.js';
 
 const PUBLIC_GALLERY = {
   id: 'public-gallery',
@@ -65,6 +66,24 @@ const shares = new Map([
   [EDITOR_SHARE.share_token, EDITOR_SHARE],
   [EXPIRED_SHARE.share_token, EXPIRED_SHARE],
 ]);
+
+const CUSTOM_AVATAR_APPEARANCE = {
+  version: 1,
+  body: 'body02',
+  head: 'head02',
+  hair: 'hair03',
+  top: 'top03',
+  bottom: 'bottom03',
+  shoes: 'shoes02',
+  accessory: 'glasses01',
+  colors: {
+    skin: 'skin04',
+    hair: 'hairRed',
+    top: 'violet',
+    bottom: 'brown',
+    shoes: 'white',
+  },
+};
 
 const VALID_ROOM_SIZE = {
   width: 12,
@@ -242,6 +261,7 @@ async function startServer(options = {}) {
     joinLimits: normalizedOptions.joinLimits,
     startupLimits: normalizedOptions.startupLimits,
     movementLimits: normalizedOptions.movementLimits,
+    appearanceRateLimitNow: normalizedOptions.appearanceRateLimitNow,
     authorizationSweepMs: normalizedOptions.authorizationSweepMs,
     collaboration: normalizedOptions.collaboration,
     sceneStore: normalizedOptions.sceneStore,
@@ -503,6 +523,178 @@ describe('multiplayer room authorization', () => {
       roomId: PUBLIC_GALLERY.id,
       role: 'viewer',
     });
+  });
+
+  it('defaults legacy joins and includes appearance in join presence snapshots', async () => {
+    const server = await startServer();
+    const observer = await connect(server);
+    const customized = await connect(server);
+
+    const observerJoined = await join(observer, { nickname: 'Legacy' });
+    expect(observerJoined.players).toContainEqual(expect.objectContaining({
+      id: observer.id,
+      appearance: DEFAULT_AVATAR_APPEARANCE,
+    }));
+
+    const announced = waitForEvent(observer, 'player:joined');
+    const customizedJoined = await join(customized, {
+      nickname: 'Customized',
+      appearance: CUSTOM_AVATAR_APPEARANCE,
+    });
+
+    expect(customizedJoined.players).toContainEqual(expect.objectContaining({
+      id: observer.id,
+      appearance: DEFAULT_AVATAR_APPEARANCE,
+    }));
+    expect(customizedJoined.players).toContainEqual(expect.objectContaining({
+      id: customized.id,
+      appearance: CUSTOM_AVATAR_APPEARANCE,
+    }));
+    await expect(announced).resolves.toMatchObject({
+      player: {
+        id: customized.id,
+        appearance: CUSTOM_AVATAR_APPEARANCE,
+      },
+    });
+  });
+
+  it('strictly rejects invalid appearance supplied while joining', async () => {
+    const server = await startServer();
+    const client = await connect(server);
+
+    await expect(joinError(client, {
+      roomId: PUBLIC_GALLERY.id,
+      nickname: 'Invalid avatar',
+      appearance: {
+        ...CUSTOM_AVATAR_APPEARANCE,
+        hair: 'remote-url',
+      },
+    })).resolves.toMatchObject({ code: 'INVALID_PAYLOAD' });
+  });
+
+  it('broadcasts valid appearance changes and persists them in room state', async () => {
+    const server = await startServer();
+    const player = await connect(server);
+    const observer = await connect(server);
+    await join(player);
+    await join(observer);
+
+    const changed = waitForEvent(observer, 'player:appearance:changed');
+    player.emit('player:appearance', {
+      roomId: PUBLIC_GALLERY.id,
+      appearance: CUSTOM_AVATAR_APPEARANCE,
+    });
+    await expect(changed).resolves.toMatchObject({
+      roomId: PUBLIC_GALLERY.id,
+      id: player.id,
+      appearance: CUSTOM_AVATAR_APPEARANCE,
+      updatedAt: expect.any(Number),
+    });
+
+    const newcomer = await connect(server);
+    const snapshot = await join(newcomer);
+    expect(snapshot.players).toContainEqual(expect.objectContaining({
+      id: player.id,
+      appearance: CUSTOM_AVATAR_APPEARANCE,
+    }));
+  });
+
+  it('rejects invalid and oversized appearance updates without mutating room state', async () => {
+    const server = await startServer();
+    const player = await connect(server);
+    const observer = await connect(server);
+    await join(player);
+    await join(observer);
+
+    const invalid = waitForEvent(player, 'room:error');
+    const noInvalidBroadcast = expectNoEvent(observer, 'player:appearance:changed');
+    player.emit('player:appearance', {
+      roomId: PUBLIC_GALLERY.id,
+      appearance: {
+        ...CUSTOM_AVATAR_APPEARANCE,
+        unknown: true,
+      },
+    });
+    await expect(invalid).resolves.toMatchObject({ code: 'INVALID_PAYLOAD' });
+    await noInvalidBroadcast;
+
+    const oversized = waitForEvent(player, 'room:error');
+    const noOversizedBroadcast = expectNoEvent(observer, 'player:appearance:changed');
+    player.emit('player:appearance', {
+      roomId: PUBLIC_GALLERY.id,
+      appearance: {
+        ...CUSTOM_AVATAR_APPEARANCE,
+        padding: 'x'.repeat(1024),
+      },
+    });
+    await expect(oversized).resolves.toMatchObject({ code: 'INVALID_PAYLOAD' });
+    await noOversizedBroadcast;
+
+    const newcomer = await connect(server);
+    const snapshot = await join(newcomer);
+    expect(snapshot.players).toContainEqual(expect.objectContaining({
+      id: player.id,
+      appearance: DEFAULT_AVATAR_APPEARANCE,
+    }));
+  });
+
+  it('rate limits appearance updates to once per socket every two seconds', async () => {
+    let now = 1_000;
+    const server = await startServer({
+      appearanceRateLimitNow: () => now,
+    });
+    const player = await connect(server);
+    const observer = await connect(server);
+    await join(player);
+    await join(observer);
+
+    const first = waitForEvent(observer, 'player:appearance:changed');
+    player.emit('player:appearance', {
+      roomId: PUBLIC_GALLERY.id,
+      appearance: CUSTOM_AVATAR_APPEARANCE,
+    });
+    await first;
+
+    const limited = waitForEvent(player, 'room:error');
+    const noSecondBroadcast = expectNoEvent(observer, 'player:appearance:changed');
+    player.emit('player:appearance', {
+      roomId: PUBLIC_GALLERY.id,
+      appearance: DEFAULT_AVATAR_APPEARANCE,
+    });
+    await expect(limited).resolves.toMatchObject({ code: 'RATE_LIMITED' });
+    await noSecondBroadcast;
+
+    now += 2_000;
+    const afterWindow = waitForEvent(observer, 'player:appearance:changed');
+    player.emit('player:appearance', {
+      roomId: PUBLIC_GALLERY.id,
+      appearance: DEFAULT_AVATAR_APPEARANCE,
+    });
+    await expect(afterWindow).resolves.toMatchObject({
+      appearance: DEFAULT_AVATAR_APPEARANCE,
+    });
+  });
+
+  it('rejects movement payloads that smuggle appearance data', async () => {
+    const server = await startServer();
+    const player = await connect(server);
+    const observer = await connect(server);
+    await join(player);
+    await join(observer);
+
+    const invalid = waitForEvent(player, 'room:error');
+    const noMove = expectNoEvent(observer, 'player:moved');
+    player.emit('player:move', {
+      roomId: PUBLIC_GALLERY.id,
+      seq: 1,
+      t: Date.now(),
+      yaw: 0,
+      position: { x: 1, y: 2.6, z: 1 },
+      appearance: CUSTOM_AVATAR_APPEARANCE,
+    });
+
+    await expect(invalid).resolves.toMatchObject({ code: 'INVALID_PAYLOAD' });
+    await noMove;
   });
 
   it('rejects anonymous private joins with AUTH_REQUIRED', async () => {

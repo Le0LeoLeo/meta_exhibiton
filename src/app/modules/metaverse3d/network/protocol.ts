@@ -4,6 +4,7 @@ import type {
   RoomSize,
   WallMaterialSettings,
 } from "../types";
+import type { AvatarAppearanceV1 } from "../avatar/avatarAppearance";
 
 export type Vec3 = { x: number; y: number; z: number };
 
@@ -20,6 +21,7 @@ export type RoomErrorPayload = {
 export type RoomJoinPayload = {
   roomId: string;
   nickname: string;
+  appearance?: AvatarAppearanceV1;
   shareToken?: string;
 };
 
@@ -34,9 +36,22 @@ export type PlayerMovePayload = {
 export type PlayerSnapshot = {
   id: string;
   nickname: string;
+  appearance: AvatarAppearanceV1;
   position: Vec3;
   yaw: number;
   lastSeq: number;
+  updatedAt: number;
+};
+
+export type PlayerAppearancePayload = {
+  roomId: string;
+  appearance: AvatarAppearanceV1;
+};
+
+export type PlayerAppearanceChangedPayload = {
+  roomId: string;
+  id: string;
+  appearance: AvatarAppearanceV1;
   updatedAt: number;
 };
 

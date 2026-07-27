@@ -1,9 +1,12 @@
 import { io, type Socket } from "socket.io-client";
 import { loadAuth } from "../../../api/auth";
+import { useAvatarPreferenceStore } from "../avatar/avatarPreferenceStore";
 import { useMultiplayerStore } from "./multiplayerStore";
 import type {
   ChatMessagePayload,
   ChatSendPayload,
+  PlayerAppearanceChangedPayload,
+  PlayerAppearancePayload,
   PlayerLeftPayload,
   PlayerMovePayload,
   PlayerMovedPayload,
@@ -86,6 +89,13 @@ export function connectMultiplayer(): Socket {
     useMultiplayerStore.getState().applyPlayerMoved(payload);
   });
 
+  socket.on(
+    "player:appearance:changed",
+    (payload: PlayerAppearanceChangedPayload) => {
+      useMultiplayerStore.getState().applyPlayerAppearance(payload);
+    },
+  );
+
   socket.on("player:left", (payload: PlayerLeftPayload) => {
     useMultiplayerStore.getState().applyPlayerLeft(payload);
   });
@@ -131,6 +141,7 @@ export function joinCurrentRoom() {
   const payload: RoomJoinPayload = {
     roomId,
     nickname,
+    appearance: useAvatarPreferenceStore.getState().appearance,
     ...(shareToken ? { shareToken } : {}),
   };
   currentSocket.emit("room:join", payload);
@@ -141,6 +152,20 @@ export function emitPlayerMove(payload: PlayerMovePayload) {
   if (!currentSocket || !currentSocket.connected) return;
   if (!MOVEMENT_ROLES.has(useMultiplayerStore.getState().role || "")) return;
   currentSocket.emit("player:move", payload);
+}
+
+export function emitPlayerAppearance(
+  appearance = useAvatarPreferenceStore.getState().appearance,
+) {
+  const currentSocket = socket;
+  if (!currentSocket || !currentSocket.connected) return false;
+  if (!MOVEMENT_ROLES.has(useMultiplayerStore.getState().role || "")) return false;
+  const payload: PlayerAppearancePayload = {
+    roomId: useMultiplayerStore.getState().roomId,
+    appearance,
+  };
+  currentSocket.emit("player:appearance", payload);
+  return true;
 }
 
 export function emitSceneSync(payload: {

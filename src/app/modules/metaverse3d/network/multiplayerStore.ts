@@ -3,6 +3,7 @@ import type {
   ChatMessagePayload,
   MultiplayerRole,
   PlayerJoinedPayload,
+  PlayerAppearanceChangedPayload,
   PlayerLeftPayload,
   PlayerMovedPayload,
   PlayerSnapshot,
@@ -14,10 +15,16 @@ import type {
   SceneSyncPayload,
   Vec3,
 } from "./protocol";
+import {
+  DEFAULT_AVATAR_APPEARANCE,
+  normalizeAvatarAppearance,
+  type AvatarAppearanceV1,
+} from "../avatar/avatarAppearance";
 
 export type RemotePlayerState = {
   id: string;
   nickname: string;
+  appearance: AvatarAppearanceV1;
   targetPosition: Vec3;
   renderPosition: Vec3;
   targetYaw: number;
@@ -58,6 +65,7 @@ type MultiplayerState = {
   setRoomError: (error: RoomErrorPayload | null) => void;
   applyRoomJoined: (payload: RoomJoinedPayload) => void;
   applyPlayerJoined: (payload: PlayerJoinedPayload) => void;
+  applyPlayerAppearance: (payload: PlayerAppearanceChangedPayload) => void;
   applyPlayerMoved: (payload: PlayerMovedPayload) => void;
   applyPlayerLeft: (payload: PlayerLeftPayload) => void;
   pushChatMessage: (payload: ChatMessagePayload) => void;
@@ -116,6 +124,7 @@ function toRemoteState(snapshot: PlayerSnapshot): RemotePlayerState {
   return {
     id: snapshot.id,
     nickname: snapshot.nickname,
+    appearance: normalizeAvatarAppearance(snapshot.appearance),
     targetPosition: { ...snapshot.position },
     renderPosition: { ...snapshot.position },
     targetYaw: snapshot.yaw,
@@ -337,6 +346,26 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     }));
   },
 
+  applyPlayerAppearance: (payload) => {
+    set((state) => {
+      if (payload.roomId !== state.roomId || payload.id === state.selfId) {
+        return state;
+      }
+      const existing = state.remotePlayers[payload.id];
+      if (!existing) return state;
+      return {
+        remotePlayers: {
+          ...state.remotePlayers,
+          [payload.id]: {
+            ...existing,
+            appearance: normalizeAvatarAppearance(payload.appearance),
+            updatedAt: Math.max(existing.updatedAt, payload.updatedAt),
+          },
+        },
+      };
+    });
+  },
+
   applyPlayerMoved: (payload) => {
     const selfId = get().selfId;
     if (payload.id === selfId) return;
@@ -353,6 +382,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           ...state.remotePlayers,
           [payload.id]: {
             id: payload.id,
+            appearance: existing?.appearance
+              ?? normalizeAvatarAppearance(DEFAULT_AVATAR_APPEARANCE),
             nickname: existing?.nickname || "訪客",
             targetPosition: { ...payload.position },
             renderPosition: { ...baseRender },

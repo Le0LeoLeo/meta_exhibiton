@@ -2,6 +2,10 @@ import { createServer } from 'node:http';
 import { isDeepStrictEqual } from 'node:util';
 import { Server } from 'socket.io';
 
+import {
+  DEFAULT_AVATAR_APPEARANCE,
+  parseAvatarAppearance,
+} from '../schemas/avatarAppearanceSchema.js';
 import { resolveGalleryAccess } from '../security/galleryAccess.js';
 import { createRateTokenConsumer } from '../security/rateLimit.js';
 import { createMemorySceneStore } from './memorySceneStore.js';
@@ -10,6 +14,8 @@ import { normalizeNickname } from './rooms.js';
 const MOVE_RATE_LIMIT_PER_SEC = 25;
 const CHAT_RATE_LIMIT_PER_SEC = 3;
 const CHAT_MAX_LENGTH = 300;
+const APPEARANCE_MAX_BYTES = 1024;
+const APPEARANCE_RATE_LIMIT_WINDOW_MS = 2000;
 const ROOM_ID_MAX_LENGTH = 128;
 const CLIENT_OP_ID_MAX_LENGTH = 128;
 const ITEM_ID_MAX_LENGTH = 256;
@@ -243,7 +249,22 @@ function isValidMovePayload(payload, roomId, limits) {
     && Math.abs(payload.position.x) <= limits.maxCoordinateAbs
     && Math.abs(payload.position.y) <= limits.maxCoordinateAbs
     && Math.abs(payload.position.z) <= limits.maxCoordinateAbs
+    && !Object.prototype.hasOwnProperty.call(payload, 'appearance')
   );
+}
+
+function parseOptionalAvatarAppearance(value) {
+  if (value === undefined) return undefined;
+  if (serializedBytes(value) > APPEARANCE_MAX_BYTES) return null;
+  try {
+    return parseAvatarAppearance(value);
+  } catch {
+    return null;
+  }
+}
+
+function defaultAvatarAppearance() {
+  return parseAvatarAppearance(DEFAULT_AVATAR_APPEARANCE);
 }
 
 function isValidExhibitItem(item) {
@@ -505,6 +526,7 @@ export function startMultiplayerServer({
   connectionLimits,
   joinLimits,
   movementLimits,
+  appearanceRateLimitNow = Date.now,
   authorizationSweepMs = 30_000,
 }) {
   if (!Number.isInteger(initialPort) || initialPort < 0 || initialPort > 65535) {
@@ -521,6 +543,9 @@ export function startMultiplayerServer({
   }
   if (!Number.isInteger(authorizationSweepMs) || authorizationSweepMs < 0) {
     throw new TypeError('authorizationSweepMs must be a nonnegative integer');
+  }
+  if (typeof appearanceRateLimitNow !== 'function') {
+    throw new TypeError('appearanceRateLimitNow must be a function');
   }
 
   const limits = normalizeSceneLimits(sceneLimits);
@@ -866,6 +891,12 @@ export function startMultiplayerServer({
       windowMs: 1000,
       maxKeys: 1,
     });
+    const consumeAppearanceToken = createRateTokenConsumer({
+      limit: 1,
+      windowMs: APPEARANCE_RATE_LIMIT_WINDOW_MS,
+      maxKeys: 1,
+      now: appearanceRateLimitNow,
+    });
     const consumeSceneOperationToken = createRateTokenConsumer({
       limit: limits.operationLimit,
       windowMs: limits.operationWindowMs,
@@ -887,9 +918,13 @@ export function startMultiplayerServer({
 
     socket.on('room:join', async (payload) => {
       const sequence = ++joinSequence;
+      const requestedAppearance = isPlainObject(payload)
+        ? parseOptionalAvatarAppearance(payload.appearance)
+        : null;
       if (
         !isPlainObject(payload)
         || !isSafeString(payload.roomId, ROOM_ID_MAX_LENGTH)
+        || requestedAppearance === null
         || (
           payload.shareToken !== undefined
           && !isSafeString(payload.shareToken, ROOM_ID_MAX_LENGTH)
@@ -1008,6 +1043,9 @@ export function startMultiplayerServer({
               lastSeq: 0,
             }),
             nickname,
+            appearance: requestedAppearance
+              ?? existing?.appearance
+              ?? defaultAvatarAppearance(),
             updatedAt: Date.now(),
           };
           socket.data.playerAnnounced = existingAnnounced && wasAlreadyJoined;
@@ -1155,6 +1193,50 @@ export function startMultiplayerServer({
         position: updated.position,
         yaw: updated.yaw,
         updatedAt: updated.updatedAt,
+      });
+    });
+
+    socket.on('player:appearance', async (payload) => {
+      if (!requireJoined(socket, payload)) return;
+      const session = captureSession(socket);
+      const authorized = await refreshRoomAccess(socket, session);
+      if (!authorized) return;
+      const roomId = authorized.galleryId;
+      const appearance = (
+        serializedBytes(payload) <= APPEARANCE_MAX_BYTES
+        && Object.prototype.hasOwnProperty.call(payload, 'appearance')
+      )
+        ? parseOptionalAvatarAppearance(payload.appearance)
+        : null;
+      if (payload.roomId !== roomId || appearance === null || appearance === undefined) {
+        emitRoomError(socket, 'INVALID_PAYLOAD');
+        return;
+      }
+      if (!consumeAppearanceToken('socket').allowed) {
+        emitRoomError(socket, 'RATE_LIMITED');
+        return;
+      }
+      if (!sessionIsCurrent(socket, session)) {
+        rejectStaleSession(socket, true);
+        return;
+      }
+
+      const currentPlayer = socket.data.player;
+      if (!currentPlayer) {
+        emitRoomError(socket, 'NOT_JOINED');
+        return;
+      }
+      const updatedAt = Date.now();
+      socket.data.player = {
+        ...currentPlayer,
+        appearance,
+        updatedAt,
+      };
+      io.to(roomId).emit('player:appearance:changed', {
+        roomId,
+        id: socket.id,
+        appearance,
+        updatedAt,
       });
     });
 

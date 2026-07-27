@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_AVATAR_APPEARANCE } from "../avatar/avatarAppearance";
 
 const transport = vi.hoisted(() => {
   type Listener = (payload?: any) => void;
@@ -73,7 +74,12 @@ async function saveTestAuth(token: string) {
   const { saveAuth } = await import("../../../api/auth");
   saveAuth({
     token,
-    user: { id: "user-1", email: "user@example.com", name: "User" },
+    user: {
+      id: "user-1",
+      email: "user@example.com",
+      name: "User",
+      avatarAppearance: DEFAULT_AVATAR_APPEARANCE,
+    },
   });
 }
 
@@ -122,8 +128,53 @@ describe("multiplayer credentials and server roles", () => {
     expect(latestSocket().emit).toHaveBeenCalledWith("room:join", {
       roomId: "gallery-1",
       nickname: store.getState().nickname,
+      appearance: DEFAULT_AVATAR_APPEARANCE,
       shareToken: "share-secret",
     });
+  });
+
+  it("emits a dedicated appearance update for an authorized room member", async () => {
+    const {
+      connectMultiplayer,
+      emitPlayerAppearance,
+      store,
+    } = await loadNetwork();
+    store.getState().setRoomId("gallery-1");
+    store.getState().setRole("viewer");
+    connectMultiplayer();
+    const appearance = { ...DEFAULT_AVATAR_APPEARANCE, hair: "hair03" as const };
+
+    expect(emitPlayerAppearance(appearance)).toBe(true);
+    expect(latestSocket().emit).toHaveBeenCalledWith("player:appearance", {
+      roomId: "gallery-1",
+      appearance,
+    });
+  });
+
+  it("applies appearance updates received from the room", async () => {
+    const { connectMultiplayer, store } = await loadNetwork();
+    connectMultiplayer();
+    store.getState().applyRoomJoined({
+      ...roomJoined("viewer"),
+      players: [{
+        id: "remote-1",
+        nickname: "Remote",
+        appearance: DEFAULT_AVATAR_APPEARANCE,
+        position: { x: 0, y: 1.7, z: 0 },
+        yaw: 0,
+        lastSeq: 0,
+        updatedAt: 1,
+      }],
+    });
+
+    latestSocket().trigger("player:appearance:changed", {
+      roomId: "gallery-1",
+      id: "remote-1",
+      appearance: { ...DEFAULT_AVATAR_APPEARANCE, top: "top03" },
+      updatedAt: 2,
+    });
+
+    expect(store.getState().remotePlayers["remote-1"].appearance.top).toBe("top03");
   });
 
   it("stores the server role and clears an old room error on join", async () => {
