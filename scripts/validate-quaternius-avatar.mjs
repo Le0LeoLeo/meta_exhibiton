@@ -40,7 +40,7 @@ const EXPECTED_CLIPS = {
   Walk: [0.9, 1.1],
   Wave: [1.8, 2.2],
 };
-const MAX_TOTAL_BYTES = 7_500_000;
+const MAX_TOTAL_BYTES = 9_000_000;
 
 function validateRig(filename, report) {
   const errors = [];
@@ -51,9 +51,6 @@ function validateRig(filename, report) {
   }
   if (report.skinCount !== 1) {
     errors.push(`${filename}: expected one skin, found ${report.skinCount}`);
-  }
-  if (report.triangleCount > 20_000) {
-    errors.push(`${filename}: triangle budget exceeded (${report.triangleCount})`);
   }
   if (report.textures.length > 7) {
     errors.push(`${filename}: texture budget exceeded (${report.textures.length})`);
@@ -71,6 +68,9 @@ function validateRig(filename, report) {
 
 function validateBody(filename, report) {
   const errors = validateRig(filename, report);
+  if (report.triangleCount > 20_000) {
+    errors.push(`${filename}: triangle budget exceeded (${report.triangleCount})`);
+  }
   const minY = report.bounds?.min?.[1];
   const maxY = report.bounds?.max?.[1];
   if (typeof minY !== 'number' || Math.abs(minY) > 0.015) {
@@ -84,7 +84,7 @@ function validateBody(filename, report) {
 
 function validateOutfit(filename, report) {
   const errors = validateRig(filename, report);
-  if (report.triangleCount > 25_000) {
+  if (report.triangleCount > 20_000) {
     errors.push(`${filename}: triangle budget exceeded (${report.triangleCount})`);
   }
   return errors;

@@ -177,20 +177,16 @@ export function AvatarModel({
   const hairUrl = QUATERNIUS_AVATAR_ASSETS.hair[appearance.hair];
   const bodyGltf = useGLTF(bodyUrl);
   const hairGltf = useGLTF(hairUrl);
-  const outfitGltf = useGLTF(
-    QUATERNIUS_AVATAR_ASSETS.outfits[appearance.body],
-  );
   const animationGltf = useGLTF(QUATERNIUS_AVATAR_ASSETS.animations);
   const configured = useMemo(
     () =>
       createQuaterniusAvatarScene(
         bodyGltf.scene,
         hairGltf.scene,
-        outfitGltf.scene,
         appearance,
         castShadow,
       ),
-    [appearance, bodyGltf.scene, castShadow, hairGltf.scene, outfitGltf.scene],
+    [appearance, bodyGltf.scene, castShadow, hairGltf.scene],
   );
 
   useEffect(
@@ -201,6 +197,7 @@ export function AvatarModel({
   return (
     <>
       <AvatarModelAnimations
+        key={configured.scene.uuid}
         animations={animationGltf.animations}
         scene={configured.scene}
         speed={speed}
@@ -217,9 +214,6 @@ if (AVATAR_MANIFEST.assetReady) {
     useGLTF.preload(url),
   );
   Object.values(QUATERNIUS_AVATAR_ASSETS.hair).forEach((url) =>
-    useGLTF.preload(url),
-  );
-  Object.values(QUATERNIUS_AVATAR_ASSETS.outfits).forEach((url) =>
     useGLTF.preload(url),
   );
   useGLTF.preload(QUATERNIUS_AVATAR_ASSETS.animations);

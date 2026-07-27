@@ -7,6 +7,7 @@ import {
 } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { NodeIO } from '@gltf-transform/core';
+import { EXTTextureWebP } from '@gltf-transform/extensions';
 import {
   dedup,
   prune,
@@ -46,8 +47,8 @@ const HAIR_ASSETS = [
   ['hair03', 'Hair_Long.gltf'],
 ];
 const OUTFIT_ASSETS = [
-  ['body01', 'Male_Peasant.gltf'],
-  ['body02', 'Female_Peasant.gltf'],
+  ['body01', 'Male_Ranger.gltf'],
+  ['body02', 'Female_Ranger.gltf'],
 ];
 const CLIP_SELECTION = new Map([
   ['Idle_Loop', { name: 'Idle', duration: 2.5 }],
@@ -94,13 +95,34 @@ function parseArguments(argv) {
 async function optimizeAsset(io, input, output) {
   const document = await io.read(input);
   await document.transform(
+    dedup(),
+    prune(),
     textureCompress({
       encoder: sharp,
+      targetFormat: 'webp',
       resize: [512, 512],
       effort: 80,
     }),
+  );
+  await io.write(output, document);
+}
+
+async function optimizeOutfitAsset(io, input, output) {
+  const document = await io.read(input);
+  const decorativePartPattern =
+    /_(?:Acc_|Arms_Bracer|Body_Belt_|Head_Hood)/u;
+  for (const node of document.getRoot().listNodes()) {
+    if (decorativePartPattern.test(node.getName())) node.dispose();
+  }
+  await document.transform(
     dedup(),
     prune(),
+    textureCompress({
+      encoder: sharp,
+      targetFormat: 'webp',
+      resize: [512, 512],
+      effort: 80,
+    }),
   );
   await io.write(output, document);
 }
@@ -177,7 +199,7 @@ async function prepareAnimations(io, input, output) {
 
 async function main() {
   const args = parseArguments(process.argv.slice(2));
-  const io = new NodeIO();
+  const io = new NodeIO().registerExtensions([EXTTextureWebP]);
   await rm(args.output, { recursive: true, force: true });
   await mkdir(args.output, { recursive: true });
   await ensureExportAliases(args.base);
@@ -197,7 +219,7 @@ async function main() {
     );
   }
   for (const [id, filename] of OUTFIT_ASSETS) {
-    await optimizeAsset(
+    await optimizeOutfitAsset(
       io,
       join(args.outfits, OUTFIT_FOLDER, filename),
       join(args.output, `outfit-${id}.glb`),
@@ -237,6 +259,25 @@ async function main() {
       'https://quaternius.com/packs/universalbasecharacters.html',
       'https://quaternius.com/packs/universalanimationlibrary.html',
       'https://quaternius.com/packs/modularcharacteroutfitsfantasy.html',
+      '',
+    ].join('\n'),
+  );
+  await writeFile(
+    join(args.output, 'README.md'),
+    [
+      '# Quaternius Avatar Kit',
+      '',
+      'This generated directory contains two rigged bodies, three hairstyles,',
+      'two optional ranger-derived source outfits, and Idle/Walk/Wave animations.',
+      'Decorative fantasy parts such as hoods, pauldrons, bracers, and belts',
+      'are removed during preparation. The runtime derives casual garment layers',
+      'from the body skin so every clothing option follows the same skeleton.',
+      '',
+      'All source models are by Quaternius and released under CC0. See',
+      '`LICENSE.txt` for the bundled license text and original source URLs.',
+      '',
+      'Run `npm run prepare:avatar -- --base <path> --animations <path>',
+      '--outfits <path>` followed by `npm run check:avatar` to rebuild.',
       '',
     ].join('\n'),
   );
