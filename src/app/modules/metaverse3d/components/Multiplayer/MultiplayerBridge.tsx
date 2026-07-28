@@ -16,13 +16,19 @@ import { useRenderPerformanceProfile } from "../../performanceProfile";
 import type { ExhibitItem } from "../../types";
 import type { SceneOpEnvelope, SceneSnapshot } from "../../network/protocol";
 
-export function MultiplayerBridge() {
+export function MultiplayerBridge({
+  targetRoomId,
+}: {
+  targetRoomId?: string;
+}) {
   const mode = useStore((state) => state.mode);
   const exportScene = useStore((state) => state.exportScene);
   const importScene = useStore((state) => state.importScene);
   const enabled = useMultiplayerStore((state) => state.enabled);
+  const setEnabled = useMultiplayerStore((state) => state.setEnabled);
   const connected = useMultiplayerStore((state) => state.connected);
   const roomId = useMultiplayerStore((state) => state.roomId);
+  const setRoomId = useMultiplayerStore((state) => state.setRoomId);
   const nickname = useMultiplayerStore((state) => state.nickname);
   const shareToken = useMultiplayerStore((state) => state.shareToken);
   const role = useMultiplayerStore((state) => state.role);
@@ -62,6 +68,21 @@ export function MultiplayerBridge() {
   const pendingOpsRef = useRef<Set<string>>(new Set());
   const requestedResyncEpochRef = useRef<number | null>(null);
   const recoverySequenceRef = useRef(0);
+
+  useEffect(() => {
+    const publicRoomId = targetRoomId?.trim();
+    if (!publicRoomId) return;
+
+    setRoomId(publicRoomId);
+    setEnabled(true);
+
+    return () => {
+      const multiplayer = useMultiplayerStore.getState();
+      if (multiplayer.roomId === publicRoomId) {
+        multiplayer.setEnabled(false);
+      }
+    };
+  }, [setEnabled, setRoomId, targetRoomId]);
 
   useEffect(() => {
     lastSceneRef.current = null;

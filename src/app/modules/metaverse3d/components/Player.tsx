@@ -16,6 +16,11 @@ const LOOK_SENSITIVITY = 0.002;
 const MOVE_SPEED = 5;
 const AUTO_INTRO_DISTANCE = 2.4;
 const REMINDER_OUTSIDE_RANGE_MS = 60000;
+const SESSION_SPAWN_POSITION = new THREE.Vector3(
+  THREE.MathUtils.randFloatSpread(7),
+  DEFAULT_EYE_HEIGHT,
+  5 + THREE.MathUtils.randFloatSpread(4),
+);
 
 type Side = "north" | "south" | "east" | "west";
 
@@ -197,7 +202,7 @@ export function Player({
   }, [roomBounds, wallThickness]);
 
   const { camera, gl } = useThree();
-  const playerPosRef = useRef(new THREE.Vector3(0, DEFAULT_EYE_HEIGHT, 5));
+  const playerPosRef = useRef(SESSION_SPAWN_POSITION.clone());
   const yawRef = useRef(0);
   const pitchRef = useRef(0);
   const isLockedRef = useRef(false);
@@ -237,7 +242,7 @@ export function Player({
   useEffect(() => {
     camera.rotation.order = "YXZ";
     if (mode === "view") {
-      playerPosRef.current.set(0, DEFAULT_EYE_HEIGHT, 5);
+      playerPosRef.current.copy(SESSION_SPAWN_POSITION);
       yawRef.current = 0;
       pitchRef.current = 0;
       camera.position.copy(playerPosRef.current);

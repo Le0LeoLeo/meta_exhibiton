@@ -30,6 +30,8 @@ const AVATAR_WALK_START_SPEED = 0.14;
 const AVATAR_WALK_STOP_SPEED = 0.07;
 
 export function RemotePlayer({ player }: RemotePlayerProps) {
+  const groupRef = useRef<THREE.Group>(null);
+  const worldPositionRef = useRef(new THREE.Vector3());
   const transform = useMemo(
     () => getRemotePlayerTransform(player),
     [
@@ -72,7 +74,13 @@ export function RemotePlayer({ player }: RemotePlayerProps) {
     player.renderPosition.z,
   );
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ camera, clock }, delta) => {
+    if (groupRef.current instanceof THREE.Object3D) {
+      groupRef.current.getWorldPosition(worldPositionRef.current);
+      groupRef.current.visible =
+        worldPositionRef.current.distanceTo(camera.position) > 0.9;
+    }
+
     const frameDelta = Math.max(delta, 1 / 120);
     const travelled = latestPositionRef.current.distanceTo(
       previousPositionRef.current,
@@ -118,6 +126,7 @@ export function RemotePlayer({ player }: RemotePlayerProps) {
 
   return (
     <group
+      ref={groupRef}
       name={`remote-player-${player.id}`}
       position={transform.position}
       rotation={transform.rotation}

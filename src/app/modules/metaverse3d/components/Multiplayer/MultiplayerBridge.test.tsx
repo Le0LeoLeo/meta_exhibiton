@@ -86,6 +86,18 @@ describe("MultiplayerBridge room joining", () => {
     });
   });
 
+  it("automatically joins the public exhibition room", async () => {
+    useMultiplayerStore.getState().setEnabled(false);
+
+    render(<MultiplayerBridge targetRoomId="published-gallery" />);
+
+    await waitFor(() => {
+      const state = useMultiplayerStore.getState();
+      expect(state.enabled).toBe(true);
+      expect(state.roomId).toBe("published-gallery");
+    });
+  });
+
   it("uses the current profile interval for view movement", async () => {
     mockUseRenderPerformanceProfile.mockReturnValue({
       multiplayerMoveIntervalMs: 160,

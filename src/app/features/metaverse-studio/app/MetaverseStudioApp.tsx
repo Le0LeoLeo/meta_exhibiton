@@ -50,7 +50,7 @@ export default function MetaverseStudioApp({ sessionStatus, exhibitionId, onUse2
           <FloorPlanUI />
         </Suspense>
       )}
-      <MultiplayerBridge />
+      <MultiplayerBridge targetRoomId={exhibitionId} />
       {isModeSelectionVisible && <AgentModeSelector />}
       {isChatOpen && <AgentChatPanel />}
     </div>
