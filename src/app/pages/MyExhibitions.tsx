@@ -84,7 +84,7 @@ const tDesc = (t: (key: string) => string, title: string) => {
 export default function MyExhibitions() {
   const isMobile = useMobileDevice();
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [items, setItems] = useState<GallerySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -171,10 +171,10 @@ export default function MyExhibitions() {
           '/login?returnTo=' +
             encodeURIComponent('/virtual-gallery/my-exhibitions'),
         );
-      const sceneJson = getTemplateSceneJson(selectedTemplate.title, selectedAtmosphere);
+      const sceneJson = getTemplateSceneJson(selectedTemplate.title, selectedAtmosphere, locale === 'en' ? 'en' : 'zh');
       const result = await createGallery(token, {
         title,
-        description: selectedTemplate.description,
+        description: tDesc(t, selectedTemplate.title),
         templateTitle: selectedTemplate.title,
         templateImage: selectedTemplate.image,
         category: selectedTemplate.category,

@@ -55,7 +55,7 @@ export default function VirtualGallery() {
   const requestedAtmosphere = searchParams.get('atmosphere');
   const [atmosphereOverride, setAtmosphereOverride] = useState<{ title: string; value: GalleryAtmosphere } | null>(null);
   const previewTemplate = GALLERY_TEMPLATES.find((template) => template.title === requestedTemplate && getTemplateSceneJson(template.title));
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [activeTemplateIndex, setActiveTemplateIndex] = useState(() => Math.max(0, GALLERY_TEMPLATES.slice(1).findIndex((template) => template.title === requestedTemplate)));
   const reduceMotion = useReducedMotion();
@@ -234,7 +234,7 @@ export default function VirtualGallery() {
 
     setIsCreatingFromTemplate(true);
     try {
-      const sceneJson = getTemplateSceneJson(template.title, atmosphere);
+      const sceneJson = getTemplateSceneJson(template.title, atmosphere, locale === 'en' ? 'en' : 'zh');
       const result = await createGallery(token, {
         title: tTitle(template.title),
         description: tDesc(template.title),

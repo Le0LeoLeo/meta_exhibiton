@@ -11,11 +11,11 @@ afterEach(() => { cleanup(); localStorage.clear(); document.head.querySelectorAl
 it('updates locale metadata and removes the homepage canonical on deep navigation', () => {
   localStorage.setItem('metaexpo-locale', 'zh-TW');
   render(<MemoryRouter><I18nProvider><PageMetadata/><Controls/></I18nProvider></MemoryRouter>);
-  expect(document.title).toContain('3D 學習展覽');
+  expect(document.title).toContain('3D 協作學習展覽');
   expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
   fireEvent.click(screen.getByText('English'));
-  expect(document.title).toContain('3D Learning Exhibitions');
-  expect(document.querySelector('meta[name="description"]')).toHaveAttribute('content', expect.stringContaining('AI-assisted reflection, teacher review'));
+  expect(document.title).toContain('Collaborative Learning');
+  expect(document.querySelector('meta[name="description"]')).toHaveAttribute('content', expect.stringContaining('build 3D learning exhibitions'));
   fireEvent.click(screen.getByText('Demo'));
   expect(document.querySelector('link[rel="canonical"]')).toBeNull();
   expect(document.querySelector('meta[property="og:url"]')).toBeNull();

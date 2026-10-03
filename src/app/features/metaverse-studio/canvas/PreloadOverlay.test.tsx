@@ -17,16 +17,16 @@ describe("PreloadOverlay", () => {
       />,
     );
 
-    expect(screen.getByText("正在準備展覽，資料仍會保留")).toBeInTheDocument();
-    expect(screen.getByText("正在載入附近作品與互動，可以先進入後再繼續補載。")).toBeInTheDocument();
-    expect(screen.getByText("1 個資源暫時載入失敗，已先略過；展覽資料仍然保留。")).toBeInTheDocument();
+    expect(screen.getByText("Preparing the exhibition. Your work is safe.")).toBeInTheDocument();
+    expect(screen.getByText("Loading nearby works. You can enter now and they will keep loading.")).toBeInTheDocument();
+    expect(screen.getByText("1 item(s) could not load and were skipped. Your exhibition data is unchanged.")).toBeInTheDocument();
     expect(screen.getByText("62%")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "62");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "正在載入附近作品與互動，可以先進入後再繼續補載。 62% 1 個資源暫時載入失敗，已先略過；展覽資料仍然保留。",
+      "Loading nearby works. You can enter now and they will keep loading. 62% 1 item(s) could not load and were skipped. Your exhibition data is unchanged.",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "先進入展覽" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enter now" }));
 
     expect(onEnter).toHaveBeenCalledOnce();
   });

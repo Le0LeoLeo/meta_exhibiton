@@ -29,7 +29,7 @@ const exhibitItemTypes = new Set(["painting", "sculpture"]);
 
 export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const topBarRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
@@ -436,7 +436,7 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
         <div id="editor-more-panel" className={`editor-flyout space-y-3 overflow-y-auto rounded-2xl pointer-events-auto text-white ${moreToolsPanelClass}`}>
           <div className="editor-panel-heading flex items-center justify-between"><h3 className="text-sm font-semibold text-white">{t('editorMoreTools')}</h3><button aria-label={t('close')} onClick={() => setIsMorePanelOpen(false)} className="flex w-9 items-center justify-center rounded-lg hover:bg-white/10"><X className="size-4" /></button></div>
           <PerformanceModeControl />
-          <button onClick={() => setIsAiCuratorOpen((prev) => !prev)} className={`w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-white transition-colors ${glassButtonClass}`}>AI 策展助手</button>
+          <button onClick={() => setIsAiCuratorOpen((prev) => !prev)} className={`w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-white transition-colors ${glassButtonClass}`}>{t('editorAiCuratorOpen')}</button>
           {isAiCuratorOpen && (
             <AiCuratorPanel
               token={loadAuth().token}
@@ -445,7 +445,7 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
               onApplied={() => {
                 setIsAiCuratorOpen(false);
                 setIsMorePanelOpen(false);
-                toast.success("AI 策展草稿已套用");
+                toast.success(t('editorAiCuratorApplied'));
               }}
             />
           )}
@@ -482,8 +482,8 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
           <p className="text-[11px] text-white/70">{t('editorConnectionStatus')}：{multiplayerEnabled ? (roomReady ? t('editorConnected') : t('editorConnecting')) : t('editorDisabled')} · {t('editorOnline')} {roomReady ? multiplayerRemoteCount + 1 : 0}</p>
         {mode === "edit" && remoteFocusList.length > 0 && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-900">
-              {remoteFocusList.slice(0, 3).map((focus) => <div key={focus.by} className="leading-tight">{focus.byNickname || `協作者 ${focus.by.slice(0, 6)}`} 正在編輯：{focus.itemId.slice(0, 8)}</div>)}
-            {remoteFocusList.length > 3 && <div>...還有 {remoteFocusList.length - 3} 人</div>}
+              {remoteFocusList.slice(0, 3).map((focus) => <div key={focus.by} className="leading-tight">{t('editorRemoteEditing', { name: focus.byNickname || t('editorCollaborator', { id: focus.by.slice(0, 6) }), item: focus.itemId.slice(0, 8) })}</div>)}
+            {remoteFocusList.length > 3 && <div>{t('editorRemoteMore', { count: remoteFocusList.length - 3 })}</div>}
           </div>
         )}
           <div className="mt-2 space-y-2 rounded-2xl border border-white/30 bg-white/18 p-2 text-white backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]">
@@ -495,7 +495,7 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
               multiplayerChatMessages.slice(-40).map((msg) => (
                   <div key={msg.id} className="break-words text-[11px] leading-relaxed text-white/85">
                     <span className="font-semibold text-white">{msg.nickname}</span>
-                    <span className="text-white/55"> · {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    <span className="text-white/55"> · {new Date(msg.createdAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}</span>
                   <div>{msg.message}</div>
                 </div>
               ))

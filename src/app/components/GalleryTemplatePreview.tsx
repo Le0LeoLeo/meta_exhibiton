@@ -7,7 +7,7 @@ import { Button } from './ui/button';
 const GalleryScenePreview = lazy(() => import('../features/metaverse-studio/preview').then((module) => ({ default: module.GalleryScenePreview })));
 
 export function GalleryTemplatePreview({ title, atmosphere = getDefaultGalleryAtmosphere(title) }: { title: string; atmosphere?: GalleryAtmosphere }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [show3D, setShow3D] = useState(atmosphere !== 'bright');
   const previousAtmosphere = useRef(atmosphere);
   useEffect(() => {
@@ -18,9 +18,9 @@ export function GalleryTemplatePreview({ title, atmosphere = getDefaultGalleryAt
   }, [atmosphere]);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const scene = useMemo(() => {
-    const json = getTemplateSceneJson(title, atmosphere);
+    const json = getTemplateSceneJson(title, atmosphere, locale === 'en' ? 'en' : 'zh');
     return json ? JSON.parse(json) as SceneSnapshot : null;
-  }, [title, atmosphere]);
+  }, [title, atmosphere, locale]);
   if (!scene) return null;
   const { width, length } = scene.roomSize;
   const paintings = scene.items.filter((item) => item.type === 'painting');

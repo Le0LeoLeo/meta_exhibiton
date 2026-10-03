@@ -1,12 +1,14 @@
 import { memo } from "react";
 
+import { useI18n } from "@/app/components/I18nProvider";
+
 import type { SceneLoadStage } from "./useScenePreloader";
 
-const stageLabels: Record<SceneLoadStage, string> = {
-  interface: "準備展覽介面，資料仍會保留",
-  core: "建立展館與操作空間，先不會改動你的內容",
-  nearby: "正在載入附近作品與互動，可以先進入後再繼續補載。",
-  complete: "展覽已準備完成",
+const stageLabelKeys: Record<SceneLoadStage, string> = {
+  interface: "preloadStageInterface",
+  core: "preloadStageCore",
+  nearby: "preloadStageNearby",
+  complete: "preloadStageComplete",
 };
 
 interface PreloadOverlayProps {
@@ -26,13 +28,12 @@ export const PreloadOverlay = memo(function PreloadOverlay({
   onEnter,
   onBack,
 }: PreloadOverlayProps) {
+  const { t } = useI18n();
   const clampedProgress = Math.max(0, Math.min(100, Math.round(progress)));
   const failureMessage =
-    failedAssets > 0 ? `${failedAssets} 個資源暫時載入失敗，已先略過；展覽資料仍然保留。` : "";
-  const stageLabel = stageLabels[stage];
-  const statusMessage = stageLabel.endsWith("。")
-    ? `${stageLabel} ${clampedProgress}% ${failureMessage}`
-    : `${stageLabel}，${clampedProgress}% ${failureMessage}`;
+    failedAssets > 0 ? t("preloadFailedAssets", { count: failedAssets }) : "";
+  const stageLabel = t(stageLabelKeys[stage]);
+  const statusMessage = `${stageLabel} ${clampedProgress}% ${failureMessage}`;
 
   return (
     <div
@@ -46,13 +47,13 @@ export const PreloadOverlay = memo(function PreloadOverlay({
         </div>
         <div className="mb-3 flex items-center justify-between gap-4">
           <div>
-            <div className="text-sm font-medium text-white">正在準備展覽，資料仍會保留</div>
-            <div className="mt-1 text-xs text-slate-300">{stageLabels[stage]}</div>
+            <div className="text-sm font-medium text-white">{t("preloadTitle")}</div>
+            <div className="mt-1 text-xs text-slate-300">{stageLabel}</div>
           </div>
           <div className="text-sm font-semibold text-cyan-300">{clampedProgress}%</div>
         </div>
         <div
-          aria-label="展覽載入進度"
+          aria-label={t("preloadProgressLabel")}
           aria-valuemax={100}
           aria-valuemin={0}
           aria-valuenow={clampedProgress}
@@ -76,7 +77,7 @@ export const PreloadOverlay = memo(function PreloadOverlay({
               className="min-h-11 rounded-full border border-white/15 px-4 text-sm font-medium text-slate-100 transition hover:bg-white/10"
               onClick={onBack}
             >
-              返回
+              {t("preloadBack")}
             </button>
           )}
           {canEnter && (
@@ -85,7 +86,7 @@ export const PreloadOverlay = memo(function PreloadOverlay({
               className="min-h-11 rounded-full bg-cyan-300 px-5 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:bg-cyan-200"
               onClick={onEnter}
             >
-              先進入展覽
+              {t("preloadEnterNow")}
             </button>
           )}
         </div>

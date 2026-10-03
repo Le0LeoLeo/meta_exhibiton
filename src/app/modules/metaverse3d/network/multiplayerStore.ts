@@ -116,9 +116,12 @@ function normalizeRoomId(input: string): string {
   return (input || "main-gallery").trim() || "main-gallery";
 }
 
+// Matches the server default; signed-in visitors are renamed to their account name.
+const DEFAULT_NICKNAME = "Guest";
+
 function normalizeNickname(input: string): string {
-  const trimmed = (input || "訪客").trim();
-  if (!trimmed) return "訪客";
+  const trimmed = (input || DEFAULT_NICKNAME).trim();
+  if (!trimmed) return DEFAULT_NICKNAME;
   return trimmed.slice(0, 20);
 }
 
@@ -154,7 +157,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   serverUrl: defaultServerUrl,
   roomId: "main-gallery",
   chatMessages: [],
-  nickname: "訪客",
+  nickname: DEFAULT_NICKNAME,
   selfId: null,
   connected: false,
   isHost: false,
@@ -420,7 +423,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
               ?? normalizeAvatarAppearance(DEFAULT_AVATAR_APPEARANCE),
             appearanceUpdatedAt:
               existing?.appearanceUpdatedAt ?? existing?.updatedAt ?? payload.updatedAt,
-            nickname: existing?.nickname || "訪客",
+            nickname: existing?.nickname || DEFAULT_NICKNAME,
             targetPosition: { ...payload.position },
             renderPosition: { ...baseRender },
             targetYaw: payload.yaw,

@@ -188,7 +188,7 @@ useJourneyStep('artwork_view', mode === 'view' && Boolean(viewingItem) && typeof
       });
       const data = await parseJsonSafe(res);
       if (generation !== commentGeneration.current) return;
-      if (!res.ok) throw errorFromResponse(data, '送出評論失敗');
+      if (!res.ok) throw errorFromResponse(data, t('viewCommentSubmitFailed'));
       if (data?.comment) setCommentList((current) => [data.comment, ...current]);
       commentDraft.clearSubmitted(name, content);
       toast.success(t('viewCommentSubmitted'));
@@ -217,7 +217,7 @@ useJourneyStep('artwork_view', mode === 'view' && Boolean(viewingItem) && typeof
       });
       const data = await parseJsonSafe(res);
       if (generation !== commentGeneration.current) return;
-      if (!res.ok) throw errorFromResponse(data, '刪除評論失敗');
+      if (!res.ok) throw errorFromResponse(data, t('viewCommentDeleteFailed'));
       setCommentList((current) => current.filter((comment) => comment.id !== commentId));
       toast.success(t('viewCommentDeleted'));
     } catch (err) {
@@ -288,7 +288,7 @@ useJourneyStep('artwork_view', mode === 'view' && Boolean(viewingItem) && typeof
         });
         const data = await parseJsonSafe(res);
         if (cancelled) return;
-        if (!res.ok) throw errorFromResponse(data, '載入評論失敗');
+        if (!res.ok) throw errorFromResponse(data, 'Failed to load comments');
         setCommentPermission({ scope: commentScope, canDelete: data?.canDelete === true });
         setCommentList((current) => {
           const loaded: CommentItem[] = Array.isArray(data?.comments) ? data.comments : emptyComments;
@@ -394,7 +394,7 @@ useJourneyStep('artwork_view', mode === 'view' && Boolean(viewingItem) && typeof
                 </video>
               )}
               {isPdfAsset && (
-                <iframe src={viewingItem.content} title={viewingItem.title || 'PDF 文件'} loading="lazy" className="h-[40dvh] w-full rounded-md border border-gray-300 bg-white md:h-[70dvh]" />
+                <iframe src={viewingItem.content} title={viewingItem.title || t('viewPdfDocument')} loading="lazy" className="h-[40dvh] w-full rounded-md border border-gray-300 bg-white md:h-[70dvh]" />
               )}
               {!isImageAsset && !isVideoAsset && !isPdfAsset && (
                 <div className="space-y-3 text-center">

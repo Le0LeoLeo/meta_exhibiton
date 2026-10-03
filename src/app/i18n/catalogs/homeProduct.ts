@@ -1,8 +1,8 @@
 export const homeProductZhTW = {
   homeProductBrand: 'Paidea · AI for Education',
   homeProductIntro: '以 3D 學習展覽呈現學生作品與過程，透過 Multiplayer 共學，並用 Agent 探問創作者提供的背景。',
-  homeSeoTitle: 'Paidea · AI 教育應用｜AI 反思、教師評閱與 3D 學習展覽',
-  homeSeoDescription: '以 AI 輔助反思、教師評閱與展覽探究為核心：學生整理作品與佐證，核對 AI 建議，再透過班級工作台與 3D 學習展覽交流成果。',
+  homeSeoTitle: 'Paidea · AI 教育應用｜3D 協作學習展覽與 AI 引導探究',
+  homeSeoDescription: '學生在瀏覽器建立 3D 學習展覽，記錄個人貢獻、過程與反思；師生同學在同一展廳參觀交流，並就展品向 AI 提問。',
   homeProductTitle: '讓作品過程可見，讓同學一起探索。',
   homeProductCaption: '以平台 3D 畫廊模板建立的學習展覽示例',
   homeExhibitionTitle: '3D 學習展覽',
@@ -29,8 +29,8 @@ export const homeProductZhTW = {
 export const homeProductZhCN: Record<keyof typeof homeProductZhTW, string> = {
   homeProductBrand: 'Paidea · AI for Education',
   homeProductIntro: '用 3D 学习展览呈现学生作品与过程，通过 Multiplayer 共学，并用 Agent 探问创作者提供的背景。',
-  homeSeoTitle: 'Paidea · AI 教育应用｜AI 反思、教师评阅与 3D 学习展览',
-  homeSeoDescription: '以 AI 辅助反思、教师评阅和展览探究为核心：学生整理作品与佐证，核对 AI 建议，再通过班级工作台和 3D 学习展览交流成果。',
+  homeSeoTitle: 'Paidea · AI 教育应用｜3D 协作学习展览与 AI 引导探究',
+  homeSeoDescription: '学生在浏览器建立 3D 学习展览，记录个人贡献、过程与反思；师生同学在同一展厅参观交流，并就展品向 AI 提问。',
   homeProductTitle: '让作品过程可见，让同学一起探索。',
   homeProductCaption: '以平台 3D 画廊模板建立的学习展览示例',
   homeExhibitionTitle: '3D 学习展览',
@@ -57,8 +57,8 @@ export const homeProductZhCN: Record<keyof typeof homeProductZhTW, string> = {
 export const homeProductEn: Record<keyof typeof homeProductZhTW, string> = {
   homeProductBrand: 'Paidea · AI for Education',
   homeProductIntro: 'Present student work and process in 3D learning exhibitions, explore together through Multiplayer, and ask the Agent about creator-provided context.',
-  homeSeoTitle: 'Paidea · AI for Education | AI Reflection, Teacher Review & 3D Learning Exhibitions',
-  homeSeoDescription: 'AI-assisted reflection, teacher review and exhibit inquiry: students organise work and evidence, check AI suggestions, and share their learning through a class workspace and 3D learning exhibitions.',
+  homeSeoTitle: 'Paidea · AI for Education | 3D Exhibitions for Collaborative Learning and AI-guided Inquiry',
+  homeSeoDescription: 'Students build 3D learning exhibitions in the browser and record their contribution, process and reflection; classmates and teachers visit together, talk in the room, and ask AI about each exhibit.',
   homeProductTitle: 'Show the process. Explore together.',
   homeProductCaption: 'A learning exhibition example built with a 3D gallery template',
   homeExhibitionTitle: '3D Learning Exhibitions',

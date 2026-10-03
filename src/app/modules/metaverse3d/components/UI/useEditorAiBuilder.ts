@@ -63,7 +63,7 @@ function reviewResponseFromVersion(version: BuilderSessionVersion): BuilderRevie
 }
 
 export function useEditorAiBuilder(onApplied: () => void) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const chat = useBuilderChat();
   const chatStepsRef = useRef<string[]>([]);
   const recordChatResult = (session: BuilderSessionResponse) => chat.append({
@@ -283,6 +283,7 @@ export function useEditorAiBuilder(onApplied: () => void) {
         prompt,
         style: aiBuilderStyle,
         exhibitCount: aiBuilderExhibitCount,
+        language: locale,
       }));
       if (!isMountedRef.current) return;
       setAiBuilderPreview(result);
@@ -339,6 +340,7 @@ export function useEditorAiBuilder(onApplied: () => void) {
           prompt,
           style: aiBuilderStyle,
           exhibitCount: aiBuilderExhibitCount,
+          language: locale,
         }),
         signal: controller.signal,
         requestBuilderSession,

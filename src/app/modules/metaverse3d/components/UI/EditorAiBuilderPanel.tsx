@@ -9,7 +9,7 @@ function formatScoreDelta(delta: number) {
 }
 
 export function EditorAiBuilderPanel({ builder, glassInputClass, onClose }: { onClose: () => void; builder: ReturnType<typeof useEditorAiBuilder>; glassInputClass: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const {
     aiBuilderPrompt,
     setAiBuilderPrompt,
@@ -66,7 +66,7 @@ export function EditorAiBuilderPanel({ builder, glassInputClass, onClose }: { on
         <div role="log" aria-label={t('builderChatHistory')} aria-live="polite" className="space-y-5">
           {builder.chat.messages.length === 0 && <div className="py-6 text-sm leading-6 text-white/60"><Bot className="mb-3" />{t('builderChatWelcome')}</div>}
           {builder.chat.messages.map((message) => <article key={message.id} className={message.role === 'user' ? 'ml-8 rounded-2xl rounded-tr-md bg-[#2a2a2a] p-3' : 'mr-2'}>
-            <div className="mb-2 flex items-center gap-2 text-[11px] text-white/50"><span>{message.role === 'user' ? t('builderChatYou') : 'Agent'}</span><time dateTime={message.at}>{new Date(message.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>
+            <div className="mb-2 flex items-center gap-2 text-[11px] text-white/50"><span>{message.role === 'user' ? t('builderChatYou') : 'Agent'}</span><time dateTime={message.at}>{new Date(message.at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</time></div>
             {message.steps && message.steps.length > 0 && <details className="mb-3 border-l border-white/15 pl-3 text-xs text-white/60"><summary className="cursor-pointer py-1">{t('editorAiBuilderRunTimelineTitle')} · {message.steps.length}</summary><ol className="mt-2 space-y-2">{message.steps.map((step, index) => <li key={index}>{step}</li>)}</ol></details>}
             <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.text}</p>
             {message.versionId && <div className="mt-3 rounded-xl border border-sky-400/25 bg-sky-950/25 p-3 text-xs text-sky-100">{t('builderChatVersionRecorded')}{message.sessionId && <button type="button" disabled={busy} onClick={() => void builder.handleChatVersion(message.sessionId!, message.versionId!)} className="mt-2 block underline disabled:opacity-40">{t('builderChatViewVersion')}</button>}</div>}

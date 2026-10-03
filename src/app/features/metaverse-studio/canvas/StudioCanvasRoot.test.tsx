@@ -119,7 +119,7 @@ describe("StudioCanvasRoot", () => {
 
     rerender(<StudioCanvasRoot />);
 
-    expect(screen.getByRole("dialog")).toHaveTextContent("建立展館與操作空間");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Building the room and controls");
     expect(screen.getByTestId("canvas-scene")).toHaveTextContent("0");
   });
 
