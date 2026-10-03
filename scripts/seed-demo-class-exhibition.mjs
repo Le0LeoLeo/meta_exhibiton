@@ -15,7 +15,6 @@ import sharp from 'sharp';
 const API = process.env.PAIDEA_API || 'http://127.0.0.1:5176';
 const root = new URL('../', import.meta.url);
 const accountFile = new URL('.tmp/demo-class-account.json', root);
-const id = (prefix) => `${prefix}-${randomBytes(4).toString('hex')}`;
 const met = (objectId) => `https://www.metmuseum.org/art/collection/search/${objectId}`;
 
 const works = [
@@ -121,14 +120,15 @@ const placement = {
   left: (at) => ({ position: [-sideX, 2.55, at], rotation: [0, Math.PI / 2, 0] }),
   right: (at) => ({ position: [sideX, 2.55, at], rotation: [0, -Math.PI / 2, 0] }),
 };
-const text = (content, position, rotation, extra) => ({ id: id('text'), type: 'text', position, rotation, scale: [1, 1, 1], content, title: content,
+// Fixed ids keep comments attached to their works when the script is re-run.
+const text = (id, content, position, rotation, extra) => ({ id, type: 'text', position, rotation, scale: [1, 1, 1], content, title: content,
   textFontFamily: 'sans', textColor: '#f1dcc0', textIsBold: false, textBackboardEnabled: false, ...extra });
 
 async function painting(work) {
   const { width, height } = await sharp(fileURLToPath(new URL(`public/demo/met-${work.objectId}.jpg`, root))).metadata();
   const ratio = width / height;
   const frameHeight = ratio < 1 ? 2.5 : 2.3;
-  return { id: id('painting'), type: 'painting', ...placement[work.wall](work.at), scale: [1, 1, 1],
+  return { id: `painting-met-${work.objectId}`, type: 'painting', ...placement[work.wall](work.at), scale: [1, 1, 1],
     content: `/demo/met-${work.objectId}.jpg`, frameWidth: frameHeight * ratio, frameHeight, imageAspectRatio: ratio,
     frameStyle: 'classic', frameColor: '#b49864', frameInnerColor: '#d2bd95', frameThickness: 0.07, frameDepth: 0.055,
     frameMatEnabled: false, frameMatColor: '#e9dcc5', frameMatWidth: 0.14, frameGlassEnabled: false,
@@ -137,13 +137,13 @@ async function painting(work) {
 
 const scene = {
   roomSize: room,
-  floorPlanElements: [{ id: id('room'), type: 'room', position: [0, 0.02, 0], rotation: [0, 0, 0], scale: [room.width, 0.04, room.length], color: '#dbeafe', isLocked: true }],
+  floorPlanElements: [{ id: 'room-demo-class', type: 'room', position: [0, 0.02, 0], rotation: [0, 0, 0], scale: [room.width, 0.04, room.length], color: '#dbeafe', isLocked: true }],
   wallMaterialOverrides: {},
   items: [
-    text('Waves Across the World', [0, 4.75, wallZ + 0.04], [0, 0, 0], { textFontSize: 0.46 }),
-    text('CLASS 4B HISTORY & ART INQUIRY  ·  SAMPLE EXHIBITION', [0, 4.25, wallZ + 0.04], [0, 0, 0], { textFontSize: 0.14 }),
+    text('text-demo-title', 'Waves Across the World', [0, 4.75, wallZ + 0.04], [0, 0, 0], { textFontSize: 0.46 }),
+    text('text-demo-subtitle', 'CLASS 4B HISTORY & ART INQUIRY  ·  SAMPLE EXHIBITION', [0, 4.25, wallZ + 0.04], [0, 0, 0], { textFontSize: 0.14 }),
     // Wall text is sized from its longest line, so break it by hand to fit the wall.
-    text([
+    text('text-demo-inquiry', [
       'INQUIRY QUESTION',
       'How did Japanese woodblock prints change',
       'the way some European artists painted?',
@@ -153,8 +153,8 @@ const scene = {
       'The Met Open Access.',
     ].join('\n'), [sideX - 0.04, 2.6, 3], [0, -Math.PI / 2, 0], { textFontSize: 0.16, textBackboardEnabled: true }),
     ...await Promise.all(works.map(painting)),
-    { id: id('bench'), type: 'bench', position: [0, 0, -1.5], rotation: [0, 0, 0], scale: [1.65, 1, 1], content: '#766049', title: 'Viewing bench' },
-    { id: id('lightstrip'), type: 'lightstrip', position: [0, 5.15, -6.8], rotation: [0, 0, 0], scale: [11, 0.055, 0.055], content: '#ffdbad', title: 'Wall wash lighting', lightIntensity: 0.18 },
+    { id: 'bench-demo-class', type: 'bench', position: [0, 0, -1.5], rotation: [0, 0, 0], scale: [1.65, 1, 1], content: '#766049', title: 'Viewing bench' },
+    { id: 'lightstrip-demo-class', type: 'lightstrip', position: [0, 5.15, -6.8], rotation: [0, 0, 0], scale: [11, 0.055, 0.055], content: '#ffdbad', title: 'Wall wash lighting', lightIntensity: 0.18 },
   ],
 };
 
@@ -202,5 +202,41 @@ if (!existing?.isPublished) {
   const published = await call(`/api/galleries/${galleryId}/publish`, { token, method: 'POST', body: {} });
   if (published.status !== 200) throw new Error(`Saved ${galleryId} but could not publish it (${published.status}): ${published.data.message ?? ''}`);
 }
-console.log(`${existing ? 'Updated' : 'Published'} "${exhibition.title}": /exhibitions/${galleryId}`);
+// Classmates' comments on individual works (all names are fictional).
+const comments = {
+  'Under the Wave off Kanagawa': [
+    ['Ben', 'The timeline card really helped. Which book says prints like this reached Europe later in the 1800s?'],
+    ['Ava', 'Good point, it is our textbook chapter 6. I will add the page number to the source.'],
+    ['Ms Lee (teacher)', 'Try asking the AI guide what it can and cannot tell from your label alone, then compare that with your sources.'],
+  ],
+  'Wheat Field with Cypresses': [
+    ['Chloe', 'I still do not see a link to the wave, but marking it as your interpretation is fair.'],
+    ['Emma', 'Thanks! What would convince you? I could put my two tracings side by side.'],
+  ],
+  'Self-Portrait with a Straw Hat': [
+    ['Felix', '“May have influenced” is more careful than “caused”. Is there anything in the painting itself that looks like a print?'],
+  ],
+  'Fuji from the Katakura Tea Fields in Suruga': [
+    ['Daniel', 'The three-layer sketch made the depth easy to see. Could you hang the sketch next to the print?'],
+  ],
+  'Oleanders': [
+    ['Ava', 'Could we look for that letter in an online collection before the final version, so you can quote it yourself?'],
+    ['Felix', 'Yes, I will check and update the label if I find it.'],
+  ],
+};
+const savedScene = JSON.parse((await call(`/api/galleries/${galleryId}`, { token })).data.gallery.sceneJson);
+let added = 0;
+for (const [title, entries] of Object.entries(comments)) {
+  const item = savedScene.items.find((candidate) => candidate.title === title);
+  if (!item) continue;
+  const path = `/api/galleries/${galleryId}/items/${encodeURIComponent(item.id)}/comments`;
+  const present = (await call(path, { token })).data.comments ?? [];
+  for (const [userName, content] of entries) {
+    if (present.some((comment) => comment.userName === userName && comment.content === content)) continue;
+    const posted = await call(path, { token, method: 'POST', body: { userName, content } });
+    if (posted.status !== 201) throw new Error(`Could not add a comment on "${title}" (${posted.status}): ${posted.data.message ?? ''}`);
+    added += 1;
+  }
+}
+console.log(`${existing ? 'Updated' : 'Published'} "${exhibition.title}": /exhibitions/${galleryId} (${added} new comments)`);
 console.log(`Owner account: ${email} (password in ${process.env.PAIDEA_DEMO_EMAIL ? 'PAIDEA_DEMO_PASSWORD' : '.tmp/demo-class-account.json'})`);
