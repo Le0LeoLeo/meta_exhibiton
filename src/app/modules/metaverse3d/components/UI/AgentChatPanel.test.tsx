@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { requestAgentReply } from "../../../../api/client";
+import { loadAuth, requestAgentReply } from "../../../../api/client";
 import { defaultAgentState } from "../../store/metaverseStoreUtils";
 import { useStore } from "../../store/useStore";
 import { AgentChatPanel } from "./AgentChatPanel";
@@ -202,6 +202,17 @@ describe("AgentChatPanel guided tour", () => {
     fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
     await waitFor(() => expect(requestAgentReply).toHaveBeenCalledTimes(2));
     expect(vi.mocked(requestAgentReply).mock.calls[1][1].exhibit?.id).toBe(selected.id);
+  });
+
+  it('tells signed-out visitors that replies are built in, not from the AI model', () => {
+    resetPanelState([makeItem({ id: 'work' })]);
+    const { unmount } = render(<AgentChatPanel />);
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    unmount();
+    vi.mocked(loadAuth).mockReturnValueOnce({ token: null, user: null } as unknown as ReturnType<typeof loadAuth>);
+    render(<AgentChatPanel />);
+    expect(screen.getByRole('note')).toHaveTextContent('acp.guestNotice');
+    expect(screen.getByRole('link', { name: 'acp.guestSignIn' })).toHaveAttribute('href', expect.stringMatching(/^\/login\?returnTo=/));
   });
 
   it('starts a full route with more than eight works', () => {

@@ -1251,6 +1251,8 @@ export const zhCN = {
     'companion.commandNext': '好，我带你去下一站。',
     'companion.commandComplete': '这条路线已经走完了。你可以继续自由逛，或再看喜欢的作品。',
     'companion.commandNoRoute': '目前没有可前往的下一站。可以先开始导览，或走近一件作品。',
+    'acp.guestNotice': "尚未登录：导览只会根据展品文字给出简短的内置回复。登录后才会使用 AI 模型回答。",
+    'acp.guestSignIn': "登录",
     'acp.modelQwen': 'QWEN',
     'acp.modelFallback': 'FALLBACK',
     'acp.guideEducational': '教学',

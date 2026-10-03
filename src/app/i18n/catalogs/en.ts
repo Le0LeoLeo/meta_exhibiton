@@ -1250,6 +1250,8 @@ export const en = {
     'companion.commandNext': 'Sure, I will lead you to the next stop.',
     'companion.commandComplete': 'That completes this route. Feel free to wander or return to a favourite work.',
     'companion.commandNoRoute': 'There is no next stop yet. Start a tour or move closer to a work.',
+    'acp.guestNotice': "Not signed in: the guide gives short built-in replies from the exhibit text. Sign in to get answers from the AI model.",
+    'acp.guestSignIn': "Sign in",
     'acp.modelQwen': 'QWEN',
     'acp.modelFallback': 'FALLBACK',
     'acp.guideEducational': 'Educational',

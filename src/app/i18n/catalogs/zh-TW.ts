@@ -1309,6 +1309,8 @@ export const zhTW = {
     'companion.commandNext': '好，我帶你去下一站。',
     'companion.commandComplete': '這條路線已經走完了。你可以繼續自由逛，或再看喜歡的作品。',
     'companion.commandNoRoute': '目前沒有可前往的下一站。可以先開始導覽，或走近一件作品。',
+    'acp.guestNotice': "尚未登入：導覽只會根據展品文字給出簡短的內建回覆。登入後才會使用 AI 模型回答。",
+    'acp.guestSignIn': "登入",
     'acp.modelQwen': 'QWEN',
     'acp.modelFallback': 'FALLBACK',
     'acp.guideEducational': '教學',

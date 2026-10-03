@@ -22,5 +22,13 @@ export function createDemoScene(t: (key: string) => string, exhibitionId = 'clas
       : { title: t(`demoArtwork${artwork.key}Title`), description: t(`demoArtwork${artwork.key}Description`), artist: `${t(`demoArtwork${artwork.key}Artist`)} · ${artwork.date}` }),
     frameWidth: 2.4 * artwork.width / artwork.height, frameHeight: 2.4,
   }));
+  if (classCopy) {
+    // Same wall text a creator would add in the editor; paintings keep their indexes.
+    scene.items.push({
+      id: 'official-demo-inquiry', type: 'text', position: [-scene.roomSize.width / 2 + 0.2, 2.6, 0], rotation: [0, Math.PI / 2, 0], scale: [1, 1, 1],
+      content: classCopy.inquiryWall, title: classCopy.inquiryLabel,
+      textFontFamily: 'sans', textFontSize: 0.18, textColor: '#3f3a33', textIsBold: false, textBackboardEnabled: true,
+    });
+  }
   return scene;
 }

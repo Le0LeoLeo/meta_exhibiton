@@ -18,7 +18,7 @@ export const classSampleArtworks = [
 
 export type ClassSampleComment = { name: string; text: string };
 export type ClassSampleWork = { title: string; artist: string; description: string; workContext: ExhibitWorkContext; comments: ClassSampleComment[] };
-export type ClassSampleCopy = { inquiryLabel: string; inquiry: string; note: string; commentsTitle: string; works: ClassSampleWork[] };
+export type ClassSampleCopy = { inquiryLabel: string; inquiry: string; inquiryWall: string; note: string; commentsTitle: string; commentsNote: string; works: ClassSampleWork[] };
 
 const met = (id: number) => `https://www.metmuseum.org/art/collection/search/${id}`;
 
@@ -26,7 +26,10 @@ const en: ClassSampleCopy = {
   inquiryLabel: 'Inquiry question',
   inquiry: 'How did Japanese woodblock prints change the way some European artists painted?',
   note: 'Sample exhibition: the students and teacher are fictional. Artworks are public-domain images from The Met Open Access.',
+  // Wall text is sized from its longest line, so it is broken by hand.
+  inquiryWall: 'INQUIRY QUESTION\nHow did Japanese woodblock prints change\nthe way some European artists painted?\n\nSample exhibition: the students are fictional.',
   commentsTitle: 'Classmates’ comments',
+  commentsNote: 'Sample comments. In a published exhibition, visitors add comments from the artwork details.',
   works: [
     {
       title: 'Under the Wave off Kanagawa', artist: 'Katsushika Hokusai',
@@ -132,7 +135,9 @@ const zhTW: ClassSampleCopy = {
   inquiryLabel: '探究問題',
   inquiry: '日本木版畫如何改變了部分歐洲畫家的繪畫方式？',
   note: '示範展覽：學生和老師均為虛構人物。作品為大都會藝術博物館 Open Access 的公有領域圖像。',
+  inquiryWall: '探究問題\n日本木版畫如何改變了\n部分歐洲畫家的繪畫方式？\n\n示範展覽：學生為虛構人物。',
   commentsTitle: '同學留言',
+  commentsNote: '示範留言。在已發布的展覽中，訪客可在作品詳情中留言。',
   works: [
     {
       title: '神奈川沖浪裏', artist: '葛飾北齋',
@@ -238,7 +243,9 @@ const zhCN: ClassSampleCopy = {
   inquiryLabel: '探究问题',
   inquiry: '日本木版画如何改变了部分欧洲画家的绘画方式？',
   note: '示范展览：学生和老师均为虚构人物。作品为大都会艺术博物馆 Open Access 的公有领域图像。',
+  inquiryWall: '探究问题\n日本木版画如何改变了\n部分欧洲画家的绘画方式？\n\n示范展览：学生为虚构人物。',
   commentsTitle: '同学留言',
+  commentsNote: '示范留言。在已发布的展览中，访客可在作品详情中留言。',
   works: [
     {
       title: '神奈川冲浪里', artist: '葛饰北斋',

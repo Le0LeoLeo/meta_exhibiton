@@ -32,6 +32,7 @@ export function AgentChatPanel() {
   const [isSending, setIsSending] = useState(false);
   const [shownError, setShownError] = useState<string | null>(null);
   const responseSource = agent.replySource;
+  const signedIn = Boolean(loadAuth().token);
   const requestRef = useRef<AbortController | null>(null);
   // The work a visitor explicitly asked about stays the subject of follow-up questions
   // until they open or walk up to another work.
@@ -247,6 +248,10 @@ export function AgentChatPanel() {
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3 [overflow-wrap:anywhere]">
+        {!signedIn && <p role="note" className="rounded-2xl border border-amber-300/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-50">
+          {t('acp.guestNotice')}{' '}
+          <a href={`/login?returnTo=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`} className="font-semibold underline underline-offset-2">{t('acp.guestSignIn')}</a>
+        </p>}
         <section aria-label={t('guideQuickTitle')} className="rounded-2xl border border-cyan-300/20 bg-cyan-500/10 p-3">
           <h2 className="text-sm font-semibold text-cyan-50">{t('guideQuickTitle')}</h2>
           <p className="mt-1 text-xs leading-5 text-slate-200">{nearbyExhibit ? t('guideFocus', { title: nearbyExhibit.title || t('acp.unnamedExhibit') }) : t('guideNoFocus')}</p>

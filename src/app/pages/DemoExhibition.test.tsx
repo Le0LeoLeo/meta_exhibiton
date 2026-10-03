@@ -25,7 +25,8 @@ describe('official public demo', () => {
     renderDemo();
     expect(screen.getByRole('status')).toHaveTextContent('此裝置目前無法顯示 3D 展廳');
     expect(screen.getByRole('button', { name: '3D 展廳' })).toBeDisabled();
-    expect(screen.getByText('日本木版畫如何改變了部分歐洲畫家的繪畫方式？')).toBeInTheDocument();
+    expect(screen.getByText(/學生和老師均為虛構人物/)).toBeInTheDocument();
+    expect(screen.getByText('示範留言。在已發布的展覽中，訪客可在作品詳情中留言。')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '神奈川沖浪裏' })).toBeInTheDocument();
     expect(screen.getByText('我研究了這類版畫何時傳到歐洲，並寫下作為全班故事開端的展品說明。')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '同學留言' })).toBeInTheDocument();
@@ -112,8 +113,10 @@ describe('official public demo', () => {
 
   it('ships only local public-domain painting media and independent scene objects', () => {
     const scene = createDemoScene((key) => key);
-    expect(scene.items).toHaveLength(demoExhibitions[0].artworks.length);
-    expect(scene.items.every((item) => item.type === 'painting' && /^\/demo\/met-[0-9]+\.jpg$/.test(item.content))).toBe(true);
+    const paintings = scene.items.filter((item) => item.type === 'painting');
+    expect(paintings).toHaveLength(demoExhibitions[0].artworks.length);
+    expect(paintings.every((item) => /^\/demo\/met-[0-9]+\.jpg$/.test(item.content))).toBe(true);
+    expect(scene.items.every((item) => item.type === 'painting' || item.type === 'text')).toBe(true);
     scene.items[0].content = '/changed.svg';
     expect(createDemoScene((key) => key).items[0].content).toBe('/demo/met-45434.jpg');
   });
