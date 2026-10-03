@@ -5,6 +5,8 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useI18n } from '../components/I18nProvider';
 import { createDemoScene, demoExhibitions, getDemoExhibition } from '../features/public-demo/demoScene';
+import { getClassSampleCopy } from '../features/public-demo/classSample';
+import { ExhibitWorkContextDisplay } from '../modules/metaverse3d/components/UI/ExhibitWorkContextDisplay';
 import { canCreateWebGLContext } from '../modules/metaverse3d/components/webglSupport';
 
 const GalleryScenePreview = lazy(() => import('../features/metaverse-studio/app/GalleryScenePreview').then((module) => ({ default: module.GalleryScenePreview })));
@@ -22,8 +24,9 @@ export default function DemoExhibition() {
 }
 
 function DemoExhibitionContent({ exhibition, initialIndex }: { exhibition: typeof demoExhibitions[number]; initialIndex: number }) {
-  const { t } = useI18n();
-  const scene = useMemo(() => createDemoScene(t, exhibition.id), [t, exhibition.id]);
+  const { t, locale } = useI18n();
+  const scene = useMemo(() => createDemoScene(t, exhibition.id, locale), [t, exhibition.id, locale]);
+  const classCopy = exhibition.id === 'class' ? getClassSampleCopy(locale) : null;
   const [index, setIndex] = useState(Number.isInteger(initialIndex) && initialIndex >= 0 && initialIndex < exhibition.artworks.length ? initialIndex : 0);
   const [supported] = useState(() => typeof document !== 'undefined' && canCreateWebGLContext(document));
   const [mode, setMode] = useState<'2d' | '3d'>(supported ? '3d' : '2d');
@@ -39,12 +42,17 @@ function DemoExhibitionContent({ exhibition, initialIndex }: { exhibition: typeo
           <Button asChild variant="outline"><Link to="/"><ArrowLeft className="mr-2 size-4" />{t('demoExit')}</Link></Button>
           <Button asChild><Link to="/virtual-gallery/quick-create">{t('demoCreate')}<ArrowRight className="ml-2 size-4" /></Link></Button>
         </header>
-        <p className="mt-6 text-sm font-semibold text-muted-foreground">{t('demoOfficial')} · {t('demoExhibitCount', { count: scene.items.length })}</p>
+        <p className="mt-6 text-sm font-semibold text-muted-foreground">{t(classCopy ? 'demoClassBadge' : 'demoOfficial')} · {t('demoExhibitCount', { count: scene.items.length })}</p>
         <h1 className="mt-2 text-3xl font-semibold">{t(exhibition.title)}</h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">{t(exhibition.description)}</p>
         <nav className="mt-5 flex flex-wrap gap-2" aria-label={t('demoCollectionTitle')}>
-          {demoExhibitions.map(demo => <Button key={demo.id} asChild variant={demo.id === exhibition.id ? 'default' : 'outline'}><Link to={demo.id === 'classics' ? '/demo' : `/demo?exhibition=${demo.id}`} aria-current={demo.id === exhibition.id ? 'page' : undefined}>{t(demo.title)}</Link></Button>)}
+          {demoExhibitions.map(demo => <Button key={demo.id} asChild variant={demo.id === exhibition.id ? 'default' : 'outline'}><Link to={demo.id === demoExhibitions[0].id ? '/demo' : `/demo?exhibition=${demo.id}`} aria-current={demo.id === exhibition.id ? 'page' : undefined}>{t(demo.title)}</Link></Button>)}
         </nav>
+        {classCopy && <div className="mt-5 rounded-lg border-l-4 border-primary bg-card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">{classCopy.inquiryLabel}</p>
+          <p className="mt-1 text-lg font-semibold">{classCopy.inquiry}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{classCopy.note}</p>
+        </div>}
         <div className="my-5 rounded-lg border border-border bg-card p-4">
           <h2 className="font-semibold">{t('demoInstructionsTitle')}</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('demoInstructions')}</p>
@@ -62,7 +70,12 @@ function DemoExhibitionContent({ exhibition, initialIndex }: { exhibition: typeo
           </div>
           <aside className="rounded-lg border border-border bg-card p-5" aria-label={t('demoDetails')}>
             <p className="text-sm text-muted-foreground">{index + 1} / {scene.items.length}</p>
-            <div aria-live="polite"><h2 className="mt-3 text-2xl font-semibold">{selected.title}</h2><p className="mt-2 text-sm text-muted-foreground">{selected.artist}</p><p className="mt-4 text-sm leading-7">{selected.description}</p></div>
+            <div aria-live="polite"><h2 className="mt-3 text-2xl font-semibold">{selected.title}</h2><p className="mt-2 text-sm text-muted-foreground">{selected.artist}</p><p className="mt-4 text-sm leading-7">{selected.description}</p>
+              {selected.workContext && <ExhibitWorkContextDisplay item={selected} headingId={`demo-work-context-${selected.id}`} />}
+              {!!classCopy?.works[index]?.comments.length && <section className="mt-6" aria-labelledby="demo-comments-title">
+                <h3 id="demo-comments-title" className="text-base font-semibold">{classCopy.commentsTitle}</h3>
+                <ul className="mt-2 space-y-2">{classCopy.works[index].comments.map((comment) => <li key={`${comment.name}-${comment.text}`} className="rounded-md border border-border p-3 text-sm"><p className="font-semibold">{comment.name}</p><p className="mt-1 leading-6 text-muted-foreground">{comment.text}</p></li>)}</ul>
+              </section>}</div>
             <a className="mt-4 block text-sm underline underline-offset-4" href={`https://www.metmuseum.org/art/collection/search/${exhibition.artworks[index].id}`} target="_blank" rel="noopener noreferrer">{t('demoSource')}</a>
             <div className="mt-6 flex gap-2"><Button variant="outline" disabled={index === 0} onClick={() => setIndex(index - 1)}>{t('demoPrevious')}</Button><Button variant="outline" disabled={index === scene.items.length - 1} onClick={() => setIndex(index + 1)}>{t('demoNext')}</Button></div>
           </aside>

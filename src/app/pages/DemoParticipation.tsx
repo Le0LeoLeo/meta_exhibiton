@@ -16,10 +16,10 @@ class ParticipationBoundary extends Component<{ children: ReactNode; fallback: R
 
 /** Full-document navigation isolates the native singleton stores from the user's editor session. */
 export default function DemoParticipation() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [params] = useSearchParams();
   const exhibition = getDemoExhibition(params.get('exhibition'));
-  const scene = useMemo(() => createDemoScene(t, exhibition.id), [t, exhibition.id]);
+  const scene = useMemo(() => createDemoScene(t, exhibition.id, locale), [t, exhibition.id, locale]);
   const [prepared, setPrepared] = useState<typeof scene | null>(null);
   const requestedIndex = Number(params.get('artwork') ?? 0);
   const index = Number.isInteger(requestedIndex) && requestedIndex >= 0 && requestedIndex < scene.items.length ? requestedIndex : 0;

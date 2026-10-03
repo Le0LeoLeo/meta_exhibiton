@@ -1,3 +1,5 @@
+import { classSampleArtworks } from './classSample';
+
 /** The Met Open Access images, served locally. See docs/demo-artwork-sources.md. */
 export const demoArtworks = [
   { id: 45434, key: 1, width: 600, height: 403, date: 'ca. 1830–32' },
@@ -177,6 +179,8 @@ const additionalArtworks = [
 ] as const;
 
 export const demoExhibitions = [
+  // The sample class exhibition comes first, so /demo opens a learning example.
+  { id: 'class', title: 'demoClassTitle', description: 'demoClassDescription', cover: 45434, artworks: classSampleArtworks, wall: '#f3eee6' },
   { id: 'classics', title: 'demoTitle', description: 'demoDescription', cover: 436535, artworks: [...demoArtworks, ...additionalArtworks.slice(0, 8)], wall: '#f5f0e8' },
   { id: 'garden', title: 'demoGardenTitle', description: 'demoGardenDescription', cover: 436965, wall: '#edf1e8', artworks: [
     { id: 436965, key: 4, width: 599, height: 377, date: '1874' },

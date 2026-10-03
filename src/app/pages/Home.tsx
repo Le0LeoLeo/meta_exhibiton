@@ -92,7 +92,7 @@ export default function Home() {
     <section data-museum-reveal className="home-demo-collection" aria-labelledby="home-demo-title">
       <p className="home-eyebrow">PAIDEA / COLLECTION</p><h2 id="home-demo-title">{t('demoCollectionTitle')}</h2>
       <p className="home-demo-intro">{t('demoCollectionIntro')}</p>
-      <div className="home-demo-grid">{demoExhibitions.map(demo => <Link key={demo.id} className="home-demo-card" to={demo.id === 'classics' ? '/demo' : `/demo?exhibition=${demo.id}`}>
+      <div className="home-demo-grid">{demoExhibitions.map(demo => <Link key={demo.id} className="home-demo-card" to={demo.id === demoExhibitions[0].id ? '/demo' : `/demo?exhibition=${demo.id}`}>
         <div className="home-demo-cover"><ExhibitionCover src={`/demo/met-${demo.cover}.jpg`} title={t(demo.title)}/></div>
         <h3>{t(demo.title)}<ArrowUpRight size={18} aria-hidden="true"/></h3><p>{t(demo.description)}</p><p>{t('demoExhibitCount', { count: demo.artworks.length })}</p>
       </Link>)}</div>

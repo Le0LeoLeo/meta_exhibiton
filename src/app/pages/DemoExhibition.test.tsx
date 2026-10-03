@@ -25,13 +25,16 @@ describe('official public demo', () => {
     renderDemo();
     expect(screen.getByRole('status')).toHaveTextContent('此裝置目前無法顯示 3D 展廳');
     expect(screen.getByRole('button', { name: '3D 展廳' })).toBeDisabled();
+    expect(screen.getByText('日本木版畫如何改變了部分歐洲畫家的繪畫方式？')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '神奈川沖浪裏' })).toBeInTheDocument();
+    expect(screen.getByText('我研究了這類版畫何時傳到歐洲，並寫下作為全班故事開端的展品說明。')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '同學留言' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '下一件' }));
+    expect(screen.getByRole('heading', { name: '戴草帽的自畫像' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '有柏樹的麥田' }));
     expect(screen.getByRole('heading', { name: '有柏樹的麥田' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '持水壺的年輕女子' }));
-    expect(screen.getByRole('heading', { name: '持水壺的年輕女子' })).toBeInTheDocument();
-    expect(screen.getByText('約翰尼斯・維梅爾 · ca. 1662')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '館藏來源：大都會藝術博物館 · CC0' })).toHaveAttribute('href', 'https://www.metmuseum.org/art/collection/search/437881');
+    expect(screen.getByText('梵高 · 1889')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '館藏來源：大都會藝術博物館 · CC0' })).toHaveAttribute('href', 'https://www.metmuseum.org/art/collection/search/436535');
     expect(screen.getByRole('link', { name: '返回首頁' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: '建立我的展覽' })).toHaveAttribute('href', '/virtual-gallery/quick-create');
     expect(JSON.stringify(useMetaverseStudioStore.getState().exportScene())).toBe(before);
@@ -41,10 +44,10 @@ describe('official public demo', () => {
     supported.value = true;
     renderDemo();
     expect(await screen.findByTestId('demo-canvas')).toHaveTextContent('Artwork 1');
-    fireEvent.click(screen.getByRole('button', { name: '持水壺的年輕女子' }));
+    fireEvent.click(screen.getByRole('button', { name: '有柏樹的麥田' }));
     expect(screen.getByTestId('demo-canvas')).toHaveTextContent('Artwork 3');
     fireEvent.click(screen.getByRole('button', { name: '2D 圖文' }));
-    expect(screen.getByRole('img', { name: '持水壺的年輕女子' })).toHaveAttribute('src', '/demo/met-437881.jpg');
+    expect(screen.getByRole('img', { name: '有柏樹的麥田' })).toHaveAttribute('src', '/demo/met-436535.jpg');
   });
 
   it('offers 2D after the 3D module fails', async () => {
@@ -77,13 +80,14 @@ describe('official public demo', () => {
 
   it.each(demoExhibitions)('can reach the last artwork in $id and navigate back', exhibition => {
     renderDemo(`/demo?exhibition=${exhibition.id}`);
-    for (let i = 1; i < 11; i++) fireEvent.click(screen.getByRole('button', { name: '下一件' }));
-    expect(screen.getByText('11 / 11')).toBeInTheDocument();
+    const total = exhibition.artworks.length;
+    for (let i = 1; i < total; i++) fireEvent.click(screen.getByRole('button', { name: '下一件' }));
+    expect(screen.getByText(`${total} / ${total}`)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下一件' })).toBeDisabled();
-    const last = exhibition.artworks[10];
+    const last = exhibition.artworks[total - 1];
     expect(screen.getByRole('link', { name: /館藏來源/ })).toHaveAttribute('href', `https://www.metmuseum.org/art/collection/search/${last.id}`);
     fireEvent.click(screen.getByRole('button', { name: '上一件' }));
-    expect(screen.getByText('10 / 11')).toBeInTheDocument();
+    expect(screen.getByText(`${total - 1} / ${total}`)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下一件' })).toBeEnabled();
   });
 
@@ -108,7 +112,7 @@ describe('official public demo', () => {
 
   it('ships only local public-domain painting media and independent scene objects', () => {
     const scene = createDemoScene((key) => key);
-    expect(scene.items).toHaveLength(11);
+    expect(scene.items).toHaveLength(demoExhibitions[0].artworks.length);
     expect(scene.items.every((item) => item.type === 'painting' && /^\/demo\/met-[0-9]+\.jpg$/.test(item.content))).toBe(true);
     scene.items[0].content = '/changed.svg';
     expect(createDemoScene((key) => key).items[0].content).toBe('/demo/met-45434.jpg');
