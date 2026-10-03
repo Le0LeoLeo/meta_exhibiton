@@ -2,6 +2,7 @@ import { Film, Image as ImageIcon } from 'lucide-react';
 import { useContext, useEffect, useRef } from 'react';
 import { useI18n } from '@/app/components/I18nProvider';
 import { GalleryVisitFocusContext } from '../gallery-analytics/useGalleryVisit';
+import { ExhibitWorkContextDisplay } from '@/app/modules/metaverse3d/components/UI/ExhibitWorkContextDisplay';
 import type { Scene2DExhibit } from './sceneToExhibits';
 
 interface Exhibition2DViewProps {
@@ -90,6 +91,7 @@ export function Exhibition2DView({ title, description, exhibits }: Exhibition2DV
                     <h2 id={`exhibit-title-${exhibit.id}`} className="text-xl font-semibold">{exhibit.title}</h2>
                     {exhibit.artist && <p className="mt-2 text-sm font-medium text-primary">{t('exhibition2dAuthor', { artist: exhibit.artist })}</p>}
                     {exhibit.description && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{exhibit.description}</p>}
+                    {exhibit.workContext && <ExhibitWorkContextDisplay item={exhibit} headingId={`exhibit-work-context-${exhibit.id}`} />}
                   </div>
                 </article>
               </li>

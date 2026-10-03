@@ -5,15 +5,15 @@ import { normalizeWorkContext } from '../../workContext';
 
 const fields = ['contribution', 'process', 'outcome', 'reflection'] as const;
 
-export function ExhibitWorkContextDisplay({ item }: { item: ExhibitItem }) {
+export function ExhibitWorkContextDisplay({ item, headingId = 'exhibit-work-context-title' }: { item: Pick<ExhibitItem, 'workContext'>; headingId?: string }) {
   const { t } = useI18n();
   const workContext = normalizeWorkContext(item.workContext);
   if (!workContext) return null;
 
   return (
-    <section aria-labelledby="exhibit-work-context-title" className="mt-6 space-y-4 rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-900">
+    <section aria-labelledby={headingId} className="mt-6 space-y-4 rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-900">
       <div>
-        <h3 id="exhibit-work-context-title" className="text-base font-semibold text-stone-900 dark:text-white">{t('workContextTitle')}</h3>
+        <h3 id={headingId} className="text-base font-semibold text-stone-900 dark:text-white">{t('workContextTitle')}</h3>
         <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-400">{t('workContextPublic')}</p>
       </div>
       {fields.map((field) => {

@@ -1,3 +1,6 @@
+import type { ExhibitWorkContext } from '@/app/modules/metaverse3d/types';
+import { normalizeWorkContext } from '@/app/modules/metaverse3d/workContext';
+
 type SceneItem = Record<string, unknown>;
 
 export interface Scene2DExhibit {
@@ -9,6 +12,8 @@ export interface Scene2DExhibit {
   mediaUrl: string | null;
   thumbnailUrl: string | null;
   accessibleText: string;
+  /** Creator-supplied learning story shown beside the work, as in the 3D details. */
+  workContext?: ExhibitWorkContext;
 }
 
 export interface Scene2DLabels {
@@ -60,9 +65,11 @@ export function sceneToExhibits(snapshot: unknown, labels: Scene2DLabels = defau
     if (type !== 'painting' && type !== 'sculpture' && type !== 'pedestal' && type !== 'text') return [];
 
     const content = text(item.content);
-    const description = text(item.description) ?? (type === 'text' ? content : null);
     const artist = text(item.artist);
     const title = text(item.title) ?? (type === 'text' ? labels.textTitle : labels.artworkTitle(index + 1));
+    const rawDescription = text(item.description) ?? (type === 'text' ? content : null);
+    // Wall text usually stores the same words as title and content; show them once.
+    const description = type === 'text' && rawDescription === title ? null : rawDescription;
     const source = mediaUrl(item.assetUrl) ?? mediaUrl(item.content);
     const video = type === 'painting' && isVideo(item, source);
     const kind = video
@@ -77,7 +84,7 @@ export function sceneToExhibits(snapshot: unknown, labels: Scene2DLabels = defau
       mediaUrl(item.thumbnailUrl, false) ??
       (kind === 'image' ? source : null);
 
-    if (kind === 'text' && !description) return [];
+    if (kind === 'text' && !description && !text(item.title)) return [];
 
     const accessibleText = [title, artist ? labels.author(artist) : null, description]
       .filter(Boolean)
@@ -92,6 +99,7 @@ export function sceneToExhibits(snapshot: unknown, labels: Scene2DLabels = defau
       mediaUrl: source,
       thumbnailUrl: thumbnail,
       accessibleText,
+      ...(normalizeWorkContext(item.workContext) ? { workContext: normalizeWorkContext(item.workContext) } : {}),
     }];
   });
 }

@@ -56,4 +56,12 @@ describe('Exhibition2DView', () => {
     expect(screen.getByText('2D 圖文展覽')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('此展覽目前沒有可在 2D 模式顯示的作品。');
   });
+  it('shows the creator learning story beside each work', () => {
+    render(<I18nProvider><Exhibition2DView title="Class show" exhibits={[{
+      id: 'wave', title: 'The Wave', artist: null, description: null, kind: 'image', mediaUrl: '/wave.jpg', thumbnailUrl: '/wave.jpg',
+      accessibleText: 'The Wave', workContext: { contribution: 'I wrote the label.', reflection: 'Check sources first.' },
+    }]} /></I18nProvider>);
+    expect(screen.getByText('I wrote the label.')).toBeInTheDocument();
+    expect(screen.getByText('Check sources first.')).toBeInTheDocument();
+  });
 });

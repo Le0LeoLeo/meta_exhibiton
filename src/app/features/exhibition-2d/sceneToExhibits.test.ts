@@ -91,4 +91,13 @@ describe('sceneToExhibits', () => {
       expect.objectContaining({ mediaUrl: null, thumbnailUrl: null }),
     ]);
   });
+  it('keeps the creator learning story and shows wall text once', () => {
+    const exhibits = sceneToExhibits({ items: [
+      { id: 'room-title', type: 'text', title: 'History Inquiry Gallery', content: 'History Inquiry Gallery' },
+      { id: 'wave', type: 'painting', title: 'The Wave', content: '/wave.jpg',
+        workContext: { contribution: 'I wrote the label.', sources: [{ label: 'Peer notes', excerpt: 'Clear dates.' }] } },
+    ] });
+    expect(exhibits[0]).toMatchObject({ id: 'room-title', title: 'History Inquiry Gallery', description: null });
+    expect(exhibits[1].workContext).toEqual({ contribution: 'I wrote the label.', sources: [{ label: 'Peer notes', excerpt: 'Clear dates.' }] });
+  });
 });

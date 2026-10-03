@@ -38,7 +38,8 @@ import {
 import { getItemBehavior } from "../items/itemBehaviorRegistry";
 import { buildWallTopology, getFloorPlanCenter, getFloorPlanRoomBounds } from "../store/floorPlanGeometry";
 import { getWallColliders } from "../player/wallCollision";
-import { getVisitorSpawn } from '../player/visitorSpawn';
+import { getVisitorSpawn, VISITOR_SPAWN_SPACING } from '../player/visitorSpawn';
+import { useMultiplayerStore } from '../network/multiplayerStore';
 
 const LOOK_SENSITIVITY = 0.002;
 const MOVE_SPEED = 5;
@@ -86,6 +87,8 @@ export function Player({
   const personality = useStore((state) => state.agent.personality);
   const setLocalTransform = useLocalPlayerStore((state) => state.setTransform);
   const entranceRevision = useLocalPlayerStore((state) => state.entranceRevision);
+  const spawnPointRef = useRef<{ x: number; z: number } | null>(null);
+  const earlierVisitorIdsRef = useRef<Set<string>>(new Set());
   const avatarAppearance = useAvatarPreferenceStore(
     (state) => state.savedAppearance,
   );
@@ -181,6 +184,7 @@ export function Player({
       const scene = useStore.getState();
       const spawn = getVisitorSpawn(getFloorPlanRoomBounds(scene.floorPlanElements, scene.roomSize.width, scene.roomSize.length), scene.items, scene.roomSize.wallThickness, eyeHeight);
       playerPosRef.current.set(spawn.position.x, spawn.position.y, spawn.position.z);
+      spawnPointRef.current = { x: spawn.position.x, z: spawn.position.z };
       yawRef.current = spawn.yaw;
       pitchRef.current = 0;
       camera.position.copy(playerPosRef.current);
@@ -207,6 +211,45 @@ export function Player({
     setSeatedItemId,
     setLocalTransform,
   ]);
+
+  // Whoever joins second steps aside, so two visitors who have not moved yet do not
+  // stand inside each other at the entrance. Only visitors who were already in the
+  // room when we joined count, so the earlier visitor never moves.
+  const stepAsideRef = useRef<() => void>(() => {});
+  stepAsideRef.current = () => {
+    const spawnPoint = spawnPointRef.current;
+    const earlierIds = earlierVisitorIdsRef.current;
+    if (mode !== "view" || !spawnPoint || !earlierIds.size) return;
+    const position = playerPosRef.current;
+    if (Math.hypot(position.x - spawnPoint.x, position.z - spawnPoint.z) > 0.05) return;
+    const remotePlayers = useMultiplayerStore.getState().remotePlayers;
+    const crowded = [...earlierIds].some((id) => {
+      const other = remotePlayers[id]?.targetPosition;
+      return other && Math.hypot(other.x - position.x, other.z - position.z) < VISITOR_SPAWN_SPACING;
+    });
+    if (!crowded) return;
+    const others = Object.values(remotePlayers).map((player) => ({ x: player.targetPosition.x, z: player.targetPosition.z }));
+    const scene = useStore.getState();
+    const spawn = getVisitorSpawn(getFloorPlanRoomBounds(scene.floorPlanElements, scene.roomSize.width, scene.roomSize.length), scene.items, scene.roomSize.wallThickness, eyeHeight, others);
+    playerPosRef.current.set(spawn.position.x, spawn.position.y, spawn.position.z);
+    spawnPointRef.current = { x: spawn.position.x, z: spawn.position.z };
+    yawRef.current = spawn.yaw;
+    camera.position.copy(playerPosRef.current);
+    camera.rotation.set(pitchRef.current, spawn.yaw, 0);
+    setLocalTransform(spawn.position, spawn.yaw);
+  };
+  useEffect(() => {
+    const capture = (selfId: string | null) => {
+      earlierVisitorIdsRef.current = new Set(selfId ? Object.keys(useMultiplayerStore.getState().remotePlayers) : []);
+    };
+    capture(useMultiplayerStore.getState().selfId);
+    stepAsideRef.current();
+    return useMultiplayerStore.subscribe((state, previous) => {
+      if (state.selfId !== previous.selfId) capture(state.selfId);
+      if (state.remotePlayers !== previous.remotePlayers || state.selfId !== previous.selfId) stepAsideRef.current();
+    });
+  }, []);
+  useEffect(() => { stepAsideRef.current(); }, [mode, entranceRevision]);
 
   usePlayerKeyboardInput(inputRef, mode === 'view' && allowMotion);
 

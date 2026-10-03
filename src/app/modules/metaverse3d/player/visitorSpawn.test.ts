@@ -17,6 +17,13 @@ describe('visitor entrance', () => {
     expect(getVisitorSpawn(rooms, [], 2, 1.4).position).toEqual({ x: 0, y: 1.4, z: 0 });
   });
 
+  it('steps beside the entrance when another visitor is already standing there', () => {
+    const rooms = getFloorPlanRoomBounds([], 8, 8);
+    const spawn = getVisitorSpawn(rooms, [], 0.12, 1.4, [{ x: 0, z: 0 }]);
+    expect(Math.hypot(spawn.position.x, spawn.position.z)).toBeGreaterThanOrEqual(1.39);
+    expect(Math.hypot(spawn.position.x, spawn.position.z)).toBeLessThan(2);
+  });
+
   it('does not start inside a central solid pedestal', () => {
     const obstacle = { id: 'pedestal', type: 'pedestal', position: [0, 0, 0], rotation: [0, 0, 0], scale: [2, 2, 2] } as ExhibitItem;
     const spawn = getVisitorSpawn(getFloorPlanRoomBounds([], 8, 8), [obstacle], 0.12, 1.4);
