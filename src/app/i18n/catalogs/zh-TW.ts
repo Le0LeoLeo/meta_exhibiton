@@ -1053,6 +1053,7 @@ export const zhTW = {
     editorAiBuilderPhase_capturing: '正在準備場景檢查',
     editorAiBuilderPhase_reviewing: '正在檢查參觀體驗',
     editorAiBuilderPhase_revising: '正在改善展覽',
+    editorAiBuilderStoppedNoChanges: '生成已停止，展覽沒有任何改動。',
     editorAiBuilderPhase_completed: '展覽預覽已準備好',
     editorAiBuilderPhase_stopped: '自動改善已停止',
     editorAiBuilderRevisionProgress: '第 {current} 次改善，共 {total} 次',

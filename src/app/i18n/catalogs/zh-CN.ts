@@ -995,6 +995,7 @@ export const zhCN = {
     editorAiBuilderPhase_capturing: '正在准备场景检查',
     editorAiBuilderPhase_reviewing: '正在检查参观体验',
     editorAiBuilderPhase_revising: '正在改善展览',
+    editorAiBuilderStoppedNoChanges: '生成已停止，展览没有任何改动。',
     editorAiBuilderPhase_completed: '展览预览已准备好',
     editorAiBuilderPhase_stopped: '自动改善已停止',
     editorAiBuilderRevisionProgress: '第 {current} 次改善，共 {total} 次',

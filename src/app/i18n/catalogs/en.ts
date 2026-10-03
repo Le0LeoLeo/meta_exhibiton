@@ -994,6 +994,7 @@ export const en = {
     editorAiBuilderPhase_capturing: 'Preparing the scene check',
     editorAiBuilderPhase_reviewing: 'Checking the visitor experience',
     editorAiBuilderPhase_revising: 'Improving the exhibition',
+    editorAiBuilderStoppedNoChanges: 'Generation stopped. Nothing was changed.',
     editorAiBuilderPhase_completed: 'The exhibition preview is ready',
     editorAiBuilderPhase_stopped: 'Automatic improvements stopped',
     editorAiBuilderRevisionProgress: 'Improvement {current} of {total}',

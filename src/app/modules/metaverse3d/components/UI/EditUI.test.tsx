@@ -770,9 +770,11 @@ describe("EditUI AI builder", () => {
     fireEvent.change(document.querySelector("textarea") as HTMLTextAreaElement, { target: { value: "分成三區" } });
     fireEvent.click(screen.getByRole("button", { name: "生成展覽" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("未完成建展");
-    const apply = screen.getByRole("button", { name: "套用生成展覽" });
-    expect(apply).toBeDisabled();
-    fireEvent.click(apply);
+    // A run that changed nothing offers only Discard, never "preview ready" or a saved draft.
+    expect(screen.getByText("生成已停止，展覽沒有任何改動。")).toBeInTheDocument();
+    expect(screen.queryByText("展覽預覽已準備好")).not.toBeInTheDocument();
+    expect(screen.queryByText("草稿版本已記錄")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "套用生成展覽" })).not.toBeInTheDocument();
     expect(useStore.getState().exportScene()).toEqual(baseline);
   });
 

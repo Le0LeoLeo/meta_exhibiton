@@ -80,7 +80,9 @@ export function EditorAiBuilderPanel({ builder, glassInputClass, onClose }: { on
           aria-live="polite"
         >
           <p className="text-[11px] font-semibold text-sky-50">
-            {t(`editorAiBuilderPhase_${aiBuilderProgress.phase}`)}
+            {aiBuilderProgress.phase === "completed" && aiBuilderGenerationFailed
+              ? t("editorAiBuilderStoppedNoChanges")
+              : t(`editorAiBuilderPhase_${aiBuilderProgress.phase}`)}
           </p>
           {aiBuilderProgress.phase === "revising" && (
             <p className="mt-1 text-[11px] text-white/70">
@@ -170,9 +172,9 @@ export function EditorAiBuilderPanel({ builder, glassInputClass, onClose }: { on
       )}
       {aiBuilderError && <p className="rounded-xl border border-rose-200/40 bg-rose-500/15 px-2 py-1.5 text-[11px] text-rose-50">{aiBuilderError}</p>}
       {aiBuilderPreview && (
-        <div className="space-y-2 rounded-xl border border-emerald-200/35 bg-emerald-500/12 p-3 text-xs text-white">
+        <div className={`space-y-2 rounded-xl border p-3 text-xs text-white ${aiBuilderGenerationFailed ? "border-amber-200/40 bg-amber-500/12" : "border-emerald-200/35 bg-emerald-500/12"}`}>
           <div>
-            <p className="text-[11px] font-semibold text-emerald-50">{t(aiBuilderGenerationFailed ? 'editorAiBuilderFailed' : 'editorAiBuilderPreviewTitle')}</p>
+            <p className={`text-[11px] font-semibold ${aiBuilderGenerationFailed ? "text-amber-50" : "text-emerald-50"}`}>{t(aiBuilderGenerationFailed ? 'editorAiBuilderFailed' : 'editorAiBuilderPreviewTitle')}</p>
             {!aiBuilderGenerationFailed && <p className="mt-1 text-sm font-semibold text-white">{aiBuilderPreview.exhibition.title}</p>}
             {!aiBuilderGenerationFailed && aiBuilderPreview.exhibition.curatorialStatement && (
               <p className="mt-1 text-[11px] leading-relaxed text-white/75">{aiBuilderPreview.exhibition.curatorialStatement}</p>
@@ -341,7 +343,7 @@ export function EditorAiBuilderPanel({ builder, glassInputClass, onClose }: { on
               </p>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-2">
+          {!aiBuilderGenerationFailed && <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={handleReviewAiExhibition}
@@ -360,16 +362,16 @@ export function EditorAiBuilderPanel({ builder, glassInputClass, onClose }: { on
             >
               <span className="text-xs">{isAiRevising ? t("editorAiBuilderRevising") : t("editorAiBuilderReviseAction")}</span>
             </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
+          </div>}
+          <div className={`grid gap-2 ${aiBuilderGenerationFailed ? "grid-cols-1" : "grid-cols-2"}`}>
+            {!aiBuilderGenerationFailed && <button
               type="button"
               onClick={handleApplyAiExhibition}
               disabled={busy || aiBuilderGenerationFailed || aiBuilderPreviewUnsafe || (aiBuilderDiff?.protectedItemsPreserved === false && !builder.aiBuilderPreviewAllowsDestructive)}
               className="rounded-xl border border-emerald-200/45 bg-emerald-500/30 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t('editorAiBuilderApply')}
-            </button>
+            </button>}
             <button
               type="button"
               onClick={handleDiscardAiExhibition}
@@ -485,7 +487,7 @@ export function EditorAiBuilderPanel({ builder, glassInputClass, onClose }: { on
 
         <div className="mt-2 flex items-center justify-between gap-2">
           <button type="button" onClick={handleGenerateAiExhibition} disabled={!aiBuilderPrompt.trim() || busy} className="rounded-lg p-2 text-xs text-white/60 hover:bg-white/10 disabled:opacity-40">{isAiBuilding ? t('editorAiBuilderGenerating') : t('editorAiBuilderGenerate')}</button>
-          {aiBuilderPreview && !isAiAgentRunning && <button type="button" onClick={() => void handleRunAiBuilderAgent()} disabled={busy} className="rounded-lg p-2 text-xs text-white/60 hover:bg-white/10 disabled:opacity-40">{t('editorAiBuilderResumeAgent')}</button>}
+          {aiBuilderPreview && !aiBuilderGenerationFailed && !isAiAgentRunning && <button type="button" onClick={() => void handleRunAiBuilderAgent()} disabled={busy} className="rounded-lg p-2 text-xs text-white/60 hover:bg-white/10 disabled:opacity-40">{t('editorAiBuilderResumeAgent')}</button>}
           <button type="button" onClick={isAiAgentRunning ? handleCancelAiBuilderAgent : builder.handleChatSend} disabled={isAiAgentRunning ? isAiAgentCancelling : !aiBuilderPrompt.trim() || busy} aria-label={isAiAgentRunning ? t('editorAiBuilderCancelAgent') : t('builderChatSend')} className="flex h-10 min-w-10 shrink-0 items-center justify-center rounded-full bg-white px-3 text-black hover:bg-white/80 disabled:opacity-30">{isAiAgentRunning ? <span className="h-3 w-3 rounded-sm bg-black" /> : <ArrowUp size={19} />}</button>
         </div>
       </footer>

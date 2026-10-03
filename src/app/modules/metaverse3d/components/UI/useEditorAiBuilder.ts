@@ -68,7 +68,9 @@ export function useEditorAiBuilder(onApplied: () => void) {
   const chatStepsRef = useRef<string[]>([]);
   const recordChatResult = (session: BuilderSessionResponse) => chat.append({
     role: 'assistant', text: session.appliedOperationCount === 0 ? t('editorAiBuilderGenerationFailed') : session.exhibition.curatorialStatement || session.exhibition.title,
-    steps: [...chatStepsRef.current, ...(session.operationSummary ? [session.operationSummary] : [])], sessionId: session.sessionId, versionId: session.versionId,
+    steps: [...chatStepsRef.current, ...(session.operationSummary ? [session.operationSummary] : [])], sessionId: session.sessionId,
+    // A run that changed nothing has no usable draft to revisit.
+    ...(session.appliedOperationCount === 0 ? {} : { versionId: session.versionId }),
   });
   const [aiBuilderPrompt, setAiBuilderPrompt] = useState("");
   const [allowDestructive, setAllowDestructive] = useState(false);
