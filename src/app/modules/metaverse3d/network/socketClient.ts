@@ -26,7 +26,7 @@ let socketToken: string | null = null;
 let socketServerUrl: string | null = null;
 
 const EDIT_ROLES = new Set(["editor", "owner"]);
-const CHAT_ROLES = new Set(["participant", "editor", "owner"]);
+export const CHAT_ROLES: ReadonlySet<string> = new Set(["participant", "editor", "owner"]);
 const MOVEMENT_ROLES = new Set(["viewer", "participant", "editor", "owner"]);
 
 export function getSocket(): Socket | null {

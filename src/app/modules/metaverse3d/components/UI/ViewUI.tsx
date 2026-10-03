@@ -17,6 +17,8 @@ import { AvatarEmoteBar } from "./AvatarEmoteBar";
 import { useCommentDraft } from './useCommentDraft';
 import { VisitorHelp } from './VisitorHelp';
 import { ExhibitWorkContextDisplay } from './ExhibitWorkContextDisplay';
+import { VisitorChatPanel } from './VisitorChatPanel';
+import { useMultiplayerStore } from '../../network/multiplayerStore';
 
 interface ViewUIProps {
   /** null explicitly disables remote gallery features for local demonstrations. */
@@ -145,7 +147,13 @@ useJourneyStep('artwork_view', mode === 'view' && Boolean(viewingItem) && typeof
     update();
     return () => { unsubscribe(); };
   }, []);
+  const authName = auth.user?.name?.trim() || '';
+  useEffect(() => {
+    // Signed-in visitors appear in room chat under their account name.
+    if (authName) useMultiplayerStore.getState().setNickname(authName);
+  }, [authName]);
   useVisitorMemorySession({ galleryId: activeExhibitionId, token: auth.token, locale, enabled: mode === 'view' && !reviewOnly });
+  const [isRoomChatOpen, setIsRoomChatOpen] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentSubmitFailed, setCommentSubmitFailed] = useState(false);
   const [isSummarizingFeedback, setIsSummarizingFeedback] = useState(false);
@@ -340,11 +348,12 @@ useJourneyStep('artwork_view', mode === 'view' && Boolean(viewingItem) && typeof
     <div className={`absolute inset-0 pointer-events-none ${viewingItem ? 'z-[60]' : 'z-20'}`}>
       {!viewingItem && (
         <>
-          {!agent.isChatOpen && <div className="absolute bottom-40 left-1/2 w-[min(24rem,calc(100%-2rem))] -translate-x-1/2 text-center text-xs leading-relaxed text-foreground lg:bottom-8">
+          {!agent.isChatOpen && !isRoomChatOpen && <div className="absolute bottom-40 left-1/2 w-[min(24rem,calc(100%-2rem))] -translate-x-1/2 text-center text-xs leading-relaxed text-foreground lg:bottom-8">
             {!touchControls && <p className="mb-2 rounded-xl border border-border bg-card/95 px-4 py-2">{t('viewMoveHint')}<span className="block">{t('uxReleaseCursor')}</span></p>}
             {hasSelectedParticipationMode && <VisitorHelp touch={touchControls} />}
           </div>}
           <AvatarEmoteBar />
+          {!reviewOnly && activeExhibitionId && <VisitorChatPanel open={isRoomChatOpen} onOpenChange={setIsRoomChatOpen} />}
         </>
       )}
 
