@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, Bot, Lightbulb, MessageCircle, Send, Sparkles, UserRound } from "lucide-react";
 import { useStore } from "../../store/useStore";
 import { loadAuth, requestAgentReply } from "../../../../api/client";
+import { TTS_ENABLED } from "../../../../api/tts";
 import { getAgentVisualConfig } from "../../agent/config";
 import { buildVisitorAwareRequest, getAgentSceneExhibits } from "../../agent/requestContext";
 import { buildCompanionRoute, dismissCompanionInvitation, getSceneExhibits, parseCompanionCommand, resolveVisitorFocus } from "../../agent/companion";
@@ -267,11 +268,11 @@ export function AgentChatPanel() {
             className="min-h-11 rounded-full border border-white/20 px-3 text-xs text-slate-100 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
             {t(agent.companion.proactiveEnabled ? 'companion.quiet' : 'companion.resume')}
           </button>
-          <button type="button" aria-pressed={agent.companion.voiceEnabled}
+          {TTS_ENABLED && <button type="button" aria-pressed={agent.companion.voiceEnabled}
             onClick={() => setAgent({ companion: { ...agent.companion, voiceEnabled: !agent.companion.voiceEnabled } })}
             className="min-h-11 rounded-full border border-white/20 px-3 text-xs text-slate-100 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
             {t(agent.companion.voiceEnabled ? 'companion.mute' : 'companion.unmute')}
-          </button>
+          </button>}
         </div>
         {invitationExhibit && agent.companion.invitation && !isSending && (
           <section aria-label={t('companion.invitationTitle')} className="rounded-2xl border border-cyan-300/30 bg-cyan-500/10 p-3 text-sm text-cyan-50">

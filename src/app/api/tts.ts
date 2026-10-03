@@ -1,6 +1,9 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from './base';
 import { apiFetch, LONG_API_TIMEOUT_MS } from './request';
 
+/** Spoken audio (Qwen TTS) is paused for now; set to true to bring every voice feature back. */
+export const TTS_ENABLED = false;
+
 export function buildGuideTtsText(payload: {
   title?: string;
   artist?: string;
@@ -20,6 +23,7 @@ export async function requestQwenTts(
   },
   options?: { signal?: AbortSignal },
 ): Promise<Blob> {
+  if (!TTS_ENABLED) throw new Error('Text-to-speech is paused');
   const res = await apiFetch(apiUrl('/api/tts/qwen'), {
     method: 'POST',
     headers: authHeaders(token),

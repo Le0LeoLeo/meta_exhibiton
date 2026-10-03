@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { loadAuth, requestQwenTts } from '@/app/api/client';
+import { TTS_ENABLED } from '@/app/api/tts';
 import { useStore } from '../store/useStore';
 
 /** One audio owner for manual AND automatic replies; invitations are always silent. */
@@ -11,7 +12,7 @@ export function useGuideSpeech() {
   useEffect(() => {
     if (!message || message.role !== 'assistant' || consumed.current === message.id) return;
     consumed.current = message.id;
-    if (!enabled) return;
+    if (!enabled || !TTS_ENABLED) return;
     const { token } = loadAuth();
     if (!token) return;
     const controller = new AbortController();

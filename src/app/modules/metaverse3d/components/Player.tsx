@@ -10,6 +10,7 @@ import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import { useLocalPlayerStore } from "../network/localPlayerStore";
 import { loadAuth, requestAgentReply, requestQwenTts } from "../../../api/client";
+import { TTS_ENABLED } from "../../../api/tts";
 import { getAgentSceneExhibits, buildAgentReplyRequest } from "../agent/requestContext";
 import {
   createPlayerInputState,
@@ -504,6 +505,8 @@ export function Player({
       return;
     }
 
+    // The dwell reminder is spoken only, so skip it (and its AI call) while TTS is paused.
+    if (!TTS_ENABLED) return;
     if (now - lastReminderAtRef.current < REMINDER_OUTSIDE_RANGE_MS) return;
     const outsideElapsed = now - outsideRangeEnteredAtRef.current;
     if (outsideElapsed < REMINDER_OUTSIDE_RANGE_MS) return;

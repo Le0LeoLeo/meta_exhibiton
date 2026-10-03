@@ -8,6 +8,7 @@ import {
 import { useI18n } from "../../../../components/I18nProvider";
 import { requestPolishIntro, requestTranslate } from "../../../../api/aiWriting";
 import { loadAuth } from "../../../../api/client";
+import { TTS_ENABLED } from "../../../../api/tts";
 import { toast } from "sonner";
 import { ExhibitWorkContextEditor } from './ExhibitWorkContextEditor';
 
@@ -521,14 +522,14 @@ export function PaintingInspector({
         <textarea aria-label={t("painting.description")} value={selectedItem.description || ""} onChange={(e) => updateItem(selectedItem.id, { description: e.target.value })} className={`h-24 w-full rounded-xl px-3 py-2 text-sm ${glassInputClass}`} placeholder={t('painting.descriptionPlaceholder')} />
       </div>
       <ExhibitWorkContextEditor item={selectedItem} updateItem={updateItem} />
-      <div className="rounded-2xl border border-violet-200/60 bg-violet-300/12 p-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] backdrop-blur-md">
+      {TTS_ENABLED && <div className="rounded-2xl border border-violet-200/60 bg-violet-300/12 p-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] backdrop-blur-md">
         <p className="mb-2 text-xs font-semibold text-white">{t('painting.voice')}</p>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => void playGuideAudio()} disabled={isTtsGenerating} className="inline-flex items-center gap-2 rounded-md bg-violet-600 px-3 py-1.5 text-xs text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-70">{isTtsGenerating ? <Loader2 className="size-4 animate-spin" /> : <Volume2 className="size-4" />}{isTtsGenerating ? t('painting.generating') : t('painting.play')}</button>
           {isTtsSpeaking && <button onClick={stopGuideAudio} className={`inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs text-white transition-colors ${glassButtonClass}`}><StopIcon className="size-4" />{t('painting.stop')}</button>}
         </div>
         {ttsError && <p className="mt-2 text-xs text-rose-300">{ttsError}</p>}
-      </div>
+      </div>}
       <div><label className="mb-1 block text-xs font-medium text-white/75">{t('painting.externalLink')}</label><input aria-label={t("painting.externalLink")} type="text" value={selectedItem.externalUrl || ""} onChange={(e) => updateItem(selectedItem.id, { externalUrl: e.target.value })} className="w-full rounded-md border border-white/25 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/55" placeholder="https://..." /></div>
     </div>
   );

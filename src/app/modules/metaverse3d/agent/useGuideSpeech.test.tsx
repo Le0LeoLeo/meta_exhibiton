@@ -6,10 +6,13 @@ import { defaultAgentState } from '../store/metaverseStoreUtils';
 import { useGuideSpeech } from './useGuideSpeech';
 
 vi.mock('@/app/api/client', () => ({ loadAuth: () => ({ token: 'test' }), requestQwenTts: vi.fn() }));
+const tts = vi.hoisted(() => ({ enabled: true }));
+vi.mock('@/app/api/tts', () => ({ get TTS_ENABLED() { return tts.enabled; } }));
 const play = vi.fn().mockResolvedValue(undefined);
 const pause = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
+  tts.enabled = true;
   vi.mocked(requestQwenTts).mockResolvedValue(new Blob(['sound']));
   vi.stubGlobal('Audio', class { play = play; pause = pause; onended = null; onerror = null; });
   URL.createObjectURL = vi.fn(() => 'blob:test');
@@ -19,6 +22,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('shared guide speech', () => {
+  it('stays silent while text-to-speech is paused', async () => {
+    tts.enabled = false;
+    renderHook(() => useGuideSpeech());
+    act(() => useStore.getState().setAgentDialogue('An automatic tour reply.'));
+    await Promise.resolve();
+    expect(requestQwenTts).not.toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled();
+  });
+
   it('speaks a tour answer, and stops playback immediately when muted', async () => {
     renderHook(() => useGuideSpeech());
     act(() => useStore.getState().setAgentDialogue('An automatic tour reply.'));
