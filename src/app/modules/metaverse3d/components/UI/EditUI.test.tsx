@@ -253,7 +253,7 @@ describe("EditUI AI builder", () => {
   });
 
   it("restores the last persisted builder session for the signed-in user", async () => {
-    localStorage.setItem("ai-builder-session:user-1", "builder-1");
+    localStorage.setItem("ai-builder-session:user-1:/", "builder-1");
 
     renderEditUI();
     fireEvent.click(screen.getByRole("button", { name: /更多/ }));
@@ -261,6 +261,18 @@ describe("EditUI AI builder", () => {
 
     await waitFor(() => expect(requestBuilderSessionById).toHaveBeenCalledWith("jwt-token", "builder-1"));
     expect(await screen.findByText("城市記憶展")).toBeInTheDocument();
+  });
+
+  it("does not restore a builder session saved for another exhibition", async () => {
+    localStorage.setItem("ai-builder-session:user-1:other-exhibition", "builder-1");
+
+    renderEditUI();
+    fireEvent.click(screen.getByRole("button", { name: /更多/ }));
+    fireEvent.click(screen.getByRole("button", { name: "AI 建展" }));
+
+    await act(async () => {});
+    expect(requestBuilderSessionById).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("展覽需求")).toHaveValue("");
   });
 
   it("does not remember a late generation after leaving the editor", async () => {
@@ -274,14 +286,14 @@ describe("EditUI AI builder", () => {
     fireEvent.click(screen.getByRole("button", { name: "生成展覽" }));
     unmount();
     await act(async () => { finish(generated); });
-    expect(localStorage.getItem("ai-builder-session:user-1")).toBeNull();
+    expect(localStorage.getItem("ai-builder-session:user-1:/")).toBeNull();
   });
 
   it("keeps a new generation when an older remembered-session response arrives later", async () => {
     const restored = await requestBuilderSessionById("fixture", "fixture");
     let finish!: (value: typeof restored) => void;
     vi.mocked(requestBuilderSessionById).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
-    localStorage.setItem("ai-builder-session:user-1", "older-session");
+    localStorage.setItem("ai-builder-session:user-1:/", "older-session");
     renderEditUI();
     fireEvent.click(screen.getByRole("button", { name: /更多/ }));
     fireEvent.click(screen.getByRole("button", { name: "AI 建展" }));
@@ -322,7 +334,7 @@ describe("EditUI AI builder", () => {
   });
 
   it("continues autonomous improvement from a restored builder session", async () => {
-    localStorage.setItem("ai-builder-session:user-1", "builder-1");
+    localStorage.setItem("ai-builder-session:user-1:/", "builder-1");
 
     renderEditUI();
     fireEvent.click(screen.getByRole("button", { name: /更多/ }));
@@ -348,7 +360,7 @@ describe("EditUI AI builder", () => {
   });
 
   it("automatically restores the better persisted version after a harmful revision", async () => {
-    localStorage.setItem("ai-builder-session:user-1", "builder-1");
+    localStorage.setItem("ai-builder-session:user-1:/", "builder-1");
     const review = {
       technicalScore: 70, curatorialScore: 80, overallStatus: "needs_revision" as const,
       blockingIssues: [], viewReviews: [], revisionPrompt: "Improve spacing.",
@@ -408,7 +420,7 @@ describe("EditUI AI builder", () => {
       restoredFromVersionId: "version-1",
     };
 
-    localStorage.setItem("ai-builder-session:user-1", "builder-1");
+    localStorage.setItem("ai-builder-session:user-1:/", "builder-1");
     vi.mocked(requestBuilderSessionById).mockResolvedValue({
       ...currentVersion,
       input: { prompt: "測試展覽" },

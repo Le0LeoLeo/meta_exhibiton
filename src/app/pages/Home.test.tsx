@@ -24,7 +24,7 @@ describe('official-only homepage', () => {
     expect(container.querySelector('.home-thumbnail-strip')).toBeNull();
     expect(container.querySelector('.home-exhibition-wall')).toBeNull();
     expect(container.querySelectorAll('.home-demo-card')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: /跨越世界的浪/ })).toHaveAttribute('href', '/demo');
+    screen.getAllByRole('link', { name: /跨越世界的浪/ }).forEach(link => expect(link).toHaveAttribute('href', '/demo'));
     expect(screen.getByRole('link', { name: /印象・花園/ })).toHaveAttribute('href', '/demo?exhibition=garden');
     expect(screen.getByRole('link', { name: /浮世・山水/ })).toHaveAttribute('href', '/demo?exhibition=landscape');
   });

@@ -2,6 +2,8 @@
 .home-showcase .home-intro { align-items: center; text-align: center; padding: 38px 0 28px; }
 .home-showcase h1 { font-size: clamp(32px, 3.5vw, 56px); margin: 16px 0 10px; }
 .home-showcase h1 br { display: none; }
+/* The two headline halves are inline blocks, so English needs an explicit word gap; Chinese does not. */
+.home-showcase h1:lang(en) .home-title-mask:first-child { margin-inline-end: .28em; }
 .home-showcase .home-intro-copy { max-width: none; }
 .home-showcase .home-poster-selection,.home-showcase .home-art-note { display: none; }
 .home-showcase .home-actions { justify-content: center; margin-top: 20px; }

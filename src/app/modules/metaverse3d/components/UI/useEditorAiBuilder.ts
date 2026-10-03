@@ -30,7 +30,10 @@ import { isBuilderPreviewUnsafe } from "../../aiBuilder/isBuilderPreviewUnsafe";
 import { captureBuilderPreviewScene } from "../../aiBuilder/builderPreviewStore";
 import type { SceneSnapshot } from "../../store/metaverseStoreTypes";
 
-const builderSessionStorageKey = (userId: string) => `ai-builder-session:${userId}`;
+// One resume pointer per user and exhibition, so a preview from another exhibition
+// (whose scene would replace this one if applied) is never restored here.
+const builderSessionScope = () => new URLSearchParams(window.location.search).get('exhibitionId') ?? window.location.pathname;
+const builderSessionStorageKey = (userId: string) => `ai-builder-session:${userId}:${builderSessionScope()}`;
 
 function readBuilderSession(userId: string) {
   try { return localStorage.getItem(builderSessionStorageKey(userId)); }

@@ -83,7 +83,7 @@ export const aiEducationMainZhCN: Record<keyof typeof aiEducationMainZhTW, strin
 };
 
 export const aiEducationMainEn: Record<keyof typeof aiEducationMainZhTW, string> = {
-  homeAIHeroStart: 'AI for Education. ',
+  homeAIHeroStart: 'AI for Education.',
   homeAIHeroEnd: 'Make learning visible.',
   homeAIIntro: 'Turn student work and its process into a 3D learning exhibition, explore it together with classmates, and ask AI about the work in front of you.',
   homeAIFeatureLabel: 'Featured · AI for Education',

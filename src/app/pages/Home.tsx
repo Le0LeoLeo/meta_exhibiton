@@ -16,11 +16,11 @@ import '@/styles/home-product.css';
 
 export default function Home() {
   useJourneyStep('home');
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const revealRoot = useRef<HTMLDivElement>(null);
   useExhibitionReveals(revealRoot, 'official');
   const featuredHref = '/demo';
-  const featuredTitle = t('demoOfficial');
+  const featuredTitle = t('demoClassTitle');
 
   return <div ref={revealRoot} className="museum-home">
     <section className="home-hero home-poster home-showcase" aria-labelledby="home-title">
@@ -45,7 +45,7 @@ export default function Home() {
         <p className="home-art-note">{t('homeLearningNote')}</p>
       </div>
       <div className="home-featured">
-        <Link className="home-featured-image home-demo-art" to={featuredHref} aria-label={`${t('homeEnter')}：${featuredTitle}`}>
+        <Link className="home-featured-image home-demo-art" to={featuredHref} aria-label={`${t('homeEnter')}${locale === 'en' ? ': ' : '：'}${featuredTitle}`}>
           <div className="home-featured-art"><ExhibitionCover src="/demo/met-436535.jpg" title={t('demoArtwork2Title')} priority/></div>
           <span className="home-art-entry" aria-hidden="true"><ArrowUpRight size={24}/></span>
         </Link>
