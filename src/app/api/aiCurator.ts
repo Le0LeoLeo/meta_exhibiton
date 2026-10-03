@@ -1,7 +1,7 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from "./base";
 import { apiFetch, LONG_API_TIMEOUT_MS } from "./request";
 
-export type CuratorIntent = "warm-memory" | "professional-gallery" | "competition-showcase";
+export type CuratorIntent = "warm-memory" | "professional-gallery";
 
 export interface CuratorPlanRequest {
   theme: string;

@@ -1,11 +1,14 @@
 import { z } from 'zod';
 import { sendInternalError } from '../config/errorHandling.js';
+import { normalizeAgentImage } from '../services/agentImage.js';
+import { exhibitWorkContextSchema } from '../schemas/sceneSchema.js';
 
 const sceneExhibitSchema = z.object({
   id: z.string().trim().min(1),
   title: z.string().optional().nullable(),
   artist: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
+  workContext: exhibitWorkContextSchema.optional(),
   content: z.string().optional().nullable(),
   type: z.string().optional().nullable(),
   position: z.array(z.number()).length(3).optional().nullable(),
@@ -34,6 +37,7 @@ const sessionStateSchema = z.object({
   tourProgress: z.object({
     currentStopIndex: z.number().int().min(0).optional().default(0),
     totalStops: z.number().int().min(0).optional().default(0),
+    currentExhibitId: z.string().trim().min(1).optional().nullable(),
     completedExhibitIds: z.array(z.string().trim().min(1)).max(100).optional().default([]),
   }).optional().nullable(),
 }).optional().nullable();
@@ -44,6 +48,8 @@ const userPreferencesSchema = z.object({
 }).optional().nullable();
 
 const replySchema = z.object({
+  exhibitImage: z.string().max(800000).optional(),
+  imageUnavailable: z.boolean().optional(),
   question: z.string().trim().min(1, 'question is required').max(1000, 'question too long'),
   personality: z.enum(['xiaobai', 'expert', 'humor']).default('xiaobai'),
   exhibitId: z.string().trim().min(1).optional().nullable(),
@@ -75,6 +81,11 @@ export function registerAgentRoutes(app, deps = {}) {
         return res.status(400).json({ message: parsed.error.issues[0]?.message ?? 'invalid payload' });
       }
 
+      if (parsed.data.exhibitImage) {
+        if (!parsed.data.exhibit) return res.status(400).json({ message: 'artwork image requires an exhibit' });
+        try { parsed.data.exhibitImage = await normalizeAgentImage(parsed.data.exhibitImage); }
+        catch { return res.status(400).json({ message: 'invalid artwork image' }); }
+      }
       const result = await generateAgentReply(parsed.data);
       res.json(result);
     } catch (err) {

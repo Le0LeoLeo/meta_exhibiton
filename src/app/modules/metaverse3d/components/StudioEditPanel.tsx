@@ -14,8 +14,6 @@ export function StudioEditPanel() {
   const updateItem = useMetaverseStudioStore((s) => s.updateItem);
   const removeItem = useMetaverseStudioStore((s) => s.removeItem);
 
-  if (mode !== "edit") return null;
-
   const selectedItem = items.find((i) => i.id === selectedItemId) || null;
 
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -36,6 +34,8 @@ export function StudioEditPanel() {
       }
     };
   }, []);
+
+  if (mode !== "edit") return null;
 
   const handleStopGuide = () => {
     if (audioRef.current) {

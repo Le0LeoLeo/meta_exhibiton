@@ -1,0 +1,56 @@
+/* Homepage choreography: finite entrances, no scroll listeners or animation loop. */
+.museum-home .home-title-mask { display: inline-block; max-width: 100%; overflow: clip; vertical-align: bottom; padding-bottom: .12em; margin-bottom: -.12em; }
+.museum-home .home-title-mask > span { display: inline-block; max-width: 100%; }
+.museum-home .home-art-entry { position: absolute; right: 24px; bottom: 24px; display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid var(--border); background: var(--background); color: var(--foreground); }
+.museum-home .home-demo-cover { overflow: hidden; }
+.museum-home .home-create { position: relative; isolation: isolate; overflow: hidden; }
+.museum-home .home-create::before { content: ''; position: absolute; z-index: -1; pointer-events: none; inset: 0; background: radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--home-red) 8%, transparent), transparent 65%); }
+
+@keyframes home-title-unveil {
+  from { opacity: 0; transform: translateY(105%) rotate(2deg); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes home-art-unveil {
+  from { opacity: 0; clip-path: inset(12% 18% 12% 18%); transform: translateY(24px) scale(.96); }
+  to { opacity: 1; clip-path: inset(0); transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .museum-home .home-intro > h1 { animation: none; }
+  .museum-home .home-title-mask > span { animation: home-title-unveil 1s var(--museum-ease) .1s backwards; }
+  .museum-home .home-title-mask:last-child > span { animation-delay: .24s; }
+  .museum-home .home-intro > .home-intro-copy { animation-delay: .35s; }
+  .museum-home .home-intro > .home-actions { animation-delay: .45s; }
+  .museum-home .home-featured-art { animation: home-art-unveil 1.15s var(--museum-ease) .18s backwards; }
+  .museum-home .home-featured-caption { animation: museum-arrive .8s var(--museum-ease) .5s backwards; }
+  .museum-home .home-art-entry { animation: museum-arrive .8s var(--museum-ease) .65s backwards; transition: transform .45s var(--museum-ease), background-color .25s, color .25s; }
+  .museum-home .home-demo-card { transition: translate .5s var(--museum-ease); }
+  .museum-home .home-demo-cover { transition: box-shadow .5s var(--museum-ease); }
+  .museum-home .home-demo-cover img { transition: transform .8s var(--museum-ease); }
+  .museum-home .home-demo-card h3 > svg { transition: transform .4s var(--museum-ease); }
+  .museum-home .museum-revealed .home-demo-card,
+  .museum-home .museum-revealed .home-create-steps li { animation: museum-arrive .9s var(--museum-ease) backwards; }
+  .museum-home .museum-revealed :is(.home-demo-card, .home-create-steps li):nth-child(2) { animation-delay: .12s; }
+  .museum-home .museum-revealed :is(.home-demo-card, .home-create-steps li):nth-child(3) { animation-delay: .24s; }
+  .museum-home .home-paths a::before { content: ''; position: absolute; top: -1px; inset-inline: 0; height: 1px; background: var(--foreground); transform: scaleX(0); transform-origin: left; transition: transform .6s var(--museum-ease); }
+  .museum-home .home-paths a:focus-visible::before { transform: scaleX(1); }
+  .museum-home .home-button { transition: translate .3s var(--museum-ease), box-shadow .3s, filter .2s; }
+  .museum-home .home-button:active { translate: 0 1px; }
+  .museum-home .home-featured-image:focus-visible .home-art-entry { transform: rotate(-8deg); background: var(--foreground); color: var(--background); }
+  @media (hover: hover) and (pointer: fine) {
+    .museum-home .home-demo-card:hover { translate: 0 -7px; }
+    .museum-home .home-demo-card:hover .home-demo-cover { box-shadow: 0 16px 28px -20px color-mix(in srgb, var(--foreground) 40%, transparent); }
+    .museum-home .home-demo-card:hover img { transform: scale(1.035); }
+    .museum-home .home-demo-card:hover h3 > svg { transform: translate(3px, -3px); }
+    .museum-home .home-featured-image:hover .home-art-entry { transform: rotate(-8deg); background: var(--foreground); color: var(--background); }
+    .museum-home .home-paths a:hover::before { transform: scaleX(1); }
+    .museum-home .home-button:hover { translate: 0 -2px; box-shadow: 0 8px 18px -12px var(--foreground); }
+    .museum-home .home-button:active { translate: 0 1px; }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .museum-home *, .museum-home *::before, .museum-home *::after { animation: none !important; transition: none !important; }
+  .museum-home .home-featured-image:hover .home-featured-art > img { transform: none; }
+}
+@media (max-width: 650px) {
+  .museum-home .home-art-entry { width: 40px; height: 40px; right: 12px; bottom: 12px; }
+}

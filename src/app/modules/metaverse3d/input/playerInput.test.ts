@@ -24,4 +24,19 @@ describe("player input", () => {
       y: expect.closeTo(Math.SQRT1_2),
     });
   });
+
+  it("requests interaction only on the leading edge of E", () => {
+    const state = createPlayerInputState();
+
+    setKeyboardKey(state, "KeyE", true);
+    expect(state.interactRequested).toBe(true);
+
+    state.interactRequested = false;
+    setKeyboardKey(state, "KeyE", true);
+    expect(state.interactRequested).toBe(false);
+
+    setKeyboardKey(state, "KeyE", false);
+    setKeyboardKey(state, "KeyE", true);
+    expect(state.interactRequested).toBe(true);
+  });
 });

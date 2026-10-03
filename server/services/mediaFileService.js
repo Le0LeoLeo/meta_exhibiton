@@ -4,7 +4,7 @@ import { DEFAULT_MEDIA_UPLOAD_ROOT } from './mediaIngestService.js';
 
 function resolveStoredMediaPath(storageFileName, uploadRoot = DEFAULT_MEDIA_UPLOAD_ROOT) {
   const name = String(storageFileName || '');
-  if (!/^[a-f0-9-]{36}\.(?:jpe?g|png|webp)$/i.test(name) || path.basename(name) !== name) {
+  if (!/^[a-f0-9-]{36}\.(?:jpe?g|png|webp|mp4|webm|ogg|glb|gltf|stl)$/i.test(name) || path.basename(name) !== name) {
     throw Object.assign(new Error('invalid stored media filename'), { code: 'INVALID_MEDIA_PATH' });
   }
   const root = path.resolve(uploadRoot);

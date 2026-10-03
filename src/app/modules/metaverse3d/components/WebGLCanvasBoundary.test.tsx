@@ -1,11 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../components/I18nProvider";
 import { WebGLCanvasBoundary } from "./WebGLCanvasBoundary";
 
 function BrokenCanvas() {
   throw new Error("Error creating WebGL context.");
 }
+
+beforeEach(() => localStorage.setItem("metaexpo-locale", "zh-TW"));
+afterEach(() => { cleanup(); localStorage.clear(); });
 
 describe("WebGLCanvasBoundary", () => {
   it("shows the recovery overlay when WebGL renderer creation throws", () => {

@@ -3,14 +3,16 @@ import type { FloorPlanElement } from "../types";
 import type { ExhibitItem } from "../types";
 import { useStore } from "../store/useStore";
 import { loadAuth, requestAgentReply } from "../../../api/client";
-import { buildAgentReplyRequest, getAgentSceneExhibits, type AgentReplyRequest } from "./requestContext";
+import { buildVisitorAwareRequest, type AgentReplyRequest } from "./requestContext";
+import { getSceneExhibits } from './companion';
+import { useLocalPlayerStore } from '../network/localPlayerStore';
 
 export const AGENT_GROUND_Y = 0.15;
 export const AGENT_CHAT_DISTANCE = 4.8;
 export const AGENT_COLLIDER_RADIUS = 0.42;
 
 export function toExhibitData(items: ExhibitItem[]) {
-  return getAgentSceneExhibits(items).map((item) => ({ ...item }));
+  return getSceneExhibits(items);
 }
 
 export function findClosestExhibit(position: THREE.Vector3, exhibits: ReturnType<typeof toExhibitData>) {
@@ -164,11 +166,15 @@ export async function requestAutoGuideAnswer(params: {
     throw new Error("請先登入後再使用 AI 導覽");
   }
 
-  return await requestAgentReply(token, buildAgentReplyRequest({
-    question: params.question,
-    personality: params.personality,
-    exhibit: params.exhibit,
-    nearbyExhibits: params.nearbyExhibits.slice(0, 8),
-    sessionState: params.sessionState,
-  }));
+  const state = useStore.getState();
+  const { x, y, z } = useLocalPlayerStore.getState().position;
+  const payload = buildVisitorAwareRequest({
+    question: params.question, agent: { ...state.agent, personality: params.personality },
+    items: state.items, position: [x, y, z], viewingId: state.viewingItem?.id ?? null,
+    chat: state.agentChat, exhibitOverride: params.exhibit,
+  });
+  const session = params.sessionState ?? payload.sessionState;
+  return await requestAgentReply(token, { ...payload, sessionState: session ? {
+    ...session, tourProgress: session.tourProgress ? { ...session.tourProgress, completedExhibitIds: session.tourProgress.completedExhibitIds?.slice(-100) } : null,
+  } : null });
 }

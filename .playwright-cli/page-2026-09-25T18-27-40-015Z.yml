@@ -1,0 +1,171 @@
+- generic [ref=e2]:
+  - generic [ref=e12]:
+    - navigation [ref=e13]:
+      - generic [ref=e15]:
+        - link "META EXB" [ref=e16] [cursor=pointer]:
+          - /url: /
+        - generic [ref=e18]:
+          - link "Gallery" [ref=e19] [cursor=pointer]:
+            - /url: /virtual-gallery
+          - link "Exhibitions" [ref=e20] [cursor=pointer]:
+            - /url: /exhibitions
+          - link "AI for Education" [ref=e21] [cursor=pointer]:
+            - /url: /solutions
+        - generic [ref=e22]:
+          - button "Switch Language" [ref=e23]: EN
+          - button "Switch to Dark Mode" [ref=e27]
+          - generic [ref=e31]:
+            - link "A Acceptance user" [ref=e93] [cursor=pointer]:
+              - /url: /profile
+              - generic [ref=e94]: A
+              - generic [ref=e95]: Acceptance user
+            - button "Log Out" [ref=e96]
+          - button "Open Menu" [ref=e36]
+    - main [ref=e38]:
+      - generic [ref=e102]:
+        - region [ref=e103]:
+          - generic [ref=e104]:
+            - paragraph [ref=e105]: META EXB · AI for Education
+            - heading "Show the process behind student work, in a 3D learning exhibition." [level=1] [ref=e106]:
+              - generic [ref=e107]: Show the process behind student work,
+              - generic [ref=e109]: in a 3D learning exhibition.
+            - paragraph [ref=e111]: Present projects and their process in 3D, explore together with classmates where Multiplayer is enabled, and ask the Agent about each work using context provided by its creator.
+            - generic [ref=e112]:
+              - link "Create a 3D learning exhibition" [ref=e113] [cursor=pointer]:
+                - /url: /virtual-gallery/quick-create
+              - link "Browse learning exhibitions" [ref=e118] [cursor=pointer]:
+                - /url: /exhibitions
+            - generic [ref=e123]:
+              - link "Explore a learning sample" [ref=e124] [cursor=pointer]:
+                - /url: /demo
+              - link "Create a class learning exhibition" [ref=e127] [cursor=pointer]:
+                - /url: /virtual-gallery/quick-create
+            - paragraph [ref=e130]: Visit sample learning exhibitions without signing in. Sign in to create a class exhibition of student work and thinking.
+            - link "Choose a learning exhibition template" [ref=e131] [cursor=pointer]:
+              - /url: /virtual-gallery
+          - generic [ref=e134]:
+            - link "Explore a learning sample：Official demo · No sign-in required" [ref=e135] [cursor=pointer]:
+              - /url: /demo
+              - img "Wheat Field with Cypresses" [ref=e137]
+            - generic [ref=e144]:
+              - paragraph [ref=e145]: Wheat Field with Cypresses
+              - paragraph [ref=e146]:
+                - text: Vincent van Gogh
+                - generic [ref=e147]: Sample learning exhibitions · practise observing and asking · no sign-in
+        - region [ref=e148]:
+          - paragraph [ref=e149]: META EXB / COLLECTION
+          - heading "Sample learning exhibitions" [level=2] [ref=e150]
+          - paragraph [ref=e151]: Use collection artworks to practise close observation and thoughtful questions. These are learning samples, not student work; explore the 3D spaces and artwork context without signing in.
+          - generic [ref=e152]:
+            - link [ref=e153] [cursor=pointer]:
+              - /url: /demo
+              - img "A small gallery of masterpieces" [ref=e155]
+              - heading "A small gallery of masterpieces" [level=3] [ref=e156]
+              - paragraph [ref=e160]: Explore line, colour and storytelling through eleven collection works, from Hokusai’s waves and Van Gogh’s brushwork to European portraits and mythological scenes.
+              - paragraph [ref=e161]: 11 artworks
+            - link [ref=e162] [cursor=pointer]:
+              - /url: /demo?exhibition=garden
+              - img "Impressions · In the Garden" [ref=e164]
+              - heading "Impressions · In the Garden" [level=3] [ref=e165]
+              - paragraph [ref=e169]: Enter Manet’s garden and explore Van Gogh’s roses and wheat field. Follow the changing rhythms of brushwork and colour, from figures and flowers to open landscapes.
+              - paragraph [ref=e170]: 11 artworks
+            - link [ref=e171] [cursor=pointer]:
+              - /url: /demo?exhibition=landscape
+              - img "Floating World · Land and Sea" [ref=e173]
+              - heading "Floating World · Land and Sea" [level=3] [ref=e174]
+              - paragraph [ref=e178]: Follow Hokusai’s waves, tea fields and shoreline, tracing Mount Fuji and everyday life. Eleven prints offer different perspectives on the landscape.
+              - paragraph [ref=e179]: 11 artworks
+        - region [ref=e180]:
+          - paragraph [ref=e181]: META EXB / EXPERIENCE
+          - heading "Show the process. Explore together." [level=2] [ref=e182]
+          - figure "A learning exhibition example built with a 3D gallery template" [ref=e183]:
+            - img "A learning exhibition example built with a 3D gallery template" [ref=e184]
+          - generic [ref=e186]:
+            - article [ref=e187]:
+              - generic [aria-hidden] [ref=e188]: "01"
+              - heading "3D Learning Exhibitions" [level=3] [ref=e189]
+              - paragraph [ref=e190]: Build a 3D learning exhibition to present student work, process and outcomes, with context visitors can read beside each work.
+            - article [ref=e191]:
+              - generic [aria-hidden] [ref=e192]: "02"
+              - heading "Multiplayer Learning" [level=3] [ref=e193]
+              - paragraph [ref=e194]: Explore supported exhibitions with classmates and share observations and ideas around the displayed works.
+            - article [ref=e195]:
+              - generic [aria-hidden] [ref=e196]: "03"
+              - heading "Agent-guided Inquiry" [level=3] [ref=e197]
+              - paragraph [ref=e198]: Ask the Agent about a work and continue the discussion using its creator-provided description, process and sources.
+          - generic [ref=e199]:
+            - link "Explore sample learning exhibitions" [ref=e200] [cursor=pointer]:
+              - /url: /demo
+            - link "Browse class exhibitions" [ref=e203] [cursor=pointer]:
+              - /url: /exhibitions
+        - region [ref=e206]:
+          - paragraph [ref=e207]: META EXB / SPACES
+          - heading "Three learning approaches, one exhibition space." [level=2] [ref=e208]
+          - paragraph [ref=e209]: Use project learning to show how work developed, peer learning to exchange observations, and guided inquiry to extend questions.
+          - generic [ref=e210]:
+            - article [ref=e211]:
+              - img "Project learning" [ref=e212]
+              - heading "Project learning" [level=3] [ref=e213]
+              - paragraph [ref=e214]: Organize student work and process in an exhibition so learners can present their contributions, choices and outcomes.
+            - article [ref=e215]:
+              - img "Peer learning" [ref=e216]
+              - heading "Peer learning" [level=3] [ref=e217]
+              - paragraph [ref=e218]: Explore supported multiplayer exhibitions with classmates and compare observations and ideas around each work.
+            - article [ref=e219]:
+              - img "Guided inquiry" [ref=e220]
+              - heading "Guided inquiry" [level=3] [ref=e221]
+              - paragraph [ref=e222]: Ask the Agent about a work; its replies draw on creator-provided descriptions, process and sources for further class discussion.
+          - link "Choose a learning exhibition template" [ref=e224] [cursor=pointer]:
+            - /url: /virtual-gallery
+        - region [ref=e227]:
+          - paragraph [ref=e228]: META EXB / CREATE
+          - heading "Turn class projects into a shared learning exhibition." [level=2] [ref=e229]
+          - paragraph [ref=e230]: Show the work, process and outcomes, then invite classmates to explore and discuss them.
+          - generic [ref=e231]:
+            - link "Create a learning exhibition" [ref=e232] [cursor=pointer]:
+              - /url: /virtual-gallery/quick-create
+            - button "Quick start" [ref=e235]
+          - list [ref=e236]:
+            - listitem [ref=e237]:
+              - generic [aria-hidden] [ref=e238]: "01"
+              - text: Add student work
+            - listitem [ref=e239]:
+              - generic [aria-hidden] [ref=e240]: "02"
+              - text: Show the process
+            - listitem [ref=e241]:
+              - generic [aria-hidden] [ref=e242]: "03"
+              - text: Publish a class exhibition
+        - region "Help improve visiting and creating" [ref=e243]:
+          - heading "Help improve visiting and creating" [level=2] [ref=e244]
+          - paragraph [ref=e245]: Allow this site to record journey steps? No account details, exhibition names, artwork content or AI conversations are recorded. A short-lived random tab ID links steps, retained for up to 30 days with no third-party analytics. Turn it off and delete this tab’s records on the privacy page.
+          - status [ref=e246]: Journey analytics disabled
+          - generic [ref=e247]:
+            - button "Allow journey analytics" [ref=e248]
+            - button "Not now" [ref=e249]
+            - link "Privacy settings" [ref=e250] [cursor=pointer]:
+              - /url: /privacy
+    - contentinfo [ref=e81]:
+      - generic [ref=e82]:
+        - link "META EXB" [ref=e83] [cursor=pointer]:
+          - /url: /
+        - paragraph [ref=e84]: A 3D learning exhibition for student work, process and ideas.
+      - navigation "Resources" [ref=e85]:
+        - link "Explore sample learning exhibitions" [ref=e86] [cursor=pointer]:
+          - /url: /demo
+        - link "Browse class exhibitions" [ref=e87] [cursor=pointer]:
+          - /url: /exhibitions
+        - link "Support" [ref=e88] [cursor=pointer]:
+          - /url: /support
+        - link "Learning guide" [ref=e89] [cursor=pointer]:
+          - /url: /resources
+        - link "Privacy Policy" [ref=e90] [cursor=pointer]:
+          - /url: /privacy
+        - link "Terms of Service" [ref=e91] [cursor=pointer]:
+          - /url: /terms
+      - generic [ref=e92]: © 2026 MetaRealm Expo Intelligence / MREI. All rights reserved.
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e251]:
+        - generic [ref=e255]:
+          - generic [ref=e256]: Login Successful!
+          - generic [ref=e257]: Welcome back, Acceptance user. Entering MetaRealm Expo Intelligence (MREI)

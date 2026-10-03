@@ -107,10 +107,14 @@ function PbrSurfaceMaterial({
   textureOffset = [0, 0],
   textureRotation = 0,
   surfaceVariation = "none",
+  roughness,
+  metalness,
+  envMapIntensity,
 }: GallerySurfaceMaterialProps) {
   const definition = GALLERY_MATERIAL_PRESETS[preset];
   const maxAnisotropy = useThree((state) => state.gl.capabilities.getMaxAnisotropy());
-  const repeat = calculateSurfaceRepeat(worldWidth, worldHeight, definition.metersPerTile);
+  const [repeatX, repeatY] = calculateSurfaceRepeat(worldWidth, worldHeight, definition.metersPerTile);
+  const [offsetX, offsetY] = textureOffset;
   const sourceTextures = useTexture([
     `${definition.basePath}/basecolor.jpg`,
     `${definition.basePath}/normal.jpg`,
@@ -119,21 +123,21 @@ function PbrSurfaceMaterial({
   ]);
   const textures = useMemo(() => {
     const [map, normalMap, roughnessMap, aoMap] = sourceTextures.map((texture) => texture.clone());
-    configureColorTexture(map, repeat[0], repeat[1], maxAnisotropy);
-    configureDataTexture(normalMap, repeat[0], repeat[1], maxAnisotropy);
-    configureDataTexture(roughnessMap, repeat[0], repeat[1], maxAnisotropy);
-    configureDataTexture(aoMap, repeat[0], repeat[1], maxAnisotropy);
+    configureColorTexture(map, repeatX, repeatY, maxAnisotropy);
+    configureDataTexture(normalMap, repeatX, repeatY, maxAnisotropy);
+    configureDataTexture(roughnessMap, repeatX, repeatY, maxAnisotropy);
+    configureDataTexture(aoMap, repeatX, repeatY, maxAnisotropy);
     [map, normalMap, roughnessMap, aoMap].forEach((texture) => {
-      applyTextureTransform(texture, textureOffset, textureRotation);
+      applyTextureTransform(texture, [offsetX, offsetY], textureRotation);
     });
     return [map, normalMap, roughnessMap, aoMap] as const;
   }, [
     maxAnisotropy,
-    repeat[0],
-    repeat[1],
+    repeatX,
+    repeatY,
     sourceTextures,
-    textureOffset[0],
-    textureOffset[1],
+    offsetX,
+    offsetY,
     textureRotation,
   ]);
   const normalScale = useMemo(
@@ -144,18 +148,18 @@ function PbrSurfaceMaterial({
     if (!shouldUseFloorSurfaceVariation(preset, surfaceVariation)) return undefined;
 
     const texture = createFloorSurfaceVariationTexture();
-    texture.repeat.set(repeat[0], repeat[1]);
+    texture.repeat.set(repeatX, repeatY);
     texture.anisotropy = maxAnisotropy;
-    applyTextureTransform(texture, textureOffset, textureRotation);
+    applyTextureTransform(texture, [offsetX, offsetY], textureRotation);
     return texture;
   }, [
     maxAnisotropy,
     preset,
-    repeat[0],
-    repeat[1],
+    repeatX,
+    repeatY,
     surfaceVariation,
-    textureOffset[0],
-    textureOffset[1],
+    offsetX,
+    offsetY,
     textureRotation,
   ]);
 
@@ -171,11 +175,11 @@ function PbrSurfaceMaterial({
       }
       aoMap={definition.useAoMap ? textures[3] : undefined}
       color={color}
-      roughness={definition.roughness}
-      metalness={definition.metalness}
+      roughness={roughness ?? definition.roughness}
+      metalness={metalness ?? definition.metalness}
       normalScale={normalScale}
       aoMapIntensity={definition.aoIntensity}
-      envMapIntensity={definition.envMapIntensity}
+      envMapIntensity={envMapIntensity ?? definition.envMapIntensity}
     />
   );
 }
@@ -190,7 +194,7 @@ export function GallerySurfaceMaterial(props: GallerySurfaceMaterialProps) {
         <meshStandardMaterial
           color={props.color ?? "#ffffff"}
           roughness={props.roughness ?? definition.roughness}
-          metalness={0}
+          metalness={props.metalness ?? definition.metalness}
           envMapIntensity={props.envMapIntensity ?? definition.envMapIntensity}
         />
       }
@@ -210,10 +214,11 @@ function TexturedLegacyMaterial({
 }: LegacySurfaceMaterialProps) {
   const maxAnisotropy = useThree((state) => state.gl.capabilities.getMaxAnisotropy());
   const sourceTexture = useTexture(textureUrl);
+  const [repeatX, repeatY] = repeat;
   const texture = useMemo(() => {
     const clone = sourceTexture.clone();
-    return configureColorTexture(clone, repeat[0], repeat[1], maxAnisotropy);
-  }, [maxAnisotropy, repeat[0], repeat[1], sourceTexture]);
+    return configureColorTexture(clone, repeatX, repeatY, maxAnisotropy);
+  }, [maxAnisotropy, repeatX, repeatY, sourceTexture]);
 
   useEffect(() => () => texture.dispose(), [texture]);
 

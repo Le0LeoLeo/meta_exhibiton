@@ -12,7 +12,7 @@ function renderPage() {
 }
 
 describe('ExhibitionSouvenir', () => {
-  beforeEach(() => getSouvenir.mockReset());
+  beforeEach(() => { getSouvenir.mockReset(); localStorage.setItem('metaexpo-locale', 'zh-TW'); });
   afterEach(cleanup);
 
   it('shows loading and then renders the public snapshot without visitor identity', async () => {

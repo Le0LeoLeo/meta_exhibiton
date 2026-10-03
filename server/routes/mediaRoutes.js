@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { sceneContainsAsset } from '../repositories/legacyBoxData.js';
+import { resolveGalleryAccess } from '../security/galleryAccess.js';
 import { ingestMediaUpload as defaultIngestMediaUpload } from '../services/mediaIngestService.js';
 import { deleteMediaFile as defaultDeleteMediaFile, readMediaFile as defaultReadMediaFile } from '../services/mediaFileService.js';
 
@@ -6,6 +8,7 @@ const uploadSchema = z.object({
   dataBase64: z.string().min(1),
   mimeType: z.string().trim().min(1).max(100),
   fileName: z.string().trim().min(1).max(255),
+  usage: z.enum(['gallery', 'avatar']).default('gallery'),
 }).strict();
 
 const bindSchema = z.object({
@@ -25,12 +28,14 @@ export function registerMediaRoutes(app, deps = {}) {
     getMediaAssetById,
     bindMediaAssetsToGallery,
     getGalleryById,
+    hasReviewAccess = async () => false,
     getGalleryByShareToken,
     readMediaFile = defaultReadMediaFile,
     deleteMediaFile = defaultDeleteMediaFile,
     signMediaPreviewToken,
     verifyMediaPreviewToken,
     deleteMediaAssetById,
+    getAssetGalleries,
   } = deps;
 
   app.post('/api/media/upload', uploadLimiter, async (req, res) => {
@@ -47,7 +52,8 @@ export function registerMediaRoutes(app, deps = {}) {
         });
       }
 
-      storedAsset = await ingestMediaUpload(parsed.data);
+      const { usage, ...upload } = parsed.data;
+      storedAsset = await ingestMediaUpload(upload, { allowSceneMedia: usage === 'gallery' });
       const now = new Date().toISOString();
       await insertMediaAsset?.({
         id: storedAsset.id,
@@ -57,6 +63,9 @@ export function registerMediaRoutes(app, deps = {}) {
         originalFileName: storedAsset.originalFileName,
         mimeType: storedAsset.mimeType,
         sizeBytes: storedAsset.size,
+        width: storedAsset.width,
+        height: storedAsset.height,
+        usage,
         createdAt: now,
         updatedAt: now,
       });
@@ -114,6 +123,8 @@ export function registerMediaRoutes(app, deps = {}) {
   });
 
   app.get('/api/media/:id', async (req, res) => {
+    // Access may be withdrawn; do not cache denials or private preview responses.
+    res.setHeader('Cache-Control', 'private, no-store');
     try {
       const id = String(req.params.id || '').trim();
       if (!id) return res.status(404).json({ message: 'media not found' });
@@ -124,10 +135,24 @@ export function registerMediaRoutes(app, deps = {}) {
       const isOwner = Boolean(auth?.sub && auth.sub === asset.owner_id);
       const previewToken = String(req.query.accessToken || '');
       const hasPreviewAccess = Boolean(previewToken && verifyMediaPreviewToken?.(previewToken, asset.id));
+      const isAvatarAsset = asset.usage === 'avatar';
       let isPublished = false;
       let hasShareAccess = false;
-      if (asset.gallery_id && !isOwner) {
+      let hasTeacherAccess = false;
+      if (asset.library_retained && !isOwner && getAssetGalleries) {
+        const shareToken = String(req.header('x-gallery-share-token') || req.query.shareToken || '').trim();
+        const shared = shareToken ? await getGalleryByShareToken?.(shareToken) : null;
+        for (const gallery of await getAssetGalleries(asset.id)) {
+          if (!sceneContainsAsset(gallery.scene_json, asset.id)) continue;
+          if (auth?.sub && await hasReviewAccess(gallery, auth.sub)) hasTeacherAccess = true;
+          if (gallery.is_published) isPublished = true;
+          if (shared?.id === gallery.id && resolveGalleryAccess({ gallery, share: shared, shareToken }).allowed) hasShareAccess = true;
+        }
+      } else if (!asset.library_retained && asset.gallery_id && !isOwner) {
         const gallery = await getGalleryById?.(asset.gallery_id);
+        if (auth?.sub && gallery && sceneContainsAsset(gallery.scene_json, asset.id)) {
+          hasTeacherAccess = await hasReviewAccess(gallery, auth.sub);
+        }
         isPublished = Boolean(gallery?.is_published);
         if (!isPublished) {
           const shareToken = String(req.header('x-gallery-share-token') || req.query.shareToken || '').trim();
@@ -139,7 +164,7 @@ export function registerMediaRoutes(app, deps = {}) {
           }
         }
       }
-      if (!isOwner && !isPublished && !hasShareAccess && !hasPreviewAccess) {
+      if (!isOwner && !isAvatarAsset && !isPublished && !hasShareAccess && !hasPreviewAccess && !hasTeacherAccess) {
         return res.status(404).json({ message: 'media not found' });
       }
 
@@ -147,8 +172,26 @@ export function registerMediaRoutes(app, deps = {}) {
       res.setHeader('Content-Type', asset.mime_type);
       res.setHeader('Content-Length', String(bytes.length));
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.setHeader('Cache-Control', isPublished ? 'public, max-age=3600' : 'private, no-store');
+      res.setHeader(
+        'Cache-Control',
+        !asset.library_retained && isAvatarAsset ? 'public, max-age=3600'
+          : !asset.library_retained && isPublished ? 'private, no-cache' : 'private, no-store',
+      );
       res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(asset.original_file_name || 'artwork')}`);
+      res.setHeader('Accept-Ranges', 'bytes');
+      if (req.headers.range) {
+        const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
+        const start = match?.[1] ? Number(match[1]) : match?.[2] ? Math.max(0, bytes.length - Number(match[2])) : NaN;
+        const end = match?.[1] && match?.[2] ? Math.min(bytes.length - 1, Number(match[2])) : bytes.length - 1;
+        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start > end || start >= bytes.length) {
+          res.setHeader('Content-Range', `bytes */${bytes.length}`);
+          res.removeHeader('Content-Length');
+          return res.status(416).end();
+        }
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${bytes.length}`);
+        res.setHeader('Content-Length', String(end - start + 1));
+        return res.status(206).send(bytes.subarray(start, end + 1));
+      }
       return res.send(bytes);
     } catch (error) {
       if (error?.code === 'ENOENT' || error?.code === 'INVALID_MEDIA_PATH') {
@@ -168,6 +211,9 @@ export function registerMediaRoutes(app, deps = {}) {
       const existing = await getMediaAssetById?.(id);
       if (!existing || existing.owner_id !== auth?.sub) {
         return res.status(404).json({ message: 'media not found' });
+      }
+      if (existing.library_retained) {
+        return res.status(409).json({ code: 'MEDIA_IN_USE', message: 'This file is retained in your personal library. Remove it from boxes without deleting the original.' });
       }
       if (existing.gallery_id) {
         const gallery = await getGalleryById?.(existing.gallery_id);

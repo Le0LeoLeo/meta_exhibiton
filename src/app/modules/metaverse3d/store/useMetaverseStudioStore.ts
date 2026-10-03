@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { transformEditorBatch } from "../../../../../server/services/editorBatchTransforms.js";
+import { isMobileDevice } from "../../../utils/mobileDevice";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { getStudioStorage } from "./studioStorage";
 import { v4 as uuidv4 } from "uuid";
 import {
   ExhibitItem,
@@ -11,6 +14,8 @@ import {
   FloorPlanElement,
   FloorPlanElementType,
   WallMaterialSettings,
+  PaintingFrameAppearance,
+  PendingPlacement,
 } from "../types";
 import {
   normalizeStoredPerformanceMode,
@@ -18,21 +23,22 @@ import {
 } from "../performance/adaptivePerformance";
 import { defaultGalleryScene } from "./defaultGalleryScene";
 import {
-  createDefaultAgentTourSession,
   createSnapshot,
-  defaultAgentState,
   sanitizeItemsForPersist,
   sanitizeRoomSizeForPersist,
   sanitizeWallOverridesForPersist,
   withHistory,
 } from "./metaverseStoreUtils";
 import { createDefaultItem } from "./metaverseStoreItemHelpers";
+import type { AddItemOptions } from './metaverseStoreTypes';
 import { selectRoomTargetId } from "./metaverseStoreFloorPlanHelpers";
 import { addFloorPlanElementAction, createAppliedFloorPlan, createSyncedFloorPlan } from "./floorPlanActions";
-import { getNextSelectedIds, getSelectionAfterRemoval, getNextViewingItemId, getViewingItemById } from "./metaverseStoreSelectionHelpers";
+import { getSelectionAfterRemoval, getNextViewingItemId, getViewingItemById } from "./metaverseStoreSelectionHelpers";
 import { createImportedSceneSnapshot, createUndoRedoPatch } from "./metaverseStoreHistoryHelpers";
 
-import type { SceneSnapshot, BaseMetaverseState, BaseMetaverseActions } from "./metaverseStoreTypes";
+import type { SceneSnapshot, ImportedSceneSnapshot, BaseMetaverseState, BaseMetaverseActions } from "./metaverseStoreTypes";
+import { createAgentSlice, type AgentSlice } from "./agentSlice";
+import { createSelectionSlice } from "./selectionSlice";
 
 export interface EditorThemePreset {
   id: string;
@@ -55,7 +61,7 @@ const areUpdateValuesEqual = (left: unknown, right: unknown) => {
   return Object.is(left, right);
 };
 
-interface AppState extends BaseMetaverseState, BaseMetaverseActions {
+export interface AppState extends Omit<BaseMetaverseState, keyof AgentSlice>, BaseMetaverseActions, AgentSlice {
   mode: AppMode;
   roomSize: RoomSize;
   items: ExhibitItem[];
@@ -74,22 +80,15 @@ interface AppState extends BaseMetaverseState, BaseMetaverseActions {
   floorPlanIsTransforming: boolean;
   undoStack: SceneSnapshot[];
   redoStack: SceneSnapshot[];
-  pendingPlacement: unknown | null;
+  pendingPlacement: PendingPlacement | null;
   performanceMode: PerformanceMode;
   effectivePerformanceMode: EffectivePerformanceMode;
-  startAgentTour: (routeExhibitIds: string[]) => void;
-  pauseAgentTour: () => void;
-  resumeAgentTour: () => void;
-  advanceAgentTour: () => void;
-  endAgentTour: () => void;
-  markAgentTourArrived: (exhibitId: string) => void;
-  markAgentTourExplained: (exhibitId: string) => void;
-  setPendingPlacement: (placement: unknown | null) => void;
+  setPendingPlacement: (placement: PendingPlacement | null) => void;
   setPerformanceMode: (mode: PerformanceMode) => void;
   setEffectivePerformanceMode: (mode: EffectivePerformanceMode) => void;
   setMode: (mode: AppMode) => void;
   setRoomSize: (size: Partial<RoomSize>) => void;
-  addItem: (type: ExhibitItem["type"], options?: { position?: [number, number, number], rotation?: [number, number, number] }) => void;
+  addItem: (type: ExhibitItem["type"], options?: AddItemOptions) => void;
   updateItem: (id: string, updates: Partial<ExhibitItem>) => void;
   removeItem: (id: string) => void;
   duplicateItem: (id: string) => void;
@@ -110,7 +109,7 @@ interface AppState extends BaseMetaverseState, BaseMetaverseActions {
   setIsPointerLocked: (locked: boolean) => void;
   canOpenViewingItem: () => boolean;
   exportScene: () => SceneSnapshot;
-  importScene: (snapshot: SceneSnapshot) => void;
+  importScene: (snapshot: ImportedSceneSnapshot) => void;
   setSelectedWallFace: (face: WallFace | null) => void;
   setSelectedWallAnchor: (anchor: WallAnchor | null) => void;
   setSelectedWallSegmentId: (id: string | null) => void;
@@ -134,6 +133,7 @@ interface AppState extends BaseMetaverseState, BaseMetaverseActions {
   applyBalancedLighting: () => void;
   setAllLightStripsIntensity: (intensity: number) => void;
   setAllPaintingFrameSize: (width: number, height: number) => void;
+  setAllPaintingFrameAppearance: (appearance: PaintingFrameAppearance) => void;
   editorThemePresets: EditorThemePreset[];
   setEditorThemePresets: (presets: EditorThemePreset[]) => void;
   addEditorThemePreset: (preset: EditorThemePreset) => void;
@@ -143,12 +143,10 @@ interface AppState extends BaseMetaverseState, BaseMetaverseActions {
 
 export const useMetaverseStudioStore = create<AppState>()(
   persist(
-    (set) => ({
-      mode: "edit",
+    (set, get, store): AppState => ({
+      mode: isMobileDevice() ? "view" : "edit",
       roomSize: defaultGalleryScene.roomSize,
       items: defaultGalleryScene.items,
-      selectedItemId: null,
-      selectedItemIds: [],
       viewingItem: null,
       viewingCooldownUntil: 0,
       isPointerLocked: false,
@@ -194,216 +192,14 @@ export const useMetaverseStudioStore = create<AppState>()(
       pendingPlacement: null,
       performanceMode: "auto",
       effectivePerformanceMode: "balanced",
-      agent: defaultAgentState,
-      agentChat: [],
-      hasSelectedParticipationMode: false,
-      allowPointerLock: true,
       setPerformanceMode: (mode) => set({ performanceMode: mode }),
       setEffectivePerformanceMode: (mode) =>
         set({ effectivePerformanceMode: mode }),
-      setAgent: (updates) => set((state) => ({ agent: { ...state.agent, ...updates } })),
-      setAgentDialogue: (content) => set((state) => ({ agent: { ...state.agent, currentDialogue: content } })),
-      setAgentCurrentDialogue: (content) => set((state) => ({ agent: { ...state.agent, currentDialogue: content } })),
-      pushAgentMessage: (message) =>
-        set((state) => ({
-          agentChat: [...state.agentChat, { ...message, id: uuidv4(), createdAt: Date.now() }].slice(-20),
-        })),
-      setAgentNearbyExhibit: (id) => set((state) => ({ agent: { ...state.agent, nearbyExhibitId: id } })),
-      setAgentActiveExhibit: (item) => set((state) => ({ agent: { ...state.agent, activeExhibit: item } })),
-      setAgentRecommendedExhibit: (recommendation) =>
-        set((state) => ({ agent: { ...state.agent, recommendedExhibit: recommendation } })),
-      clearAgentRecommendation: () =>
-        set((state) => ({ agent: { ...state.agent, recommendedExhibit: null } })),
-      trackAgentDwell: (id, deltaSeconds) =>
-        set((state) => ({
-          agent: {
-            ...state.agent,
-            memory: {
-              ...state.agent.memory,
-              dwellSecondsByExhibit: {
-                ...state.agent.memory.dwellSecondsByExhibit,
-                [id]: (state.agent.memory.dwellSecondsByExhibit[id] ?? 0) + deltaSeconds,
-              },
-            },
-          },
-        })),
-      startAgentTour: (routeExhibitIds) =>
-        set((state) => {
-          const route = [...routeExhibitIds];
-          if (route.length === 0) {
-            return {
-              agent: {
-                ...state.agent,
-                mode: "idle",
-                tourSession: createDefaultAgentTourSession(),
-              },
-            };
-          }
-
-          return {
-            agent: {
-              ...state.agent,
-              enabled: true,
-              mode: "tour",
-              followUser: false,
-              isChatOpen: true,
-              activeExhibit: null,
-              tourSession: {
-                tourRunId: uuidv4(),
-                status: "running",
-                routeExhibitIds: route,
-                currentStopIndex: 0,
-                currentExhibitId: route[0],
-                arrivedExhibitId: null,
-                lastExplainedExhibitId: null,
-              },
-            },
-          };
-        }),
-      pauseAgentTour: () =>
-        set((state) => {
-          const { tourSession } = state.agent;
-          const hasRoute = tourSession.routeExhibitIds.length > 0;
-
-          return {
-            agent: {
-              ...state.agent,
-              mode: "idle",
-              tourSession: hasRoute
-                ? { ...tourSession, status: tourSession.status === "complete" ? "complete" : "paused" }
-                : createDefaultAgentTourSession(),
-            },
-          };
-        }),
-      resumeAgentTour: () =>
-        set((state) => {
-          const { tourSession } = state.agent;
-          if (tourSession.routeExhibitIds.length === 0 || tourSession.status === "complete") {
-            return {};
-          }
-
-          return {
-            agent: {
-              ...state.agent,
-              enabled: true,
-              followUser: false,
-              mode: "tour",
-              tourSession: {
-                ...tourSession,
-                status: "running",
-              },
-            },
-          };
-        }),
-      advanceAgentTour: () =>
-        set((state) => {
-          const { tourSession } = state.agent;
-          const route = tourSession.routeExhibitIds;
-          if (route.length === 0 || !["running", "arrived"].includes(tourSession.status)) {
-            return {};
-          }
-
-          const nextStopIndex = tourSession.currentStopIndex + 1;
-          if (nextStopIndex >= route.length) {
-            const lastStopIndex = route.length - 1;
-
-            return {
-              agent: {
-                ...state.agent,
-                mode: "idle",
-                tourSession: {
-                  ...tourSession,
-                  status: "complete",
-                  currentStopIndex: lastStopIndex,
-                  currentExhibitId: route[lastStopIndex],
-                  arrivedExhibitId: null,
-                },
-              },
-            };
-          }
-
-          return {
-            agent: {
-              ...state.agent,
-              mode: "tour",
-              tourSession: {
-                ...tourSession,
-                status: "running",
-                currentStopIndex: nextStopIndex,
-                currentExhibitId: route[nextStopIndex],
-                arrivedExhibitId: null,
-              },
-            },
-          };
-        }),
-      endAgentTour: () =>
-        set((state) => ({
-          agent: {
-            ...state.agent,
-            mode: "idle",
-            followUser: false,
-            isAnswering: false,
-            pendingQuestion: "",
-            tourSession: createDefaultAgentTourSession(),
-          },
-        })),
-      markAgentTourArrived: (exhibitId) =>
-        set((state) => {
-          const { tourSession } = state.agent;
-          if (tourSession.status !== "running" || tourSession.currentExhibitId !== exhibitId) {
-            return {};
-          }
-
-          return {
-            agent: {
-              ...state.agent,
-              tourSession: {
-                ...tourSession,
-                status: "arrived",
-                arrivedExhibitId: exhibitId,
-              },
-            },
-          };
-        }),
-      markAgentTourExplained: (exhibitId) =>
-        set((state) => {
-          const { tourSession } = state.agent;
-          if (
-            tourSession.currentExhibitId !== exhibitId ||
-            ["idle", "paused", "complete"].includes(tourSession.status)
-          ) {
-            return {};
-          }
-
-          return {
-            agent: {
-              ...state.agent,
-              tourSession: {
-                ...tourSession,
-                status: tourSession.arrivedExhibitId === exhibitId ? "arrived" : tourSession.status,
-                lastExplainedExhibitId: exhibitId,
-              },
-            },
-          };
-        }),
-      setHasSelectedParticipationMode: (value) => set({ hasSelectedParticipationMode: value }),
-      setAllowPointerLock: (value) => set({ allowPointerLock: value }),
-      closeAgentChat: () => set((state) => ({ agent: { ...state.agent, isChatOpen: false } })),
-      openAgentChat: () => set((state) => ({ agent: { ...state.agent, isChatOpen: true, enabled: true } })),
-      appendAgentRecommendation: (recommendation) =>
-        set((state) => ({
-          agent: {
-            ...state.agent,
-            recommendedExhibit: recommendation,
-            currentDialogue: recommendation ? `下一站推薦：${recommendation.title}。${recommendation.reason}` : state.agent.currentDialogue,
-          },
-        })),
-      setAgentMode: (mode) => set((state) => ({ agent: { ...state.agent, mode } })),
-      setAgentFollowUser: (followUser) =>
-        set((state) => ({ agent: { ...state.agent, followUser, mode: followUser ? "follow" : "idle" } })),
+      ...createAgentSlice(set, get, store),
       setPendingPlacement: (placement) => set(() => ({ pendingPlacement: placement })),
       setMode: (mode) =>
         set((state) => {
+          if (mode !== "view" && isMobileDevice()) return {};
           const baseNextState = {
             mode,
             selectedItemId: null,
@@ -681,122 +477,34 @@ export const useMetaverseStudioStore = create<AppState>()(
       snapSelectedItemsToGrid: () =>
         set((state) => {
           const selectedIds = state.selectedItemIds ?? [];
-          if (selectedIds.length === 0) return {};
-
-          const snapStep = 0.5;
-          const snap = (value: number) => Math.round(value / snapStep) * snapStep;
-          let changed = false;
-          const nextItems = state.items.map((item) => {
-            if (!selectedIds.includes(item.id) || (item.type === "partition" && item.isLocked)) return item;
-
-            const nextPosition: [number, number, number] = [
-              snap(item.position[0]),
-              item.position[1],
-              snap(item.position[2]),
-            ];
-            if (nextPosition[0] === item.position[0] && nextPosition[2] === item.position[2]) return item;
-            changed = true;
-            return { ...item, position: nextPosition };
-          });
-
-          if (!changed) return {};
-
-          return withHistory(state, {
-            items: nextItems,
-            ...(state.mode === "edit"
-              ? createSyncedFloorPlan({
-                  ...state,
-                  items: nextItems,
-                })
-              : {}),
+          if (selectedIds.length < 1) return {};
+          const nextItems = transformEditorBatch(state.items, { itemIds: selectedIds, mode: 'snap', axis: 'x', anchorId: state.selectedItemId, step: 0.5 });
+          if (nextItems.every((item, index) => item === state.items[index])) return {};
+          return withHistory(state, { items: nextItems,
+            ...(state.mode === 'edit' ? createSyncedFloorPlan({ ...state, items: nextItems }) : {}),
           });
         }),
       alignSelectedItems: (axis) =>
         set((state) => {
           const selectedIds = state.selectedItemIds ?? [];
           if (selectedIds.length < 2) return {};
-
-          const anchor =
-            state.items.find((item) => item.id === state.selectedItemId && selectedIds.includes(item.id)) ??
-            state.items.find((item) => selectedIds.includes(item.id));
-          if (!anchor) return {};
-
-          const axisIndex = axis === "x" ? 0 : 2;
-          const targetValue = anchor.position[axisIndex];
-          let changed = false;
-          const nextItems = state.items.map((item) => {
-            if (!selectedIds.includes(item.id) || (item.type === "partition" && item.isLocked)) return item;
-            if (item.position[axisIndex] === targetValue) return item;
-
-            const nextPosition = [...item.position] as [number, number, number];
-            nextPosition[axisIndex] = targetValue;
-            changed = true;
-            return { ...item, position: nextPosition };
-          });
-
-          if (!changed) return {};
-
-          return withHistory(state, {
-            items: nextItems,
-            ...(state.mode === "edit"
-              ? createSyncedFloorPlan({
-                  ...state,
-                  items: nextItems,
-                })
-              : {}),
+          const nextItems = transformEditorBatch(state.items, { itemIds: selectedIds, mode: 'align', axis: axis, anchorId: state.selectedItemId, step: 0.5 });
+          if (nextItems.every((item, index) => item === state.items[index])) return {};
+          return withHistory(state, { items: nextItems,
+            ...(state.mode === 'edit' ? createSyncedFloorPlan({ ...state, items: nextItems }) : {}),
           });
         }),
       distributeSelectedItems: (axis) =>
         set((state) => {
           const selectedIds = state.selectedItemIds ?? [];
           if (selectedIds.length < 3) return {};
-
-          const axisIndex = axis === "x" ? 0 : 2;
-          const movableItems = state.items
-            .filter((item) => selectedIds.includes(item.id) && !(item.type === "partition" && item.isLocked))
-            .sort((a, b) => a.position[axisIndex] - b.position[axisIndex]);
-          if (movableItems.length < 3) return {};
-
-          const min = movableItems[0].position[axisIndex];
-          const max = movableItems[movableItems.length - 1].position[axisIndex];
-          const step = (max - min) / (movableItems.length - 1);
-          if (!Number.isFinite(step) || step === 0) return {};
-
-          const nextValueById = new Map(
-            movableItems.map((item, index) => [item.id, min + step * index]),
-          );
-
-          let changed = false;
-          const nextItems = state.items.map((item) => {
-            const nextValue = nextValueById.get(item.id);
-            if (nextValue === undefined || item.position[axisIndex] === nextValue) return item;
-
-            const nextPosition = [...item.position] as [number, number, number];
-            nextPosition[axisIndex] = nextValue;
-            changed = true;
-            return { ...item, position: nextPosition };
-          });
-
-          if (!changed) return {};
-
-          return withHistory(state, {
-            items: nextItems,
-            ...(state.mode === "edit"
-              ? createSyncedFloorPlan({
-                  ...state,
-                  items: nextItems,
-                })
-              : {}),
+          const nextItems = transformEditorBatch(state.items, { itemIds: selectedIds, mode: 'distribute', axis: axis, anchorId: state.selectedItemId, step: 0.5 });
+          if (nextItems.every((item, index) => item === state.items[index])) return {};
+          return withHistory(state, { items: nextItems,
+            ...(state.mode === 'edit' ? createSyncedFloorPlan({ ...state, items: nextItems }) : {}),
           });
         }),
-      setSelectedItemId: (id) =>
-        set({
-          selectedItemId: id,
-          selectedItemIds: id ? [id] : [],
-        }),
-      toggleMultiSelectItem: (id) =>
-        set((state) => getNextSelectedIds(state.selectedItemIds ?? [], id, state.items)),
-      clearSelectedItems: () => set({ selectedItemId: null, selectedItemIds: [] }),
+      ...createSelectionSlice(set, get, store),
       setViewingItem: (item) =>
         set((state) => {
           if (item) {
@@ -839,9 +547,16 @@ export const useMetaverseStudioStore = create<AppState>()(
         return createSnapshot(state);
       },
       importScene: (snapshot) =>
-        set((state) => withHistory(state, createImportedSceneSnapshot(snapshot))),
+        set((state) => ({ ...withHistory(state, createImportedSceneSnapshot(snapshot)), oneTimeExhibitFocus: null })),
       syncSceneSnapshot: (snapshot) =>
-        set((state) => withHistory(state, createImportedSceneSnapshot(snapshot))),
+        set((state) => {
+          const next = withHistory(state, createImportedSceneSnapshot(snapshot));
+          const focus = state.oneTimeExhibitFocus;
+          return {
+            ...next,
+            oneTimeExhibitFocus: focus && !(next.items ?? state.items).some((item) => item.id === focus.itemId) ? null : focus,
+          };
+        }),
       setSelectedWallFace: (face) =>
         set((state) => ({
           selectedWallFace: face,
@@ -1020,6 +735,7 @@ export const useMetaverseStudioStore = create<AppState>()(
         }),
       undo: () =>
         set((state) => {
+          if (state.mode === "view") return {};
           const undoStack = state.undoStack ?? [];
           const redoStack = state.redoStack ?? [];
           const patch = createUndoRedoPatch(state, "undo", undoStack, redoStack);
@@ -1027,6 +743,7 @@ export const useMetaverseStudioStore = create<AppState>()(
         }),
       redo: () =>
         set((state) => {
+          if (state.mode === "view") return {};
           const undoStack = state.undoStack ?? [];
           const redoStack = state.redoStack ?? [];
           const patch = createUndoRedoPatch(state, "redo", undoStack, redoStack);
@@ -1124,6 +841,24 @@ export const useMetaverseStudioStore = create<AppState>()(
             items: nextItems,
           });
         }),
+      setAllPaintingFrameAppearance: (appearance) =>
+        set((state) => {
+          let changed = false;
+          const nextItems = state.items.map((item) => {
+            if (item.type !== "painting") return item;
+            const hasChanged = Object.entries(appearance).some(
+              ([key, value]) => !Object.is(item[key as keyof ExhibitItem], value),
+            );
+            if (!hasChanged) return item;
+            changed = true;
+            return { ...item, ...appearance };
+          });
+          if (!changed) return {};
+
+          return withHistory(state, {
+            items: nextItems,
+          });
+        }),
       editorThemePresets: defaultEditorThemePresets,
       setEditorThemePresets: (presets) => set({ editorThemePresets: presets }),
       addEditorThemePreset: (preset) =>
@@ -1148,6 +883,7 @@ export const useMetaverseStudioStore = create<AppState>()(
     }),
     {
       name: "metaverse-exhibition-storage",
+      storage: createJSONStorage(getStudioStorage),
       version: 7,
 
       migrate: (persistedState: unknown, version) => {
@@ -1206,22 +942,22 @@ export const useMetaverseStudioStore = create<AppState>()(
 
           return {
             ...withFloorDefaults,
-            undoStack: Array.isArray(persistedState.undoStack)
-              ? persistedState.undoStack
+            undoStack: Array.isArray(persisted.undoStack)
+              ? persisted.undoStack
               : [],
-            redoStack: Array.isArray(persistedState.redoStack)
-              ? persistedState.redoStack
+            redoStack: Array.isArray(persisted.redoStack)
+              ? persisted.redoStack
               : [],
           };
         }
 
         return {
           ...baseState,
-          undoStack: Array.isArray(persistedState.undoStack)
-            ? persistedState.undoStack
+          undoStack: Array.isArray(persisted.undoStack)
+            ? persisted.undoStack
             : [],
-          redoStack: Array.isArray(persistedState.redoStack)
-            ? persistedState.redoStack
+          redoStack: Array.isArray(persisted.redoStack)
+            ? persisted.redoStack
             : [],
         };
       },

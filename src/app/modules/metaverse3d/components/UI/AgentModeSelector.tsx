@@ -1,101 +1,101 @@
 import { useState } from "react";
+import { Check, Sparkles, UserRound } from "lucide-react";
+import { Button } from "@/app/components/ui/button";
 import { useStore } from "../../store/useStore";
 import { getAgentVisualConfig } from "../../agent/config";
 import { useI18n } from "../../../../components/I18nProvider";
+import { useTouchControls } from '../../input/useTouchControls';
+import { VisitorHelp, completeVisitorHelp } from './VisitorHelp';
 
-export function AgentModeSelector() {
+export function AgentModeSelector({ onEnter, landscapeOnEnter = false }: { onEnter?: () => void; landscapeOnEnter?: boolean }) {
   const { t } = useI18n();
+  const touch = useTouchControls();
   const agent = useStore((state) => state.agent);
   const setAgent = useStore((state) => state.setAgent);
   const setAllowPointerLock = useStore((state) => state.setAllowPointerLock);
   const setHasSelectedParticipationMode = useStore((state) => state.setHasSelectedParticipationMode);
-  const agentCards = ["xiaobai", "expert", "humor"].map((personality) => getAgentVisualConfig(personality));
-  const [pendingMode, setPendingMode] = useState<"solo" | "ai" | null>(null);
+  const agentCards = (["xiaobai", "expert", "humor"] as const).map((personality) => getAgentVisualConfig(personality));
+  const [pendingMode, setPendingMode] = useState<"solo" | "ai">(agent.participationMode === "ai" ? "ai" : "solo");
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm pointer-events-auto">
-      <div className="w-full max-w-2xl rounded-3xl border border-cyan-300/20 bg-slate-950/90 p-6 shadow-2xl shadow-cyan-950/30">
-        <div className="mb-5 space-y-2 text-center">
-          <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">Welcome</p>
-          <h2 className="text-2xl font-semibold text-white">{t("agentSelectMode")}</h2>
-          <p className="text-sm text-slate-300">{t("agentModeWelcomeDesc")}</p>
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm pointer-events-auto">
+      <div role="dialog" aria-modal="true" aria-labelledby="participation-title" aria-describedby="participation-description" className="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-[0_24px_70px_-36px_rgba(28,28,26,0.5)]">
+        <div className="min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-8">
+        <div className="mb-6 space-y-3 text-left">
+          <p className="text-xs font-medium uppercase tracking-[0.25em] text-primary">Welcome</p>
+          <h2 id="participation-title" className="font-[family-name:var(--font-serif-cjk)] text-2xl leading-tight sm:text-3xl">{t("agentSelectMode")}</h2>
+          <p id="participation-description" className="text-sm font-normal leading-relaxed text-muted-foreground">{t("agentModeWelcomeDesc")}</p>
         </div>
 
+        <div className="mb-4"><VisitorHelp key={String(touch)} touch={touch} firstVisit /></div>
         <div className="grid gap-3 md:grid-cols-2">
           <button
             type="button"
             onClick={() => setPendingMode("solo")}
-            className={`rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${pendingMode === "solo" || agent.participationMode === "solo" ? "border-cyan-300 bg-cyan-500/10" : "border-white/10 bg-white/5 hover:bg-white/8"}`}
+            aria-pressed={pendingMode === "solo"}
+            className={`flex flex-col items-stretch rounded-md border p-5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${pendingMode === "solo" ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-secondary"}`}
             aria-label={t("agentModeSoloAria")}
           >
-            <div className="mb-2 text-lg font-semibold text-white">{t("agentModeSoloTitle")}</div>
-            <p className="text-sm text-slate-300">{t("agentModeSoloDesc")}</p>
+            <div aria-hidden="true" className="mb-4 flex items-center justify-between text-primary"><UserRound className="size-5" /><span className={`flex size-5 items-center justify-center rounded-full border ${pendingMode === "solo" ? "border-primary bg-primary text-primary-foreground" : "border-border"}`}>{pendingMode === "solo" && <Check className="size-3" />}</span></div>
+            <div className="mb-2 text-base font-semibold">{t("agentModeSoloTitle")}</div>
+            <p className="text-sm font-normal leading-relaxed text-muted-foreground">{t("agentModeSoloDesc")}</p>
           </button>
 
           <button
             type="button"
             onClick={() => setPendingMode("ai")}
-            className={`rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${pendingMode === "ai" || agent.participationMode === "ai" ? "border-cyan-300 bg-cyan-500/10" : "border-white/10 bg-white/5 hover:bg-white/8"}`}
+            aria-pressed={pendingMode === "ai"}
+            className={`flex flex-col items-stretch rounded-md border p-5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${pendingMode === "ai" ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-secondary"}`}
             aria-label={t("agentModeAiAria")}
           >
-            <div className="mb-2 text-lg font-semibold text-white">{t("agentModeAiTitle")}</div>
-            <p className="text-sm text-slate-300">{t("agentModeAiDesc")}</p>
+            <div aria-hidden="true" className="mb-4 flex items-center justify-between text-primary"><Sparkles className="size-5" /><span className={`flex size-5 items-center justify-center rounded-full border ${pendingMode === "ai" ? "border-primary bg-primary text-primary-foreground" : "border-border"}`}>{pendingMode === "ai" && <Check className="size-3" />}</span></div>
+            <div className="mb-2 text-base font-semibold">{t("agentModeAiTitle")}</div>
+            <p className="text-sm font-normal leading-relaxed text-muted-foreground">{t("agentModeAiDesc")}</p>
           </button>
         </div>
 
-        <div className="mt-4 flex items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              if (!pendingMode) return;
-              if (pendingMode === "solo") {
-                setAgent({ participationMode: "solo", enabled: false, followUser: false, mode: "idle", isChatOpen: false });
-              } else {
-                setAgent({ participationMode: "ai", enabled: true, followUser: false, mode: "idle", isChatOpen: true, activeExhibit: null, position: [0, 0.15, 0], rotationY: 0 });
-              }
-              setAllowPointerLock(true);
-              setHasSelectedParticipationMode(true);
-              setPendingMode(null);
-            }}
-            disabled={!pendingMode}
-            className="rounded-xl bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-950 transition-colors hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300"
-            aria-label={t("agentConfirmAria")}
-          >
-            {t("agentConfirm")}
-          </button>
-          <p className="text-xs text-slate-400">{t("agentSelectHint")}</p>
-        </div>
-
-        <div className="mt-5">
-          <div className="mb-3 text-xs uppercase tracking-[0.3em] text-cyan-300">{t("agentAppearanceTitle")}</div>
+        {pendingMode === "ai" && <div className="mt-6 border-t border-border pt-5">
+          <div className="mb-3 text-sm font-medium text-foreground">{t("agentAppearanceTitle")}</div>
           <div className="grid gap-3 md:grid-cols-3">
             {agentCards.map((card) => {
               const isActive = agent.personality === card.personality;
               const pKey = `agentPersonality${card.personality.charAt(0).toUpperCase() + card.personality.slice(1)}`;
               return (
-                <button
-                  key={card.personality}
-                  type="button"
+                <button key={card.personality} type="button" aria-pressed={isActive}
                   onClick={() => setAgent({ personality: card.personality })}
-                  className={`rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${isActive ? "text-white shadow-lg" : "border-white/10 bg-white/5 text-slate-200 hover:bg-white/8"}`}
-                  style={isActive ? { borderColor: `${card.accent}cc`, background: `linear-gradient(180deg, ${card.accent}22, rgba(15,23,42,0.88))` } : undefined}
+                  className={`rounded-md border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isActive ? "border-primary bg-primary/5 text-foreground" : "border-border bg-card text-foreground hover:bg-secondary"}`}
                   aria-label={t("agentSelectPersonality", { label: t(pKey + 'Label'), description: t(pKey + 'Desc') })}
                 >
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="inline-block size-2.5 rounded-full" style={{ backgroundColor: card.accent }} />
-                    <span className="text-sm font-semibold">{t(pKey + 'Label')}</span>
-                  </div>
-                  <div className="text-xs text-slate-300">{t(pKey + 'Tone')}</div>
-                  <p className="mt-2 text-xs text-slate-400">{t(pKey + 'Desc')}</p>
+                  <div className="flex items-center justify-between gap-2 text-sm font-semibold">{t(pKey + 'Label')}{isActive && <Check aria-hidden="true" className="size-4 shrink-0 text-primary" />}</div>
+                  <p className="mt-1 text-xs font-normal leading-5 text-muted-foreground">{t(pKey + 'Desc')}</p>
                 </button>
               );
             })}
           </div>
+        </div>}
+        </div>
+        <div className="flex shrink-0 flex-col items-center justify-center gap-3 border-t border-border px-5 py-4 sm:px-8">
+          {landscapeOnEnter && <p className="text-center text-xs text-muted-foreground">{t("viewLandscapeOnEnter")}</p>}
+          <Button
+            type="button"
+            onClick={() => {
+              onEnter?.();
+              completeVisitorHelp(touch);
+              if (pendingMode === "solo") {
+                setAgent({ participationMode: "solo", enabled: false, followUser: false, mode: "idle", isChatOpen: false });
+              } else {
+                setAgent({ participationMode: "ai", enabled: true, followUser: true, mode: "follow", isChatOpen: true, activeExhibit: null, position: [0, 0.15, 0], rotationY: 0 });
+              }
+              setAllowPointerLock(true);
+              setHasSelectedParticipationMode(true);
+            }}
+            className="min-h-11 w-full px-5 py-2.5"
+            aria-label={t("agentConfirmAria")}
+          >
+            {t("agentConfirm")}
+          </Button>
         </div>
 
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-          {t("agentPostscriptum")}
-        </div>
       </div>
     </div>
   );

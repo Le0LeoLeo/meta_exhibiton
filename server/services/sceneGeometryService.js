@@ -16,6 +16,12 @@ const FLOOR_ITEM_Y = {
   plant: 0,
   column: 0,
   neon: 1.4,
+  chair: 0,
+  sofa: 0,
+  floorlamp: 0,
+  cabinet: 0,
+  turntable: 0,
+  fountain: 0,
 };
 
 function clamp(value, min, max) {

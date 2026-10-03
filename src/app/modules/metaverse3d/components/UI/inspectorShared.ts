@@ -58,6 +58,36 @@ export const genericColorItems = {
     tipKey: "genericNeonTip",
     defaultColor: "#22d3ee",
   },
+  chair: {
+    labelKey: "genericChairColor",
+    tipKey: "genericChairTip",
+    defaultColor: "#9a6b4a",
+  },
+  sofa: {
+    labelKey: "genericSofaColor",
+    tipKey: "genericSofaTip",
+    defaultColor: "#64748b",
+  },
+  floorlamp: {
+    labelKey: "genericFloorlampColor",
+    tipKey: "genericFloorlampTip",
+    defaultColor: "#f5d78e",
+  },
+  cabinet: {
+    labelKey: "genericCabinetColor",
+    tipKey: "genericCabinetTip",
+    defaultColor: "#8b6f47",
+  },
+  turntable: {
+    labelKey: "genericTurntableColor",
+    tipKey: "genericTurntableTip",
+    defaultColor: "#334155",
+  },
+  fountain: {
+    labelKey: "genericFountainColor",
+    tipKey: "genericFountainTip",
+    defaultColor: "#60a5fa",
+  },
 } as const;
 
 export type GenericColorItemType = keyof typeof genericColorItems;

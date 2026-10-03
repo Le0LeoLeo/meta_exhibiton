@@ -1,0 +1,61 @@
+name: meta-exb-private
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/private/Dockerfile
+      target: app
+    env_file:
+      - ../../.env.private
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m
+    volumes:
+      - runtime-data:/data
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:5176/api/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/private/Dockerfile
+      target: web
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "127.0.0.1:8443:8443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  runtime-data:
+  caddy-data:
+  caddy-config:
+

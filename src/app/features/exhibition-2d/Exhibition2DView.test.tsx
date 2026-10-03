@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { I18nProvider } from '@/app/components/I18nProvider';
 import { Exhibition2DView } from './Exhibition2DView';
 
 describe('Exhibition2DView', () => {
+  afterEach(() => window.localStorage.clear());
+
   it('renders a semantic artwork list with lazy media and reserved space', () => {
     render(<Exhibition2DView
       title="班級成果展"
@@ -20,7 +23,8 @@ describe('Exhibition2DView', () => {
     />);
 
     expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: '展品清單' })).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Artwork list' })).toBeInTheDocument();
+    expect(screen.getByText('Artist: 小明')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '海邊' })).toBeInTheDocument();
     const image = screen.getByRole('img', { name: '海邊。作者：小明。夏日作品' });
     expect(image).toHaveAttribute('loading', 'lazy');
@@ -39,9 +43,17 @@ describe('Exhibition2DView', () => {
       accessibleText: '校園一天',
     }]} />);
 
-    const link = screen.getByRole('link', { name: '播放《校園一天》影片（在新分頁開啟）' });
+    const link = screen.getByRole('link', { name: 'Play 校園一天 in a new tab' });
     expect(link).toHaveAttribute('href', '/film.mp4');
     expect(link).toHaveClass('focus-visible:ring-4');
-    expect(screen.getByRole('img', { name: '校園一天的影片縮圖' })).toHaveAttribute('loading', 'lazy');
+    expect(screen.getByRole('img', { name: 'Thumbnail for 校園一天' })).toHaveAttribute('loading', 'lazy');
+  });
+
+  it('uses the selected language for empty 2D exhibitions', () => {
+    window.localStorage.setItem('metaexpo-locale', 'zh-TW');
+    render(<I18nProvider><Exhibition2DView title="空展覽" exhibits={[]} /></I18nProvider>);
+
+    expect(screen.getByText('2D 圖文展覽')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('此展覽目前沒有可在 2D 模式顯示的作品。');
   });
 });

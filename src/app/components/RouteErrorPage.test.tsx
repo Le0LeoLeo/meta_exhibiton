@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from './I18nProvider';
 import { RouteErrorPage } from './RouteErrorPage';
+
+beforeEach(() => localStorage.setItem('metaexpo-locale', 'zh-TW'));
+afterEach(() => { localStorage.removeItem('metaexpo-locale'); });
 
 describe('RouteErrorPage', () => {
   it('shows localized recovery actions without exposing the raw error', async () => {

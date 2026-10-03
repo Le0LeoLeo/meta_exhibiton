@@ -35,6 +35,15 @@ export function RecentSouvenirs() {
 
   if (failed) return null;
 
+  if (souvenirs?.length === 0) return (
+    <section className="border-y border-border bg-secondary/30 px-4 py-8 sm:px-6" aria-label={t('demoOfficial')}>
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
+        <div><p className="text-sm font-semibold">{t('demoOfficial')}</p><p className="mt-2 text-sm text-muted-foreground">{t('demoSouvenirHint')}</p></div>
+        <Link to="/demo" className="inline-flex min-h-11 items-center gap-2 font-semibold underline underline-offset-4">{t('demoVisit')}<ArrowUpRight className="size-4" aria-hidden="true" /></Link>
+      </div>
+    </section>
+  );
+
   return (
     <section className="border-y border-border bg-secondary/30" aria-labelledby="recent-souvenirs-title">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
@@ -48,10 +57,6 @@ export function RecentSouvenirs() {
           <div className="grid min-h-64 gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label={t('souvenirLoading')}>
             {[0, 1, 2].map((item) => <div key={item} className="h-64 animate-pulse rounded-lg border border-border bg-card motion-reduce:animate-none" />)}
           </div>
-        ) : souvenirs.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border bg-card px-6 py-12 text-center text-sm text-muted-foreground">
-            {t('souvenirRecentEmpty')}
-          </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {souvenirs.map((souvenir) => (

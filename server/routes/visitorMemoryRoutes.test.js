@@ -25,7 +25,8 @@ function createDeps(overrides = {}) {
           engagedExhibitIds: ['e1'],
           dwellSecondsByExhibit: { e1: 45, e2: 12 },
           preferredPersonality: 'expert',
-          preferredLanguage: 'zh-TW',
+          preferredLanguage: 'en',
+          lastRecommendedExhibitId: 'e2',
           updatedAt: '2026-01-01T00:00:00.000Z',
         };
       }
@@ -78,6 +79,8 @@ describe('visitorMemoryRoutes', () => {
       expect(data.memory).toBeTruthy();
       expect(data.memory.visitedExhibitIds).toEqual(['e1', 'e2']);
       expect(data.memory.preferredPersonality).toBe('expert');
+      expect(data.memory.preferredLanguage).toBe('en');
+      expect(data.memory.lastRecommendedExhibitId).toBe('e2');
     });
   });
 
@@ -93,6 +96,8 @@ describe('visitorMemoryRoutes', () => {
           engagedExhibitIds: ['e1'],
           dwellSecondsByExhibit: { e1: 60, e2: 30, e3: 15 },
           preferredPersonality: 'humor',
+          preferredLanguage: 'en',
+          lastRecommendedExhibitId: 'e3',
         }),
       });
       expect(res.status).toBe(200);
@@ -104,6 +109,8 @@ describe('visitorMemoryRoutes', () => {
       expect(call.galleryId).toBe('gallery-123');
       expect(call.visitedExhibitIds).toEqual(['e1', 'e2', 'e3']);
       expect(call.preferredPersonality).toBe('humor');
+      expect(call.preferredLanguage).toBe('en');
+      expect(call.lastRecommendedExhibitId).toBe('e3');
     });
 
     it('uses JWT subject as the persisted user id', async () => {

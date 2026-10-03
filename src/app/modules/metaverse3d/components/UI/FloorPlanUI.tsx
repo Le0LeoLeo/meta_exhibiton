@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { useStore } from "../../store/useStore";
 import { useI18n } from "../../../../components/I18nProvider";
 import { FloorPlanTopBar } from "./FloorPlanTopBar";
@@ -6,6 +7,9 @@ import { FloorPlanInspectorPanel } from "./FloorPlanInspectorPanel";
 import { FloorPlanSpacePanel } from "./FloorPlanSpacePanel";
 import { FloorPlanTipsPanel } from "./FloorPlanTipsPanel";
 import { FloorPlanStatusPanel } from "./FloorPlanStatusPanel";
+import { useTopBarHeight } from "./useTopBarHeight";
+import "./editor.css";
+import "./floorplan.css";
 
 export function FloorPlanUI() {
   const { t } = useI18n();
@@ -32,6 +36,19 @@ export function FloorPlanUI() {
   const redoCount = redoStack?.length ?? 0;
   const [resizeMode, setResizeMode] = useState<"stretch" | "shrink">("stretch");
   const [floorPlanHistoryBaseline, setFloorPlanHistoryBaseline] = useState(undoCount);
+  const topBarRef = useRef<HTMLDivElement>(null);
+  const [activePanel, setActivePanel] = useState<"space" | "inspector" | null>("inspector");
+  useTopBarHeight({ topBarRef, active: mode === "floor-plan" });
+
+  const closePanel = useCallback(() => {
+    const panelId = activePanel === "space" ? "floorplan-space" : "floorplan-inspector";
+    setActivePanel(null);
+    topBarRef.current?.querySelector<HTMLButtonElement>(`[aria-controls="${panelId}"]`)?.focus();
+  }, [activePanel]);
+
+  useEffect(() => {
+    if (mode === "floor-plan" && selectedFloorPlanElementId) setActivePanel("inspector");
+  }, [mode, selectedFloorPlanElementId]);
 
   const selectedElement = floorPlanElements.find((element) => element.id === selectedFloorPlanElementId);
   const roomElements = floorPlanElements.filter((element) => element.type === "room");
@@ -43,6 +60,7 @@ export function FloorPlanUI() {
   const floorPlanUndoCount = Math.max(0, undoCount - floorPlanHistoryBaseline);
 
   const selectEditTarget = (target: "room" | "wall") => {
+    setActivePanel("inspector");
     setFloorPlanEditTarget(target);
     const nextElement = floorPlanElements.find((element) =>
       target === "room" ? element.type === "room" : element.type !== "room",
@@ -51,14 +69,15 @@ export function FloorPlanUI() {
   };
 
   const addElement = (type: "room" | "wall") => {
+    setActivePanel("inspector");
     setFloorPlanEditTarget(type);
     addFloorPlanElement(type);
   };
 
-  const syncFrom3D = () => {
+  const syncFrom3D = useCallback(() => {
     syncEditToFloorPlan();
     setFloorPlanHistoryBaseline(useStore.getState().undoStack.length);
-  };
+  }, [syncEditToFloorPlan]);
 
   const modeSummary = useMemo(() => {
     const targetCount = floorPlanEditTarget === "room" ? roomElements.length : wallElements.length;
@@ -68,15 +87,11 @@ export function FloorPlanUI() {
         floorPlanEditTarget === "room"
           ? t('fpu.roomDesc')
           : t('fpu.wallDesc'),
-      accentClass:
-        floorPlanEditTarget === "room"
-          ? "border-white/25 bg-white/18 text-white"
-          : "border-white/25 bg-white/18 text-white",
       targetCount,
     };
-  }, [floorPlanEditTarget, roomElements.length, wallElements.length]);
+  }, [floorPlanEditTarget, roomElements.length, wallElements.length, t]);
 
-  const resizeSelected = (direction: "left" | "right" | "up" | "down", action: "stretch" | "shrink") => {
+  const resizeSelected = useCallback((direction: "left" | "right" | "up" | "down", action: "stretch" | "shrink") => {
     if (!selectedElement) return;
 
     const STEP = 0.5;
@@ -112,12 +127,12 @@ export function FloorPlanUI() {
       position: [nextX, y, nextZ],
       scale: [nextSX, sy, nextSZ],
     });
-  };
+  }, [selectedElement, updateFloorPlanElement]);
 
-  const stretchSelected = (direction: "left" | "right" | "up" | "down") => resizeSelected(direction, "stretch");
-  const shrinkSelected = (direction: "left" | "right" | "up" | "down") => resizeSelected(direction, "shrink");
+  const stretchSelected = useCallback((direction: "left" | "right" | "up" | "down") => resizeSelected(direction, "stretch"), [resizeSelected]);
+  const shrinkSelected = useCallback((direction: "left" | "right" | "up" | "down") => resizeSelected(direction, "shrink"), [resizeSelected]);
 
-  const moveSelected = (direction: "left" | "right" | "up" | "down") => {
+  const moveSelected = useCallback((direction: "left" | "right" | "up" | "down") => {
     if (!selectedElement) return;
 
     const STEP = 0.25;
@@ -134,7 +149,7 @@ export function FloorPlanUI() {
     updateFloorPlanElement(selectedElement.id, {
       position: [x + dx, y + dy, z + dz],
     });
-  };
+  }, [selectedElement, updateFloorPlanElement]);
 
   const alignSelectedToTarget = (axis: "left" | "right" | "top" | "bottom" | "centerX" | "centerZ") => {
     if (!selectedElement || targetElements.length === 0) return;
@@ -189,12 +204,19 @@ export function FloorPlanUI() {
   }, [mode, floorPlanEditTarget, selectedElement, targetElements, setSelectedFloorPlanElementId]);
 
   useEffect(() => {
-    if (mode === "floor-plan") setFloorPlanHistoryBaseline(undoCount);
+    if (mode === "floor-plan") setFloorPlanHistoryBaseline(useStore.getState().undoStack?.length ?? 0);
   }, [mode]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (mode !== "floor-plan") return;
+
+      if (e.key === "Escape" && activePanel) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        closePanel();
+        return;
+      }
 
       const tagName = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
       const isTyping = tagName === "input" || tagName === "textarea" || (e.target as HTMLElement | null)?.isContentEditable;
@@ -324,24 +346,24 @@ export function FloorPlanUI() {
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [mode, selectedElement, canDeleteSelected, resizeMode, removeFloorPlanElement, duplicateFloorPlanElement, setFloorPlanEditTarget, applyFloorPlanToEdit, undo, redo, floorPlanUndoCount, redoCount, setMode, syncFrom3D, setSelectedFloorPlanElementId]);
+  }, [mode, selectedElement, canDeleteSelected, resizeMode, removeFloorPlanElement, duplicateFloorPlanElement, setFloorPlanEditTarget, applyFloorPlanToEdit, undo, redo, floorPlanUndoCount, redoCount, setMode, syncFrom3D, setSelectedFloorPlanElementId, activePanel, closePanel, stretchSelected, shrinkSelected, moveSelected]);
 
   if (mode !== "floor-plan") return null;
 
   return (
-    <div className="absolute inset-0 z-20 flex pointer-events-none text-white">
-      <div className="pointer-events-auto flex w-80 flex-col gap-4 overflow-y-auto border-r border-white/12 bg-white/12 p-4 text-white shadow-[0_12px_40px_rgba(15,23,42,0.18)] backdrop-blur-2xl">
+    <div className="editor-shell floorplan-shell absolute inset-0 z-20 pointer-events-none text-white">
         <FloorPlanTopBar
+          topBarRef={topBarRef}
+          activePanel={activePanel}
+          onTogglePanel={(panel) => setActivePanel((current) => current === panel ? null : panel)}
           floorPlanElementCount={floorPlanElements.length}
           modeTitle={modeSummary.title}
           modeHint={modeSummary.hint}
           targetCount={modeSummary.targetCount}
-          accentClass={modeSummary.accentClass}
           floorPlanEditTarget={floorPlanEditTarget}
           undoCount={floorPlanUndoCount}
           redoCount={redoCount}
           selectedElementExists={Boolean(selectedElement)}
-          resizeMode={resizeMode}
           onSetEditTarget={selectEditTarget}
           onUndo={undo}
           onRedo={redo}
@@ -355,6 +377,9 @@ export function FloorPlanUI() {
           onAddWall={() => addElement("wall")}
         />
 
+      {activePanel === "space" && (
+      <div id="floorplan-space" className="floorplan-sidebar editor-panel space-y-3">
+        <div className="editor-panel-heading flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">{t('fpspSummary')}</h3><button aria-label={t('close')} onClick={closePanel} className="flex w-9 items-center justify-center rounded-lg hover:bg-white/10"><X className="size-4" /></button></div>
         <FloorPlanSpacePanel
           selectedRoomElement={selectedRoomElement ? {
             id: selectedRoomElement.id,
@@ -376,9 +401,12 @@ export function FloorPlanUI() {
 
         <FloorPlanTipsPanel />
       </div>
+      )}
 
-      {selectedElement && (
+      {selectedElement && activePanel === "inspector" && (
         <FloorPlanInspectorPanel
+          key={selectedElement.id}
+          onClose={closePanel}
           selectedElement={selectedElement}
           roomCount={roomCount}
           canDeleteSelected={canDeleteSelected}

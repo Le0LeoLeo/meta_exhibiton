@@ -1,5 +1,8 @@
 const CANONICAL_DECIMAL = /^(0|[1-9]\d*)$/;
 
+// Permit two complete 30-artwork batches within the existing ten-minute window.
+export const DEFAULT_UPLOAD_RATE_LIMIT = 60;
+
 export function readBoundedEnvInteger(
   env,
   name,

@@ -1,4 +1,4 @@
-export function createRequireActiveUser({ requireAuth, getUserById }) {
+export function createRequireActiveUser({ requireAuth, getUserById, emailVerificationEnabled = false }) {
   if (typeof requireAuth !== 'function' || typeof getUserById !== 'function') {
     throw new TypeError('requireAuth and getUserById are required');
   }
@@ -13,6 +13,10 @@ export function createRequireActiveUser({ requireAuth, getUserById }) {
       return null;
     }
 
+    if (emailVerificationEnabled && !user.email_verified_at && !user.google_subject) {
+      res.status(403).json({ code: 'EMAIL_VERIFICATION_REQUIRED', email: user.email });
+      return null;
+    }
     return { ...payload, user };
   };
 }

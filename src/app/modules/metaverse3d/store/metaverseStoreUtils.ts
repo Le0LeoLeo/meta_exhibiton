@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { createCompanionState } from '../agent/companion';
 import type {
   AppMode,
   ExhibitItem,
@@ -33,6 +34,9 @@ export const createDefaultAgentTourSession = (): AgentTourSession => ({
 export const defaultAgentTourSession: AgentTourSession = createDefaultAgentTourSession();
 
 export const defaultAgentState: AgentState = {
+  companion: createCompanionState(),
+  replySource: null,
+  replyRequestId: null,
   enabled: false,
   participationMode: "solo",
   hasSelectedParticipationMode: false,
@@ -48,6 +52,7 @@ export const defaultAgentState: AgentState = {
   visibleInFloorPlan: false,
   isChatOpen: false,
   isAnswering: false,
+  answerSource: null,
   currentDialogue: "",
   lastQuestion: "",
   pendingQuestion: "",
@@ -75,7 +80,7 @@ export function createSnapshot(state: Pick<AppStateLike, "roomSize" | "items" | 
   });
 }
 
-export function withHistory(state: AppStateLike, patch: Partial<AppStateLike>): Partial<AppStateLike> {
+export function withHistory<T extends AppStateLike>(state: T, patch: Partial<T>): Partial<T> {
   const prevSnapshot = createSnapshot(state);
   const undoStack = state.undoStack ?? [];
   return { ...patch, undoStack: [...undoStack, prevSnapshot].slice(-MAX_HISTORY), redoStack: [] };
@@ -118,6 +123,12 @@ export function normalizeImportedItemContent(type: ExhibitItem["type"], rawConte
     plant: "#22c55e",
     column: "#cbd5e1",
     neon: "#22d3ee",
+    chair: "#9a6b4a",
+    sofa: "#64748b",
+    floorlamp: "#f5d78e",
+    cabinet: "#8b6f47",
+    turntable: "#334155",
+    fountain: "#60a5fa",
   };
   return defaults[type as keyof typeof defaults] ?? "#9ca3af";
 }

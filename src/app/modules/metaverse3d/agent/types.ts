@@ -1,8 +1,10 @@
 import type { ExhibitItem } from "../types";
+import type { AgentSceneExhibitPayload } from '@/app/api/agent';
 
 export type AgentPersonality = "xiaobai" | "expert" | "humor";
 export type AgentMode = "idle" | "follow" | "guide" | "answer" | "wander" | "tour";
 export type AgentParticipationMode = "solo" | "ai";
+export type AgentAnswerSource = "local" | "remote";
 
 export type AgentTourStatus = "idle" | "running" | "paused" | "arrived" | "complete";
 
@@ -38,7 +40,22 @@ export interface AgentMemoryState {
   conversationSummary: string;
 }
 
+export interface AgentCompanionState {
+  proactiveEnabled: boolean;
+  voiceEnabled: boolean;
+  focusExhibitId: string | null;
+  focusSeconds: number;
+  isRevisit: boolean;
+  invitation: { exhibitId: string; kind: 'notice' | 'revisit' } | null;
+  promptedExhibitIds: string[];
+  dismissedCount: number;
+  nextPromptAt: number;
+}
+
 export interface AgentState {
+  companion: AgentCompanionState;
+  replySource: 'qwen' | 'fallback' | null;
+  replyRequestId: string | null;
   enabled: boolean;
   participationMode: AgentParticipationMode;
   hasSelectedParticipationMode?: boolean;
@@ -54,6 +71,7 @@ export interface AgentState {
   visibleInFloorPlan: boolean;
   isChatOpen: boolean;
   isAnswering: boolean;
+  answerSource: AgentAnswerSource | null;
   currentDialogue: string;
   lastQuestion: string;
   pendingQuestion: string;
@@ -68,6 +86,7 @@ export interface AgentState {
 export interface AgentResponseContext {
   question: string;
   personality: AgentPersonality;
-  exhibit?: Pick<ExhibitItem, "id" | "title" | "artist" | "description" | "content" | "type" | "position"> | null;
-  nearbyExhibits: Array<Pick<ExhibitItem, "id" | "title" | "artist" | "description" | "content" | "type" | "position">>;
+  exhibit?: AgentSceneExhibitPayload | null;
+  nearbyExhibits: AgentSceneExhibitPayload[];
+  preferredLanguage?: string;
 }

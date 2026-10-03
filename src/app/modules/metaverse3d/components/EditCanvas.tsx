@@ -6,8 +6,9 @@ import { MOUSE } from "three";
 import { Room } from "./Room";
 import { ExhibitItem } from "./ExhibitItem";
 import type { RoomSize, ExhibitItem as ExhibitItemType } from "../types";
+import type { SceneSnapshot } from "../store/metaverseStoreTypes";
 
-export function getEditCameraPosition(roomSize: RoomSize): [number, number, number] {
+export function getEditCameraPosition(roomSize: Pick<RoomSize, 'height' | 'length'>): [number, number, number] {
   return [
     0,
     Math.min(roomSize.height - 0.8, Math.max(2.8, roomSize.height * 0.7)),
@@ -29,22 +30,31 @@ export const EDIT_CAMERA_LIMITS = {
 
 function EditCameraSetup({ roomSize }: { roomSize: RoomSize }) {
   const camera = useThree((state) => state.camera);
+  const { height, length } = roomSize;
 
   useEffect(() => {
-    camera.position.set(...getEditCameraPosition(roomSize));
-    camera.lookAt(0, roomSize.height * 0.45, 0);
+    camera.position.set(...getEditCameraPosition({ height, length }));
+    camera.lookAt(0, height * 0.45, 0);
     camera.updateProjectionMatrix();
-  }, [camera, roomSize.height, roomSize.length]);
+  }, [camera, height, length]);
 
   return null;
 }
 
-export const EditCanvas = memo(function EditCanvas({ roomSize, items }: { roomSize: RoomSize; items: ExhibitItemType[] }) {
+export const EditCanvas = memo(function EditCanvas({
+  roomSize,
+  items,
+  sceneOverride,
+}: {
+  roomSize: RoomSize;
+  items: ExhibitItemType[];
+  sceneOverride?: SceneSnapshot | null;
+}) {
   return (
     <>
       <EditCameraSetup roomSize={roomSize} />
-      <Room />
-      {items.map((item) => <ExhibitItem key={item.id} item={item} />)}
+      <Room sceneOverride={sceneOverride} />
+      {items.map((item) => <ExhibitItem key={item.id} item={item} sceneOverride={sceneOverride} readOnly={Boolean(sceneOverride)} />)}
       <OrbitControls
         makeDefault
         target={[0, roomSize.height * 0.45, 0]}

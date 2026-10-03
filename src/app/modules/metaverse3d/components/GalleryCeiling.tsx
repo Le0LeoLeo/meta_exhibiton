@@ -265,6 +265,8 @@ export interface GalleryCeilingProps {
   length: number;
   height: number;
   mode: CeilingMode;
+  neutralFinish?: boolean;
+  darkFinish?: boolean;
 }
 
 export function GalleryCeiling({
@@ -272,6 +274,8 @@ export function GalleryCeiling({
   length,
   height,
   mode,
+  neutralFinish = false,
+  darkFinish = false,
 }: GalleryCeilingProps) {
   const layout = useMemo(
     () => getCeilingFixtureLayout(width, length, mode),
@@ -292,7 +296,8 @@ export function GalleryCeiling({
         position={[0, 0.05, 0]}
         receiveShadow
       >
-        <meshStandardMaterial color="#eeeae1" roughness={0.92} metalness={0} />
+        <meshStandardMaterial color={darkFinish ? '#282725' : neutralFinish ? '#f5f5f3' : '#eeeae1'} roughness={0.92} metalness={0}
+          emissive={neutralFinish ? '#d9dfe3' : '#000000'} emissiveIntensity={neutralFinish ? 0.28 : 0} />
       </BeveledBox>
 
       {showDetails && (

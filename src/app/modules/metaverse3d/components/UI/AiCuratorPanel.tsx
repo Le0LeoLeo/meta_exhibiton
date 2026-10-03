@@ -40,7 +40,7 @@ export function AiCuratorPanel({
   const [audience, setAudience] = useState("");
   const [language, setLanguage] = useState<"zh-TW" | "zh-CN" | "en">("zh-TW");
   const [exhibitCount, setExhibitCount] = useState(6);
-  const [applyMode, setApplyMode] = useState<CuratorSceneApplyMode>("replace");
+  const [applyMode, setApplyMode] = useState<CuratorSceneApplyMode>("preserve-existing");
   const [isGenerating, setIsGenerating] = useState(false);
   const [preview, setPreview] = useState<CuratorPlanResponse | null>(null);
   const [previewIntent, setPreviewIntent] = useState<CuratorIntent | null>(null);
@@ -105,6 +105,7 @@ export function AiCuratorPanel({
   return (
     <div className="space-y-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-3 text-slate-900">
       <h4 className="text-xs font-semibold text-slate-950">{copy.title}</h4>
+      <p className="text-[11px] leading-relaxed text-slate-700">{copy.scope}</p>
 
       <label className="block text-[11px] text-slate-700">
         {copy.theme}

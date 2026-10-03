@@ -129,6 +129,73 @@ describe("runAgentBehaviors tour guidance", () => {
     requestAutoGuideAnswer.mockReset();
   });
 
+  it("does not trigger the timed fallback for an in-flight remote answer", () => {
+    const refs = createRefs();
+    const agent = createAgent({
+      mode: "answer",
+      isAnswering: true,
+      answerSource: "remote",
+      pendingQuestion: "Tell me about this exhibit.",
+    });
+    const actions = createActions(agent);
+
+    runTourBehavior({ agent, refs, actions });
+    runTourBehavior({ agent, refs, actions });
+    runAgentBehaviors({
+      mode: "view",
+      roomSize: { width: 8, length: 8 },
+      agent,
+      current: new THREE.Vector3(1.4, AGENT_GROUND_Y, 0),
+      playerPos: new THREE.Vector3(1.4, AGENT_GROUND_Y, 0),
+      nearbyExhibits: [exhibit],
+      tourExhibits: [exhibit],
+      roomBounds: [{ id: "room-0", minX: -4, maxX: 4, minZ: -4, maxZ: 4 }],
+      doorGraph: { nodes: [], adjacency: new Map() },
+      viewingItem: null,
+      refs,
+      deltaSeconds: 1.2,
+      actions,
+    });
+
+    expect(actions.setAgentDialogue).not.toHaveBeenCalled();
+    expect(actions.setAgent).not.toHaveBeenCalledWith(expect.objectContaining({ isAnswering: false }));
+    expect(refs.thinkingTimerRef.current).toBe(0);
+  });
+
+  it("keeps the timed fallback for a local answer", () => {
+    const refs = createRefs();
+    const agent = createAgent({
+      mode: "answer",
+      isAnswering: true,
+      answerSource: "local",
+      pendingQuestion: "Tell me about this exhibit.",
+    });
+    const actions = createActions(agent);
+
+    runAgentBehaviors({
+      mode: "view",
+      roomSize: { width: 8, length: 8 },
+      agent,
+      current: new THREE.Vector3(1.4, AGENT_GROUND_Y, 0),
+      playerPos: new THREE.Vector3(1.4, AGENT_GROUND_Y, 0),
+      nearbyExhibits: [exhibit],
+      tourExhibits: [exhibit],
+      roomBounds: [{ id: "room-0", minX: -4, maxX: 4, minZ: -4, maxZ: 4 }],
+      doorGraph: { nodes: [], adjacency: new Map() },
+      viewingItem: null,
+      refs,
+      deltaSeconds: 1.2,
+      actions,
+    });
+
+    expect(actions.setAgentDialogue).toHaveBeenCalledTimes(1);
+    expect(actions.setAgent).toHaveBeenCalledWith(expect.objectContaining({
+      isAnswering: false,
+      answerSource: null,
+      pendingQuestion: "",
+    }));
+  });
+
   it("requests an AI guide answer once when the tour agent reaches a stop", async () => {
     requestAutoGuideAnswer.mockResolvedValue({
       answer: "This stop explains how warm light shapes the scene.",

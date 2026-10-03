@@ -1,0 +1,24 @@
+- generic [ref=f2e2]:
+  - main [ref=f2e30]:
+    - generic [ref=f2e141]:
+      - group "Exhibition display mode" [ref=f2e142]:
+        - button "2D artworks" [active] [pressed] [ref=f2e143]
+        - button "3D gallery" [ref=f2e144]
+      - button "Exit View" [ref=f2e213]
+      - main [ref=f2e214]:
+        - generic [ref=f2e215]:
+          - generic [ref=f2e216]:
+            - paragraph [ref=f2e217]: 2D 圖文展覽
+            - heading "Learning exhibition acceptance" [level=1] [ref=f2e218]
+          - list "展品清單" [ref=f2e219]:
+            - listitem [ref=f2e220]:
+              - article [ref=f2e221]:
+                - img "photo-1。First artwork process note" [ref=f2e223]
+                - generic [ref=f2e224]:
+                  - heading "photo-1" [level=2] [ref=f2e225]
+                  - paragraph [ref=f2e226]: First artwork process note
+            - listitem [ref=f2e227]:
+              - article [ref=f2e228]:
+                - img "photo-2" [ref=f2e230]
+                - heading "photo-2" [level=2] [ref=f2e232]
+  - region "Notifications alt+T"

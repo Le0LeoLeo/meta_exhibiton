@@ -4,7 +4,6 @@ import { sendInternalError } from '../config/errorHandling.js';
 const curatorIntentSchema = z.enum([
   'warm-memory',
   'professional-gallery',
-  'competition-showcase',
 ]);
 
 const curatorPlanSchema = z.object({

@@ -2,12 +2,11 @@ import jwt from 'jsonwebtoken';
 import { readSessionCookie } from './sessionCookie.js';
 
 export function createJwtHelpers({ secret }) {
-  const growthAssetAudience = 'growth-asset';
   const mediaPreviewAudience = 'media-preview';
 
-  function signToken(user) {
+  function signToken(user, sessionVersion = 0) {
     return jwt.sign(
-      { sub: user.id, email: user.email, name: user.name },
+      { sub: user.id, email: user.email, name: user.name, sessionVersion },
       secret,
       { expiresIn: '7d' },
     );
@@ -20,25 +19,6 @@ export function createJwtHelpers({ secret }) {
       return jwt.verify(token, secret);
     } catch {
       return null;
-    }
-  }
-
-  function signGrowthAssetToken(assetId) {
-    return jwt.sign(
-      { assetId, kind: growthAssetAudience },
-      secret,
-      { audience: growthAssetAudience, expiresIn: '15m' },
-    );
-  }
-
-  function verifyGrowthAssetToken(token, assetId) {
-    if (!token || typeof token !== 'string' || !assetId) return false;
-
-    try {
-      const payload = jwt.verify(token, secret, { audience: growthAssetAudience });
-      return payload?.kind === growthAssetAudience && payload?.assetId === assetId;
-    } catch {
-      return false;
     }
   }
 
@@ -90,8 +70,6 @@ export function createJwtHelpers({ secret }) {
   return {
     signToken,
     verifyToken,
-    signGrowthAssetToken,
-    verifyGrowthAssetToken,
     signMediaPreviewToken,
     verifyMediaPreviewToken,
     optionalAuth,

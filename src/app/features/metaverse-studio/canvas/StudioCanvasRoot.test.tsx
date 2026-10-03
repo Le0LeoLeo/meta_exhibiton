@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppMode, ExhibitItem, RoomSize } from "../../../modules/metaverse3d/types";
 import { useMetaverseStudioStore } from "../../../modules/metaverse3d/store/useMetaverseStudioStore";
+import { useBuilderPreviewStore } from "../../../modules/metaverse3d/aiBuilder/builderPreviewStore";
 import { StudioCanvasRoot } from "./StudioCanvasRoot";
+import { I18nProvider } from "../../../components/I18nProvider";
 
 const { canvasSceneProps } = vi.hoisted(() => ({ canvasSceneProps: vi.fn() }));
 
@@ -75,6 +77,7 @@ function setRootStoreState(mode: AppMode) {
 describe("StudioCanvasRoot", () => {
   afterEach(() => {
     cleanup();
+    localStorage.removeItem('metaexpo-locale');
   });
 
   beforeEach(() => {
@@ -85,6 +88,21 @@ describe("StudioCanvasRoot", () => {
     preloadState.stage = "complete";
     preloadState.shouldPreloadScene = false;
     setRootStoreState("floor-plan");
+    useBuilderPreviewStore.getState().setScene(null);
+  });
+
+  it.each([
+    ['en', 'Place the object by clicking a wall or the floor. Press Esc to cancel.', 'AI guidance is enabled. Choose how to participate to enter the gallery.'],
+    ['zh-CN', '正在放置物件，点击墙面或地板完成，Esc 取消。', 'AI 导览已开启，选择参与方式后即可进入展间。'],
+    ['zh-TW', '正在放置物件，點擊牆面或地板完成，Esc 取消。', 'AI 導覽已開啟，選擇參與方式後即可進入展間。'],
+  ])('renders studio hints in %s', (locale, placementHint, entryHint) => {
+    localStorage.setItem('metaexpo-locale', locale);
+    setRootStoreState('edit');
+    useMetaverseStudioStore.setState({ pendingPlacement: { type: 'text', position: [0, 0, 0], rotation: [0, 0, 0], wallSide: 'front' } });
+    render(<I18nProvider><StudioCanvasRoot /></I18nProvider>);
+    expect(screen.getByText(placementHint)).toBeInTheDocument();
+    act(() => useMetaverseStudioStore.setState({ mode: 'view', agent: { participationMode: 'ai', isChatOpen: false } }));
+    expect(screen.getByText(entryHint)).toBeInTheDocument();
   });
 
   it("shows the progressive entry overlay again when returning from floor plan to 3D", () => {
@@ -131,5 +149,28 @@ describe("StudioCanvasRoot", () => {
     expect(canvasSceneProps).toHaveBeenLastCalledWith(
       expect.objectContaining({ onUse2D }),
     );
+  });
+
+  it("renders an isolated builder preview without changing the official scene store", () => {
+    setRootStoreState("edit");
+    render(<StudioCanvasRoot />);
+    const officialItems = useMetaverseStudioStore.getState().items;
+    const previewScene = {
+      roomSize: { ...roomSize, width: 30 },
+      items: [
+        { id: "preview-painting", type: "painting", content: "preview" } as ExhibitItem,
+      ],
+      floorPlanElements: [],
+      wallMaterialOverrides: {},
+    };
+
+    act(() => useBuilderPreviewStore.getState().setScene(previewScene));
+
+    expect(canvasSceneProps).toHaveBeenLastCalledWith(expect.objectContaining({
+      roomSize: previewScene.roomSize,
+      items: previewScene.items,
+      sceneOverride: previewScene,
+    }));
+    expect(useMetaverseStudioStore.getState().items).toBe(officialItems);
   });
 });

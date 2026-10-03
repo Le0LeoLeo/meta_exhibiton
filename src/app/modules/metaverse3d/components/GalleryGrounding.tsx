@@ -105,7 +105,7 @@ export function GalleryGrounding({ mode }: { mode: GroundingMode }) {
         light.kind === "hemisphere" ? (
           <hemisphereLight
             key={light.id}
-            skyColor={light.color}
+            color={light.color}
             groundColor="#b99472"
             intensity={light.intensity}
           />

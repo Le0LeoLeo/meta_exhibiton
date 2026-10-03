@@ -13,16 +13,16 @@ async function startApp(frontendOrigin = 'http://localhost:5173') {
   applyAppMiddleware(app, {
     frontendOrigin,
     requestBodyLimit: '1kb',
-    growthUploadBodyLimit: '4kb',
+    mediaUploadBodyLimit: '4kb',
     aiReviewBodyLimit: '5kb',
     verifyToken: (token) => token === 'valid-token' ? { sub: 'user-1' } : null,
     logger: { info: () => {}, warn: () => {} },
   });
   app.post('/api/ordinary', (req, res) => res.json({ size: req.body.data.length }));
-  app.post('/api/growth/assets/upload', (req, res) => res.json({ size: req.body.data.length }));
   app.post('/api/media/upload', (req, res) => res.json({ size: req.body.data.length }));
   app.post('/api/ai/exhibition-builder/review', (req, res) => res.json({ size: req.body.data.length }));
   app.get('/api/cors-probe', (_req, res) => res.json({ ok: true }));
+  app.get('/exhibitions/test', (_req, res) => res.type('html').send('<!doctype html><title>Exhibition</title>'));
 
   const server = await new Promise((resolve) => {
     const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
@@ -32,6 +32,17 @@ async function startApp(frontendOrigin = 'http://localhost:5173') {
 }
 
 describe('applyAppMiddleware CORS', () => {
+  it('allows exhibition WebAssembly while preserving script execution restrictions', async () => {
+    const baseUrl = await startApp();
+    const response = await fetch(`${baseUrl}/exhibitions/test?mode=2d`);
+    expect(response.status).toBe(200);
+    const policy = response.headers.get('content-security-policy');
+    const script = policy.split(';').map((part) => part.trim()).find((part) => part.startsWith('script-src '));
+    expect(script.split(/\s+/)).toEqual(['script-src', "'self'", "'wasm-unsafe-eval'"]);
+    expect(policy).toContain("object-src 'none'");
+    expect(policy).toContain("base-uri 'self'");
+    expect(policy).toContain("frame-ancestors 'none'");
+  });
   it('adds baseline browser security headers', async () => {
     const baseUrl = await startApp();
     const res = await fetch(`${baseUrl}/api/cors-probe`);
@@ -84,17 +95,6 @@ describe('applyAppMiddleware body limits', () => {
     expect(await res.json()).toEqual({ message: 'request body too large' });
   });
 
-  it('allows an authenticated growth upload within its dedicated limit', async () => {
-    const baseUrl = await startApp();
-    const res = await fetch(
-      `${baseUrl}/api/growth/assets/upload`,
-      jsonRequest(2500, 'valid-token'),
-    );
-
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ size: 2500 });
-  });
-
   it('allows an authenticated media upload within its dedicated limit', async () => {
     const baseUrl = await startApp();
     const res = await fetch(
@@ -109,7 +109,7 @@ describe('applyAppMiddleware body limits', () => {
   it('rejects an invalid token before parsing a large upload body', async () => {
     const baseUrl = await startApp();
     const res = await fetch(
-      `${baseUrl}/api/growth/assets/upload`,
+      `${baseUrl}/api/media/upload`,
       jsonRequest(10_000, 'invalid-token'),
     );
 
@@ -131,7 +131,7 @@ describe('applyAppMiddleware body limits', () => {
   it('rejects a body above a dedicated route limit', async () => {
     const baseUrl = await startApp();
     const res = await fetch(
-      `${baseUrl}/api/growth/assets/upload`,
+      `${baseUrl}/api/media/upload`,
       jsonRequest(5000, 'valid-token'),
     );
 

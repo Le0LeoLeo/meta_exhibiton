@@ -3,8 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { registerAgentRoutes } from '../routes/agentRoutes.js';
 import { registerAuthRoutes } from '../routes/authRoutes.js';
-import { registerCompetitionRoutes } from '../routes/competitionRoutes.js';
-import { registerGrowthRoutes } from '../routes/growthRoutes.js';
 import { registerTtsRoutes } from '../routes/ttsRoutes.js';
 import { createJsonErrorMiddleware } from '../config/errorHandling.js';
 import { createRequestContextMiddleware } from '../config/requestContext.js';
@@ -150,58 +148,6 @@ describe('route rate limiter integration', () => {
     expect(lookups).toBe(2);
   });
 
-  it('limits shared growth comments and still registers without limiter dependencies', async () => {
-    let inserts = 0;
-    const commentLimiter = createFixedWindowLimiter({
-      limit: 1,
-      windowMs: 60_000,
-      now: () => 0,
-    });
-    const deps = {
-      requireAuth: () => null,
-      getUserById: async () => null,
-      insertGrowthChild: async () => {},
-      listGrowthChildrenByOwnerId: async () => [],
-      getGrowthChildById: async () => null,
-      insertGrowthExhibit: async () => {},
-      listGrowthExhibitsByOwnerId: async () => [],
-      listAllGrowthExhibitsByOwnerId: async () => [],
-      getGrowthExhibitById: async () => null,
-      updateGrowthExhibitShareById: async () => {},
-      getGrowthExhibitByShareToken: async () => ({
-        id: 'exhibit-1',
-        owner_id: 'owner-1',
-        share_expires_at: null,
-      }),
-      insertGrowthAsset: async () => {},
-      listGrowthAssetsByExhibitId: async () => [],
-      insertGrowthComment: async () => {
-        inserts += 1;
-      },
-      listGrowthCommentsByExhibitId: async () => [],
-    };
-    const baseUrl = await startApp((app) => registerGrowthRoutes(app, {
-      ...deps,
-      commentLimiter,
-    }));
-    const body = { userName: 'Visitor', content: 'Hello' };
-
-    expect((
-      await postJson(baseUrl, '/api/share/growth/exhibits/share-token/comments', body)
-    ).status).toBe(201);
-    expect((
-      await postJson(baseUrl, '/api/share/growth/exhibits/share-token/comments', body)
-    ).status).toBe(429);
-    expect(inserts).toBe(1);
-
-    const unboundedBaseUrl = await startApp(
-      (app) => registerGrowthRoutes(app, deps),
-    );
-    expect((
-      await postJson(unboundedBaseUrl, '/api/share/growth/exhibits/share-token/comments', body)
-    ).status).toBe(201);
-  });
-
   it('returns 429 before a third agent request reaches the service', async () => {
     const agentLimiter = createFixedWindowLimiter({
       limit: 2,
@@ -257,10 +203,6 @@ describe('route rate limiter integration', () => {
 
   it.each([
     ['login', '/api/auth/login', (app, limiter) => registerAuthRoutes(app, { authLimiter: limiter })],
-    ['growth upload', '/api/growth/assets/upload', (app, limiter) => registerGrowthRoutes(app, { uploadLimiter: limiter })],
-    ['growth comment', '/api/growth/comments', (app, limiter) => registerGrowthRoutes(app, { commentLimiter: limiter })],
-    ['shared growth comment', '/api/share/growth/exhibits/token/comments', (app, limiter) => registerGrowthRoutes(app, { commentLimiter: limiter })],
-    ['competition vote', '/api/competitions/c/entries/e/vote', (app, limiter) => registerCompetitionRoutes(app, { voteLimiter: limiter })],
     ['TTS', '/api/tts/qwen', (app, limiter) => registerTtsRoutes(app, { ttsLimiter: limiter })],
   ])('wires the %s limiter before its handler', async (_name, path, registerRoutes) => {
     const limiter = (_req, res) => res.status(429).json({ message: 'limited' });

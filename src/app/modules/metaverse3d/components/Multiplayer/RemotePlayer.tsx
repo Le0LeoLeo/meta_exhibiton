@@ -32,15 +32,7 @@ const AVATAR_WALK_STOP_SPEED = 0.07;
 export function RemotePlayer({ player }: RemotePlayerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const worldPositionRef = useRef(new THREE.Vector3());
-  const transform = useMemo(
-    () => getRemotePlayerTransform(player),
-    [
-      player.renderPosition.x,
-      player.renderPosition.y,
-      player.renderPosition.z,
-      player.renderYaw,
-    ],
-  );
+  const transform = getRemotePlayerTransform(player);
   const appearanceKey = useMemo(
     () => getRemoteAppearanceKey(player.appearance),
     [player.appearance],
@@ -62,6 +54,7 @@ export function RemotePlayer({ player }: RemotePlayerProps) {
     legSwing: 0,
     bob: 0,
     lean: 0,
+    sittingBlend: player.pose === "sitting" ? 1 : 0,
   });
   const palette = useMemo(
     () => getRemoteAvatarPalette(player.id, player.appearance),
@@ -116,6 +109,8 @@ export function RemotePlayer({ player }: RemotePlayerProps) {
       motionPoseRef.current,
       clock.getElapsedTime(),
       smoothedSpeedRef.current,
+      player.pose === "sitting",
+      frameDelta,
     );
     fallbackRef.current?.applyMotion(pose);
   });
@@ -139,10 +134,12 @@ export function RemotePlayer({ player }: RemotePlayerProps) {
           >
             <AvatarModel
               appearance={player.appearance}
-              speed={avatarSpeed}
-              emote="none"
+              speed={player.pose === "sitting" ? 0 : avatarSpeed}
+              emote={player.emote ?? "none"}
+              emoteNonce={player.emoteNonce ?? 0}
               playerSeed={player.id}
               castShadow
+              pose={player.pose}
             />
           </AvatarModelBoundary>
         </Suspense>

@@ -10,7 +10,6 @@ const DEFAULT_INTENT = 'warm-memory';
 const INTENT_INSTRUCTIONS = {
   'warm-memory': 'Use a warm, memory-led tone that connects people, places, and lived experience without becoming sentimental.',
   'professional-gallery': 'Use a precise gallery tone with clear sections, concise labels, and a calm visitor flow.',
-  'competition-showcase': 'Use a showcase tone that highlights strengths, completion quality, and judging clarity.',
 };
 
 function getApiKey() {
@@ -154,9 +153,7 @@ function createFallbackPlan(input = {}, warnings = [FALLBACK_WARNING]) {
       introduction: intent === 'warm-memory'
         ? `A guided exhibition plan for ${theme}, arranged as a warm memory-led journey through people, places, and lived experience.`
         : `A guided exhibition plan for ${theme}, arranged for a balanced virtual gallery experience.`,
-      guideOpening: intent === 'competition-showcase'
-        ? `Welcome to ${theme}. Move through each section to understand the strongest ideas, execution quality, and judging highlights.`
-        : `Welcome to ${theme}. Move through each section as a connected story rather than a checklist.`,
+      guideOpening: `Welcome to ${theme}. Move through each section as a connected story rather than a checklist.`,
       sections,
       exhibits,
     },

@@ -1,9 +1,23 @@
+import { inspectionTestImage } from './__fixtures__/inspectionImages.js';
+const [imageA, imageB, imageC] = await Promise.all([0, 1, 2].map((seed) => inspectionTestImage(seed)));
 import { describe, expect, it, vi } from 'vitest';
 import {
+  callQwenVisionReview,
   createBuilderSession,
+  restoreBuilderSessionVersion,
   reviewBuilderSession,
   reviseBuilderSession,
 } from './exhibitionBuilderAgentService.js';
+
+const { createCompletion } = vi.hoisted(() => ({
+  createCompletion: vi.fn(),
+}));
+
+vi.mock('openai', () => ({
+  default: class {
+    chat = { completions: { create: createCompletion } };
+  },
+}));
 
 function createScene() {
   return {
@@ -37,6 +51,137 @@ function createScene() {
 }
 
 describe('exhibitionBuilderAgentService', () => {
+  it('checks bounded view batches and preserves the weakest review and blockers', async () => {
+    const oldKey = process.env.QWEN_API_KEY;process.env.QWEN_API_KEY='test-key';
+    const report={evidenceStatus:'sufficient',technicalScore:95,curatorialScore:90,overallStatus:'pass',blockingIssues:[],viewReviews:[],revisionPrompt:''};
+    createCompletion.mockResolvedValueOnce({choices:[{message:{content:JSON.stringify(report)}}]})
+      .mockResolvedValueOnce({choices:[{message:{content:JSON.stringify({...report,technicalScore:80,overallStatus:'needs_revision',blockingIssues:[{category:'lighting',severity:'high',viewId:'view-7',message:'Dark wall',suggestedFix:'Increase illumination',resolution:'automatic'}]})}}]});
+    try {
+      const result=JSON.parse(await callQwenVisionReview({scene:createScene(),editMode:'complete',brief:'Concept gallery',screenshots:Array.from({length:8},(_,index)=>({viewId:`view-${index}`,label:'Room view',dataUrl:imageA}))}));
+      expect(result).toMatchObject({technicalScore:80,overallStatus:'needs_revision'});
+      expect(result.blockingIssues).toHaveLength(1);
+      expect(createCompletion).toHaveBeenCalledTimes(2);
+      expect(createCompletion.mock.calls.every(([call])=>call.messages[1].content.filter(item=>item.type==='image_url').length===4)).toBe(true);
+    } finally {createCompletion.mockClear();if(oldKey===undefined)delete process.env.QWEN_API_KEY;else process.env.QWEN_API_KEY=oldKey;}
+  });
+  it('checks a retained original room against preservation rather than new-zone exhibit counts', async () => {
+    const oldKey=process.env.QWEN_API_KEY;process.env.QWEN_API_KEY='test-key';
+    const report={evidenceStatus:'sufficient',technicalScore:95,curatorialScore:90,overallStatus:'pass',blockingIssues:[],viewReviews:[],revisionPrompt:''};
+    createCompletion.mockResolvedValue({choices:[{message:{content:JSON.stringify(report)}}]});
+    const scene=createScene();scene.floorPlanElements=[
+      {id:'original',type:'room',position:[0,0,0],scale:[20,0.1,16],isLocked:true},
+      {id:'annex',type:'room',position:[20,0,0],scale:[20,0.1,16]},
+    ];scene.items=[{id:'original-work',type:'painting',position:[0,2,-7]}, {id:'new-work',type:'painting',position:[20,2,-7]}];
+    try {
+      await callQwenVisionReview({scene,editMode:'complete',brief:'Ten works in the new zone',exhibition:{sections:[{exhibitIds:['new-work']}]},
+        screenshots:Array.from({length:8},(_,index)=>({viewId:index<4?`view-${index}`:`room-annex-${index}`,label:'View',dataUrl:imageA}))});
+      const prompts=createCompletion.mock.calls.map(([call])=>JSON.parse(call.messages[1].content[0].text));
+      expect(prompts[0].brief).toContain('原有房間');
+      expect(prompts[0].sceneSummary.items.map(item=>item.id)).toEqual(['original-work']);
+      expect(prompts[1].brief).toBe('Ten works in the new zone');
+      expect(prompts[1].sceneSummary.items.map(item=>item.id)).toEqual(['new-work']);
+    } finally {createCompletion.mockReset();if(oldKey===undefined)delete process.env.QWEN_API_KEY;else process.env.QWEN_API_KEY=oldKey;}
+  });
+  it('reviews complete-mode geometry with the actual tools and paired-view evidence rules', async () => {
+    const oldKey = process.env.QWEN_API_KEY;
+    process.env.QWEN_API_KEY = 'test-key';
+    createCompletion.mockResolvedValueOnce({choices: [{message: {content: '{}'}}]});
+    try {
+      await callQwenVisionReview({editMode: 'complete', brief: 'Six zones', scene: createScene(), screenshots: []});
+      const call = createCompletion.mock.calls.at(-1)[0];
+      expect(call.messages[0].content).toContain('complete editor can automatically edit rooms');
+      expect(call.messages[0].content).toContain('paired opposing-wall views');
+      expect(call.messages[0].content).toContain('demonstration positions');
+      expect(call.messages[0].content).not.toContain('These are outside automatic revision');
+      expect(JSON.parse(call.messages[1].content[0].text).brief).toBe('Six zones');
+    } finally {
+      createCompletion.mockClear();
+      if (oldKey === undefined) delete process.env.QWEN_API_KEY;
+      else process.env.QWEN_API_KEY = oldKey;
+    }
+  });
+  it('keeps technical repair instructions out of the original complete-mode curatorial brief', async () => {
+    const generateExhibitionScene = vi.fn().mockResolvedValue({exhibition: {title: 'Zones', sections: []}, scene: createScene(), warnings: [], source: 'qwen'});
+    await reviseBuilderSession({sessionId: 'builder-1', versionId: 'version-1', scene: createScene(),
+      input: {editMode: 'complete', prompt: 'Six zones with ten works each'}, generateExhibitionScene,
+      review: {technicalScore: 60, curatorialScore: 70, overallStatus: 'needs_revision', viewReviews: [], revisionPrompt: 'Replace missing archive and fix labels', blockingIssues: [
+        {category: 'readability', severity: 'medium', viewId: 'entrance', message: 'Labels overlap', suggestedFix: 'Move labels apart', resolution: 'automatic'},
+        {category: 'content', severity: 'medium', viewId: 'entrance', message: 'Archive absent', suggestedFix: 'Upload missing archive', resolution: 'manual'},
+      ]}});
+    const input = generateExhibitionScene.mock.calls[0][0];
+    expect(input.prompt).toBe('Six zones with ten works each');
+    expect(input.revisionFeedback).toContain('Move labels apart');
+    expect(input.revisionFeedback).not.toContain('Upload missing archive');
+    expect(input.revisionFeedback).not.toContain('Replace missing archive');
+  });
+  it('does not turn insufficient visual evidence into a zero quality score', async () => {
+    const result = await reviewBuilderSession({
+      sessionId: 'builder-1', versionId: 'version-1', scene: createScene(),
+      screenshots: [imageA, imageB, imageC].map((dataUrl, i) => ({viewId: `view-${i}`, label: 'test', dataUrl})),
+      callVisionReview: async () => JSON.stringify({evidenceStatus: 'insufficient', technicalScore: 0, curatorialScore: 0, overallStatus: 'blocked', blockingIssues: []}),
+    });
+    expect(result).toMatchObject({status: 'unavailable', review: null, errorCode: 'INVALID_INSPECTION_VIEWS'});
+  });
+  it('rejects repeated screenshots without calling the vision provider', async () => {
+    const callVisionReview = vi.fn();
+    const result = await reviewBuilderSession({
+      sessionId: 'builder-1', versionId: 'version-1', scene: createScene(), callVisionReview,
+      screenshots: ['entrance', 'left', 'top'].map((viewId) => ({
+        viewId, label: viewId, dataUrl: 'data:image/png;base64,same',
+      })),
+    });
+    expect(result).toMatchObject({ status: 'unavailable', review: null, errorCode: 'INVALID_INSPECTION_VIEWS' });
+    expect(callVisionReview).not.toHaveBeenCalled();
+  });
+
+  it('preserves manual issues and refuses a passing score for unsupported structural fixes', async () => {
+    const result = await reviewBuilderSession({
+      sessionId: 'builder-1', versionId: 'version-1', scene: createScene(),
+      screenshots: ['entrance', 'left', 'top'].map((viewId) => ({
+        viewId, label: viewId, dataUrl: { entrance: imageA, left: imageB, top: imageC }[viewId],
+      })),
+      callVisionReview: async () => JSON.stringify({
+        evidenceStatus: 'sufficient',
+        technicalScore: 95, curatorialScore: 90, overallStatus: 'pass',
+        blockingIssues: [{ category: 'navigation', severity: 'medium', viewId: 'entrance',
+          message: 'A wider door is needed.', suggestedFix: 'Change the floor plan.', resolution: 'manual' }],
+      }),
+    });
+    expect(result.review.overallStatus).toBe('needs_revision');
+    expect(result.review.blockingIssues[0].resolution).toBe('manual');
+  });
+  it('labels every VL screenshot with its inspection view metadata', async () => {
+    const previousApiKey = process.env.QWEN_API_KEY;
+    process.env.QWEN_API_KEY = 'test-key';
+    createCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '{}' } }],
+    });
+
+    try {
+      await callQwenVisionReview({
+        scene: createScene(),
+        screenshots: [
+          { viewId: 'entrance', label: 'Entrance view', dataUrl: imageA },
+          { viewId: 'left-wall', label: 'Left wall', dataUrl: imageB },
+        ],
+      });
+    } finally {
+      if (previousApiKey === undefined) delete process.env.QWEN_API_KEY;
+      else process.env.QWEN_API_KEY = previousApiKey;
+    }
+
+    const request = createCompletion.mock.calls[0][0];
+    expect(request.messages[0].content).toContain('update-item-display');
+    expect(request.messages[0].content).toContain('Mark resolution as manual');
+    const content = request.messages[1].content;
+    expect(content.slice(1)).toEqual([
+      { type: 'text', text: JSON.stringify({ viewId: 'entrance', label: 'Entrance view' }) },
+      { type: 'image_url', image_url: { url: imageA } },
+      { type: 'text', text: JSON.stringify({ viewId: 'left-wall', label: 'Left wall' }) },
+      { type: 'image_url', image_url: { url: imageB } },
+    ]);
+  });
+
   it('creates a builder session from the existing scene generator', async () => {
     const generateExhibitionScene = vi.fn().mockResolvedValue({
       exhibition: { title: 'Macau Memory', curatorialStatement: 'A journey.', sections: [] },
@@ -63,9 +208,9 @@ describe('exhibitionBuilderAgentService', () => {
       versionId: 'version-1',
       scene: createScene(),
       screenshots: [
-        { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
-        { viewId: 'left', label: 'Left wall', dataUrl: 'data:image/png;base64,bbb' },
-        { viewId: 'top', label: 'Top-down', dataUrl: 'data:image/png;base64,ccc' },
+        { viewId: 'entrance', label: 'Entrance', dataUrl: imageA },
+        { viewId: 'left', label: 'Left wall', dataUrl: imageB },
+        { viewId: 'top', label: 'Top-down', dataUrl: imageC },
       ],
       callVisionReview: vi.fn().mockRejectedValue(new Error('vl unavailable')),
     });
@@ -85,9 +230,9 @@ describe('exhibitionBuilderAgentService', () => {
       versionId: 'version-1',
       scene: createScene(),
       screenshots: [
-        { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
-        { viewId: 'left', label: 'Left wall', dataUrl: 'data:image/png;base64,bbb' },
-        { viewId: 'top', label: 'Top-down', dataUrl: 'data:image/png;base64,ccc' },
+        { viewId: 'entrance', label: 'Entrance', dataUrl: imageA },
+        { viewId: 'left', label: 'Left wall', dataUrl: imageB },
+        { viewId: 'top', label: 'Top-down', dataUrl: imageC },
       ],
       callVisionReview: vi.fn().mockResolvedValue('{}'),
     });
@@ -115,9 +260,9 @@ describe('exhibitionBuilderAgentService', () => {
       versionId: 'version-1',
       scene,
       screenshots: [
-        { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
-        { viewId: 'left', label: 'Left wall', dataUrl: 'data:image/png;base64,bbb' },
-        { viewId: 'top', label: 'Top-down', dataUrl: 'data:image/png;base64,ccc' },
+        { viewId: 'entrance', label: 'Entrance', dataUrl: imageA },
+        { viewId: 'left', label: 'Left wall', dataUrl: imageB },
+        { viewId: 'top', label: 'Top-down', dataUrl: imageC },
       ],
       callVisionReview: vi.fn().mockRejectedValue(new Error('vl unavailable')),
     });
@@ -149,9 +294,9 @@ describe('exhibitionBuilderAgentService', () => {
       versionId: 'version-1',
       scene,
       screenshots: [
-        { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
-        { viewId: 'left', label: 'Left wall', dataUrl: 'data:image/png;base64,bbb' },
-        { viewId: 'top', label: 'Top-down', dataUrl: 'data:image/png;base64,ccc' },
+        { viewId: 'entrance', label: 'Entrance', dataUrl: imageA },
+        { viewId: 'left', label: 'Left wall', dataUrl: imageB },
+        { viewId: 'top', label: 'Top-down', dataUrl: imageC },
       ],
       callVisionReview: vi.fn().mockResolvedValue('{}'),
     });
@@ -183,11 +328,12 @@ describe('exhibitionBuilderAgentService', () => {
       versionId: 'version-1',
       scene,
       screenshots: [
-        { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
-        { viewId: 'left', label: 'Left wall', dataUrl: 'data:image/png;base64,bbb' },
-        { viewId: 'top', label: 'Top-down', dataUrl: 'data:image/png;base64,ccc' },
+        { viewId: 'entrance', label: 'Entrance', dataUrl: imageA },
+        { viewId: 'left', label: 'Left wall', dataUrl: imageB },
+        { viewId: 'top', label: 'Top-down', dataUrl: imageC },
       ],
       callVisionReview: vi.fn().mockResolvedValue(JSON.stringify({
+        evidenceStatus: 'sufficient',
         technicalScore: 96,
         curatorialScore: 88,
         overallStatus: 'pass',
@@ -232,11 +378,12 @@ describe('exhibitionBuilderAgentService', () => {
     ];
 
     const screenshots = [
-      { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
-      { viewId: 'left', label: 'Left wall', dataUrl: 'data:image/png;base64,bbb' },
-      { viewId: 'top', label: 'Top-down', dataUrl: 'data:image/png;base64,ccc' },
+      { viewId: 'entrance', label: 'Entrance', dataUrl: imageA },
+      { viewId: 'left', label: 'Left wall', dataUrl: imageB },
+      { viewId: 'top', label: 'Top-down', dataUrl: imageC },
     ];
     const passingVisionReview = JSON.stringify({
+      evidenceStatus: 'sufficient',
       technicalScore: 96,
       curatorialScore: 88,
       overallStatus: 'pass',
@@ -286,11 +433,12 @@ describe('exhibitionBuilderAgentService', () => {
       versionId: 'version-1',
       scene,
       screenshots: [
-        { viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' },
-        { viewId: 'left', label: 'Left wall', dataUrl: 'data:image/png;base64,bbb' },
-        { viewId: 'top', label: 'Top-down', dataUrl: 'data:image/png;base64,ccc' },
+        { viewId: 'entrance', label: 'Entrance', dataUrl: imageA },
+        { viewId: 'left', label: 'Left wall', dataUrl: imageB },
+        { viewId: 'top', label: 'Top-down', dataUrl: imageC },
       ],
       callVisionReview: vi.fn().mockResolvedValue(JSON.stringify({
+        evidenceStatus: 'sufficient',
         technicalScore: 95,
         curatorialScore: 90,
         overallStatus: 'pass',
@@ -318,7 +466,7 @@ describe('exhibitionBuilderAgentService', () => {
       sessionId: 'builder-1',
       versionId: 'version-1',
       scene: createScene(),
-      screenshots: [{ viewId: 'entrance', label: 'Entrance', dataUrl: 'data:image/png;base64,aaa' }],
+      screenshots: [{ viewId: 'entrance', label: 'Entrance', dataUrl: imageA }],
       callVisionReview: vi.fn(),
     })).rejects.toThrow('at least 3 screenshots');
   });
@@ -343,7 +491,16 @@ describe('exhibitionBuilderAgentService', () => {
         viewReviews: [],
         revisionPrompt: 'Move paintings apart.',
       },
-      prompt: 'Original brief',
+      input: {
+        prompt: 'Original brief',
+        language: 'en',
+        style: 'immersive',
+        exhibitCount: 12,
+        roomShape: 'multi-room',
+        roomWidth: 32,
+        roomLength: 48,
+        assets: [{ title: 'Archive film', imageUrl: 'https://example.com/archive.jpg', type: 'image' }],
+      },
       revisionCount: 1,
       generateExhibitionScene,
     });
@@ -352,8 +509,18 @@ describe('exhibitionBuilderAgentService', () => {
     expect(result.revisionCount).toBe(2);
     expect(result.versionId).not.toBe('version-1');
     expect(generateExhibitionScene).toHaveBeenCalledWith(expect.objectContaining({
-      prompt: expect.stringContaining('Move paintings apart.'),
+      language: 'en',
+      style: 'immersive',
+      exhibitCount: 12,
+      roomShape: 'multi-room',
+      roomWidth: 32,
+      roomLength: 48,
+      assets: [{ title: 'Archive film', imageUrl: 'https://example.com/archive.jpg', type: 'image' }],
+      currentScene: expect.any(Object),
     }));
+    const revisionInput = generateExhibitionScene.mock.calls[0][0];
+    expect(revisionInput.prompt).toContain('Original brief');
+    expect(revisionInput.prompt).toContain('Move paintings apart.');
   });
 
   it('supports a manual revision when visual review is unavailable', async () => {
@@ -400,5 +567,45 @@ describe('exhibitionBuilderAgentService', () => {
       revisionCount: 3,
       generateExhibitionScene: vi.fn(),
     })).rejects.toThrow('revision limit reached');
+  });
+
+  it('restores a historical snapshot as a new immutable version', () => {
+    const targetVersion = {
+      sessionId: 'builder-1',
+      versionId: 'version-1',
+      exhibition: { title: 'Original', curatorialStatement: 'First route.', sections: [] },
+      scene: createScene(),
+      warnings: ['Original warning'],
+      source: 'qwen',
+      revisionCount: 0,
+      status: 'generated',
+      review: {
+        technicalScore: 88,
+        curatorialScore: 80,
+        overallStatus: 'pass',
+        blockingIssues: [],
+        viewReviews: [],
+        revisionPrompt: '',
+      },
+    };
+
+    const restored = restoreBuilderSessionVersion({
+      sessionId: 'builder-1',
+      targetVersion,
+      revisionCount: 2,
+    });
+
+    expect(restored).toMatchObject({
+      sessionId: 'builder-1',
+      exhibition: targetVersion.exhibition,
+      scene: targetVersion.scene,
+      warnings: targetVersion.warnings,
+      source: 'qwen',
+      revisionCount: 2,
+      status: 'revised',
+      review: targetVersion.review,
+      restoredFromVersionId: 'version-1',
+    });
+    expect(restored.versionId).not.toBe('version-1');
   });
 });

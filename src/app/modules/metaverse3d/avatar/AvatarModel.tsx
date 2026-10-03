@@ -3,6 +3,7 @@ import { useAnimations, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { AvatarAppearanceV1 } from "./avatarAppearance";
 import {
+  CASUAL_AVATAR_BASE_ASSETS,
   CASUAL_AVATAR_ASSETS,
   createCasualAvatarScene,
   disposeCasualAvatarScene,
@@ -11,20 +12,33 @@ import { AVATAR_MANIFEST } from "./avatarManifest";
 import {
   selectAvatarAnimation,
   type AvatarAnimationName,
-  type AvatarEmote,
 } from "./useAvatarAnimation";
+import {
+  createAvatarEmoteClips,
+  type AvatarEmoteState,
+} from "./avatarEmote";
+import {
+  createSittingAnimationClip,
+  SITTING_ANIMATION_NAME,
+  type AvatarPose,
+} from "./avatarPose";
 
 const ANIMATION_FADE_SECONDS = 0.18;
 const MIN_WALK_TIME_SCALE = 0.7;
 const MAX_WALK_TIME_SCALE = 1.35;
 const REFERENCE_WALK_SPEED = 1.4;
+const SIT_TRANSITION_SECONDS = 0.28;
 
 export type AvatarModelProps = {
   appearance: AvatarAppearanceV1;
   speed: number;
-  emote?: AvatarEmote;
+  emote?: AvatarEmoteState;
+  emoteNonce?: number;
   playerSeed: string;
   castShadow?: boolean;
+  lockHeadFacing?: boolean;
+  staticPose?: boolean;
+  pose?: AvatarPose;
 };
 
 export function getAvatarAnimationPhase(playerSeed: string): number {
@@ -47,6 +61,56 @@ export function getWalkAnimationTimeScale(speedMetersPerSecond: number): number 
   );
 }
 
+export function getAvatarInitialIdleTime(
+  duration: number,
+  phase: number,
+  staticPose: boolean,
+): number {
+  return staticPose ? 0 : phase * Math.max(duration, 0);
+}
+
+export function removeAvatarHeadScaleTracks(
+  animations: THREE.AnimationClip[],
+): THREE.AnimationClip[] {
+  return animations.map((clip) => {
+    const tracks = clip.tracks.filter(
+      (track) =>
+        track.name !== "Head.scale" &&
+        !track.name.endsWith(".bones[Head].scale"),
+    );
+    if (tracks.length === clip.tracks.length) return clip;
+    return new THREE.AnimationClip(
+      clip.name,
+      clip.duration,
+      tracks.map((track) => track.clone()),
+      clip.blendMode,
+    );
+  });
+}
+
+export function removeAvatarPreviewHeadMotionTracks(
+  animations: THREE.AnimationClip[],
+): THREE.AnimationClip[] {
+  return removeAvatarHeadScaleTracks(animations).map((clip) => {
+    const tracks = clip.tracks.filter(
+      (track) =>
+        ![
+          "Head.position",
+          "Head.quaternion",
+          "Neck.position",
+          "Neck.quaternion",
+        ].includes(track.name),
+    );
+    if (tracks.length === clip.tracks.length) return clip;
+    return new THREE.AnimationClip(
+      clip.name,
+      clip.duration,
+      tracks.map((track) => track.clone()),
+      clip.blendMode,
+    );
+  });
+}
+
 function getAction(
   actions: Partial<Record<string, THREE.AnimationAction | null>>,
   name: AvatarAnimationName,
@@ -59,18 +123,25 @@ function AvatarModelAnimations({
   scene,
   speed,
   emote,
+  emoteNonce,
   playerSeed,
+  staticPose,
+  pose,
 }: {
   animations: THREE.AnimationClip[];
   scene: THREE.Object3D;
   speed: number;
-  emote: AvatarEmote;
+  emote: AvatarEmoteState;
+  emoteNonce: number;
   playerSeed: string;
+  staticPose: boolean;
+  pose: AvatarPose;
 }) {
   const { actions, mixer } = useAnimations(animations, scene);
   const currentNameRef = useRef<AvatarAnimationName>("Idle");
-  const previousEmoteRef = useRef<AvatarEmote>("none");
+  const previousEmoteNonceRef = useRef(0);
   const initializedActionsRef = useRef(new Set<THREE.AnimationAction>());
+  const sittingRef = useRef(false);
   const phase = useMemo(() => getAvatarAnimationPhase(playerSeed), [playerSeed]);
 
   useEffect(() => {
@@ -79,21 +150,66 @@ function AvatarModelAnimations({
 
     idle.reset();
     idle.setLoop(THREE.LoopRepeat, Infinity);
-    idle.time = phase * Math.max(idle.getClip().duration, 0);
+    idle.time = getAvatarInitialIdleTime(
+      idle.getClip().duration,
+      phase,
+      staticPose,
+    );
+    idle.paused = staticPose;
     idle.play();
     initializedActionsRef.current.add(idle);
     currentNameRef.current = "Idle";
-  }, [actions, phase]);
+  }, [actions, phase, staticPose]);
+
+  useEffect(() => {
+    const sitting = actions[SITTING_ANIMATION_NAME];
+    if (!sitting) return;
+
+    const locomotion = getAction(actions, currentNameRef.current);
+    if (pose === "sitting") {
+      if (sittingRef.current) return;
+      sittingRef.current = true;
+      sitting.reset();
+      sitting.setLoop(THREE.LoopRepeat, Infinity);
+      sitting.clampWhenFinished = false;
+      sitting.play();
+      if (locomotion) {
+        sitting.crossFadeFrom(locomotion, SIT_TRANSITION_SECONDS, true);
+      } else {
+        sitting.fadeIn(SIT_TRANSITION_SECONDS);
+      }
+      return;
+    }
+
+    if (!sittingRef.current) return;
+    sittingRef.current = false;
+    if (locomotion) {
+      locomotion.reset();
+      locomotion.setLoop(THREE.LoopRepeat, Infinity);
+      locomotion.play();
+      locomotion.crossFadeFrom(sitting, SIT_TRANSITION_SECONDS, true);
+    } else {
+      sitting.fadeOut(SIT_TRANSITION_SECONDS);
+    }
+  }, [actions, pose]);
 
   useEffect(() => {
     const currentName = currentNameRef.current;
     const requestedName = selectAvatarAnimation(speed, emote, currentName);
-    const waveWasRequested =
-      emote === "wave" && previousEmoteRef.current !== "wave";
-    previousEmoteRef.current = emote;
+    const emoteWasRequested =
+      emote !== "none" && emoteNonce !== previousEmoteNonceRef.current;
+    previousEmoteNonceRef.current = emoteNonce;
 
-    if (requestedName === "Wave" && !waveWasRequested) return;
-    if (requestedName === currentName && requestedName !== "Walk") return;
+    if (emote !== "none" && !emoteWasRequested) return;
+    const replayingEmote =
+      emoteWasRequested && requestedName === currentName;
+    if (
+      requestedName === currentName
+      && requestedName !== "Walk"
+      && !replayingEmote
+    ) {
+      return;
+    }
 
     const previousAction = getAction(actions, currentName);
     const nextAction = getAction(actions, requestedName);
@@ -103,7 +219,7 @@ function AvatarModelAnimations({
       nextAction.setEffectiveTimeScale(getWalkAnimationTimeScale(speed));
     }
 
-    if (requestedName === "Wave") {
+    if (emote !== "none") {
       nextAction.setLoop(THREE.LoopOnce, 1);
       nextAction.clampWhenFinished = true;
     } else {
@@ -111,7 +227,7 @@ function AvatarModelAnimations({
       nextAction.clampWhenFinished = false;
     }
 
-    if (requestedName !== currentName) {
+    if (requestedName !== currentName || replayingEmote) {
       nextAction.reset();
       if (
         (requestedName === "Idle" || requestedName === "Walk") &&
@@ -121,26 +237,31 @@ function AvatarModelAnimations({
         initializedActionsRef.current.add(nextAction);
       }
       nextAction.play();
-      if (previousAction) {
+      if (previousAction && previousAction !== nextAction) {
         nextAction.crossFadeFrom(previousAction, ANIMATION_FADE_SECONDS, true);
-      } else {
+      } else if (!replayingEmote) {
         nextAction.fadeIn(ANIMATION_FADE_SECONDS);
       }
       currentNameRef.current = requestedName;
     }
-  }, [actions, emote, phase, speed]);
+  }, [actions, emote, emoteNonce, phase, speed]);
 
   useEffect(() => {
     const handleFinished = (event: { action: THREE.AnimationAction }) => {
-      const wave = getAction(actions, "Wave");
-      if (!wave || event.action !== wave) return;
+      const finishedName = currentNameRef.current;
+      if (finishedName === "Idle" || finishedName === "Walk") return;
+      const finishedEmote = getAction(actions, finishedName);
+      if (!finishedEmote || event.action !== finishedEmote) return;
 
       const locomotionName = selectAvatarAnimation(
         speed,
         "none",
         currentNameRef.current,
       );
-      const nextName = locomotionName === "Wave" ? "Idle" : locomotionName;
+      const nextName =
+        locomotionName === "Idle" || locomotionName === "Walk"
+          ? locomotionName
+          : "Idle";
       const nextAction = getAction(actions, nextName);
       if (!nextAction) return;
 
@@ -155,7 +276,11 @@ function AvatarModelAnimations({
         initializedActionsRef.current.add(nextAction);
       }
       nextAction.play();
-      nextAction.crossFadeFrom(wave, ANIMATION_FADE_SECONDS, true);
+      nextAction.crossFadeFrom(
+        finishedEmote,
+        ANIMATION_FADE_SECONDS,
+        true,
+      );
       currentNameRef.current = nextName;
     };
 
@@ -170,19 +295,47 @@ export function AvatarModel({
   appearance,
   speed,
   emote = "none",
+  emoteNonce = 0,
   playerSeed,
   castShadow = true,
+  lockHeadFacing = false,
+  staticPose = false,
+  pose = "standing",
 }: AvatarModelProps) {
-  const modelUrl = CASUAL_AVATAR_ASSETS[appearance.body][appearance.hair];
-  const modelGltf = useGLTF(modelUrl);
+  const baseModelUrl = CASUAL_AVATAR_BASE_ASSETS[appearance.body];
+  const hairModelUrl = CASUAL_AVATAR_ASSETS[appearance.body][appearance.hair];
+  const baseModelGltf = useGLTF(baseModelUrl);
+  const hairModelGltf = useGLTF(hairModelUrl);
   const configured = useMemo(
     () =>
       createCasualAvatarScene(
-        modelGltf.scene,
+        baseModelGltf.scene,
         appearance,
         castShadow,
+        hairModelGltf.scene,
       ),
-    [appearance, castShadow, modelGltf.scene],
+    [appearance, baseModelGltf.scene, castShadow, hairModelGltf.scene],
+  );
+  const animations = useMemo(
+    () =>
+      lockHeadFacing
+        ? removeAvatarPreviewHeadMotionTracks(baseModelGltf.animations)
+        : removeAvatarHeadScaleTracks(baseModelGltf.animations),
+    [baseModelGltf.animations, lockHeadFacing],
+  );
+  const animationsWithSitting = useMemo(
+    () => [
+      ...animations,
+      ...createAvatarEmoteClips(
+        configured.scene,
+        animations.find((clip) => clip.name === "Idle"),
+      ),
+      createSittingAnimationClip(
+        configured.scene,
+        animations.find((clip) => clip.name === "Idle"),
+      ),
+    ],
+    [animations, configured.scene],
   );
 
   useEffect(
@@ -194,11 +347,14 @@ export function AvatarModel({
     <>
       <AvatarModelAnimations
         key={configured.scene.uuid}
-        animations={modelGltf.animations}
+        animations={animationsWithSitting}
         scene={configured.scene}
         speed={speed}
         emote={emote}
+        emoteNonce={emoteNonce}
         playerSeed={playerSeed}
+        staticPose={staticPose}
+        pose={pose}
       />
       <primitive object={configured.scene} dispose={null} />
     </>

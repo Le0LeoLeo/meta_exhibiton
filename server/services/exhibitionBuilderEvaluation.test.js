@@ -123,7 +123,7 @@ describe('exhibition builder behavior evaluation', () => {
       }),
     },
     { id: 'prose-wrapped-json', content: 'Here is the result: {"operationPlan":{"schemaVersion":1,"summary":"x","operations":[]}}' },
-  ])('$id falls back to the existing scene without losing protected media', async ({ content }) => {
+  ])('$id falls back to the existing scene without losing protected media', async ({ id, content }) => {
     providerContent(content);
     const { generateExhibitionScene } = await import('./exhibitionSceneService.js');
     const currentScene = createEvaluationScene();
@@ -134,7 +134,7 @@ describe('exhibition builder behavior evaluation', () => {
     expect(result.operations).toEqual([]);
     expect(result.scene.items.map((item) => item.id)).toEqual(currentScene.items.map((item) => item.id));
     expect(mediaFields(result.scene.items[0])).toEqual(mediaFields(currentScene.items[0]));
-    expect(result.warnings[0]).toMatch(/revision failed/i);
+    expect(result.warnings[0]).toMatch(id === 'unknown-item-id' ? /operation rejected.*Unknown scene item/i : /revision failed/i);
   });
 
   it('keeps the existing scene when the provider times out', async () => {

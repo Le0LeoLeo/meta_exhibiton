@@ -37,6 +37,74 @@ afterEach(() => {
 });
 
 describe("multiplayer avatar appearance", () => {
+  it("keeps the latest remote sitting pose from movement updates", () => {
+    const store = useMultiplayerStore.getState();
+    store.applyRoomJoined({
+      selfId: "self-1",
+      roomId: "gallery-1",
+      role: "viewer",
+      players: [{
+        id: "remote-1",
+        nickname: "Visitor",
+        appearance: DEFAULT_AVATAR_APPEARANCE,
+        position: { x: 1, y: 1.7, z: 2 },
+        yaw: 0,
+        pose: "standing",
+        lastSeq: 1,
+        updatedAt: 10,
+      }],
+    });
+
+    store.applyPlayerMoved({
+      roomId: "gallery-1",
+      id: "remote-1",
+      seq: 2,
+      t: 11,
+      position: { x: 1, y: 1.2, z: 2 },
+      yaw: 0,
+      pose: "sitting",
+      updatedAt: 11,
+    });
+
+    expect(useMultiplayerStore.getState().remotePlayers["remote-1"].pose)
+      .toBe("sitting");
+  });
+
+  it("hydrates and updates repeatable remote emotes", () => {
+    const store = useMultiplayerStore.getState();
+    store.applyRoomJoined({
+      selfId: "self-1",
+      roomId: "gallery-1",
+      role: "viewer",
+      players: [{
+        id: "remote-1",
+        nickname: "Visitor",
+        appearance: DEFAULT_AVATAR_APPEARANCE,
+        position: { x: 1, y: 1.7, z: 2 },
+        yaw: 0,
+        emote: "wave",
+        emoteNonce: 4,
+        lastSeq: 1,
+        updatedAt: 10,
+      }],
+    });
+
+    store.applyPlayerMoved({
+      roomId: "gallery-1",
+      id: "remote-1",
+      seq: 2,
+      t: 11,
+      position: { x: 1, y: 1.7, z: 2 },
+      yaw: 0,
+      emote: "cheer",
+      emoteNonce: 5,
+      updatedAt: 11,
+    });
+
+    expect(useMultiplayerStore.getState().remotePlayers["remote-1"])
+      .toMatchObject({ emote: "cheer", emoteNonce: 5 });
+  });
+
   it("hydrates and updates a remote appearance without resetting movement", () => {
     const store = useMultiplayerStore.getState();
     store.applyRoomJoined({
@@ -590,5 +658,52 @@ describe("multiplayer scene version ordering", () => {
       sceneResyncRequested: false,
       sceneOpPayloads: [],
     });
+  });
+});
+
+describe("multiplayer room isolation and idle performance", () => {
+  const player = { id: "remote-1", nickname: "Visitor", appearance: DEFAULT_AVATAR_APPEARANCE,
+    position: { x: 0, y: 0, z: 0 }, yaw: 0, lastSeq: 1, updatedAt: 1 };
+  function join() {
+    useMultiplayerStore.getState().applyRoomJoined({ roomId: "gallery-1", selfId: "self", role: "owner", players: [player] });
+  }
+  it("clears presence and authorization immediately when changing rooms or disconnecting", () => {
+    for (const action of [() => useMultiplayerStore.getState().setRoomId("gallery-2"),
+      () => useMultiplayerStore.getState().setConnected(false)]) {
+      join();
+      action();
+      expect(useMultiplayerStore.getState()).toMatchObject({ selfId: null, role: null, remotePlayers: {}, remoteEditorFocuses: {} });
+    }
+  });
+  it("ignores foreign-room player and focus events", () => {
+    join();
+    const state = useMultiplayerStore.getState();
+    state.applyPlayerJoined({ roomId: "old-room", player: { ...player, id: "other" } });
+    state.applyPlayerMoved({ roomId: "old-room", id: player.id, seq: 99, t: 2, position: { x: 99, y: 0, z: 0 }, yaw: 0, updatedAt: 2 });
+    state.applyPlayerLeft({ roomId: "old-room", id: player.id });
+    state.setSceneFocusPayload({ roomId: "old-room", by: "other", itemId: "item", updatedAt: 2 });
+    expect(useMultiplayerStore.getState()).toBe(state);
+  });
+  it("does not notify subscribers for empty or stationary rooms and settles movement", () => {
+    const empty = useMultiplayerStore.getState();
+    empty.tickInterpolation(0.2);
+    expect(useMultiplayerStore.getState()).toBe(empty);
+    join();
+    const idle = useMultiplayerStore.getState();
+    idle.tickInterpolation(0.2);
+    expect(useMultiplayerStore.getState()).toBe(idle);
+    idle.applyPlayerMoved({ roomId: "gallery-1", id: player.id, seq: 2, t: 2, position: { x: 1, y: 0, z: 0 }, yaw: 0.5, updatedAt: 2 });
+    for (let i = 0; i < 100; i++) useMultiplayerStore.getState().tickInterpolation(0.2);
+    const settled = useMultiplayerStore.getState();
+    expect(settled.remotePlayers[player.id].renderPosition.x).toBe(1);
+    settled.tickInterpolation(0.2);
+    expect(useMultiplayerStore.getState()).toBe(settled);
+  });
+  it("deduplicates echoed chat messages", () => {
+    join();
+    const message = { roomId: "gallery-1", id: "msg", by: "self", nickname: "Visitor", message: "hello", createdAt: 1 };
+    useMultiplayerStore.getState().pushChatMessage(message);
+    useMultiplayerStore.getState().pushChatMessage(message);
+    expect(useMultiplayerStore.getState().chatMessages).toHaveLength(1);
   });
 });

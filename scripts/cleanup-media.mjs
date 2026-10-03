@@ -32,7 +32,7 @@ async function deleteStaleRows(rows) {
   await run('BEGIN IMMEDIATE');
   try {
     const changed = await run(
-      `DELETE FROM media_assets WHERE id IN (${placeholders}) AND gallery_id IS NULL`,
+      `DELETE FROM media_assets WHERE id IN (${placeholders}) AND gallery_id IS NULL AND library_retained=0`,
       ids,
     );
     await run('COMMIT');

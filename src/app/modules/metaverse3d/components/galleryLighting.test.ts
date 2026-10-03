@@ -24,6 +24,9 @@ describe("gallery lighting tiers", () => {
     const performance = getGalleryLightingSettings("performance");
 
     expect(performance.ambientIntensity).toBeGreaterThan(quality.ambientIntensity);
+    // A relative comparison alone allowed 0.16 fill despite removing all IBL.
+    expect(performance.ambientIntensity).toBeGreaterThanOrEqual(1);
+    expect(performance.hemisphereIntensity).toBeGreaterThanOrEqual(0.6);
     expect(performance.hemisphereIntensity).toBeGreaterThan(
       quality.hemisphereIntensity,
     );

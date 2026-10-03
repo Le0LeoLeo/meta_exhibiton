@@ -53,7 +53,7 @@ export function WorkspacePlacementPanel({
   const current = Math.min(wallBatchCount, maxBatchCount);
 
   return (
-    <details className="mb-4 rounded-2xl border border-white/15 bg-white/8 p-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md" open>
+    <details className="mb-3 rounded-xl border border-slate-700 bg-slate-800/60 p-3 text-white">
       <summary className="cursor-pointer text-xs font-semibold text-white">{t('workspaceBatchPlacementTitle')}</summary>
       <div className="mt-2 space-y-2">
         <label className="flex items-center justify-between gap-3 rounded-xl border border-white/12 bg-white/6 px-3 py-2">
@@ -67,13 +67,13 @@ export function WorkspacePlacementPanel({
           </label>
           <span className="text-xs text-white/70">{current}</span>
         </div>
-        <input type="range" min="1" max={maxBatchCount} step="1" value={current} onChange={(e) => setWallBatchCount(Math.max(1, Math.floor(Number(e.target.value) || 1)))} className="w-full accent-indigo-400" />
+        <input type="range" aria-label={t('workspaceBatchCount')} min="1" max={maxBatchCount} step="1" value={current} onChange={(e) => setWallBatchCount(Math.max(1, Math.floor(Number(e.target.value) || 1)))} className="w-full accent-indigo-400" />
 
         <div className="flex items-center justify-between">
           <label className="text-xs font-medium text-white/85">{t('workspaceCenterGap')}</label>
           <span className="text-xs text-white/70">{wallBatchSpacing.toFixed(1)}m</span>
         </div>
-        <input type="range" min="0.6" max="4" step="0.1" value={wallBatchSpacing} onChange={(e) => setWallBatchSpacing(Math.max(0.6, Number(e.target.value) || 1.2))} className="w-full accent-indigo-400" />
+        <input type="range" aria-label={t('workspaceCenterGap')} aria-valuetext={`${wallBatchSpacing.toFixed(1)}m`} min="0.6" max="4" step="0.1" value={wallBatchSpacing} onChange={(e) => setWallBatchSpacing(Math.max(0.6, Number(e.target.value) || 1.2))} className="w-full accent-indigo-400" />
 
         {selectedItem?.type === "partition" && (
           <div className="grid grid-cols-2 gap-2">

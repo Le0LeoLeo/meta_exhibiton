@@ -1,0 +1,46 @@
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/hongkong/Dockerfile
+      target: app
+    env_file: [../../.env.hongkong]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 640m
+    pids_limit: 128
+    tmpfs: [/tmp:size=64m]
+    volumes: [runtime-data:/data]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:5176/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/hongkong/Dockerfile
+      target: web
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    pids_limit: 128
+    volumes: [caddy-data:/data, caddy-config:/config]
+    depends_on:
+      app: {condition: service_healthy}
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+volumes:
+  runtime-data:
+  caddy-data:
+  caddy-config:

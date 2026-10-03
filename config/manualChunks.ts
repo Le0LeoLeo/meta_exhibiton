@@ -1,6 +1,12 @@
 export function getManualChunk(id: string): string | undefined {
   const normalizedId = id.replace(/\\/g, '/');
+  // Vite's dynamic-import helper is shared by every route; never absorb it into 3D.
+  if (normalizedId.includes('vite/preload-helper')) return 'vendor-preload';
   if (!normalizedId.includes('/node_modules/')) return undefined;
+
+  if (normalizedId.includes('/node_modules/zustand/') || normalizedId.includes('/node_modules/use-sync-external-store/')) {
+    return 'vendor-state';
+  }
 
   if (normalizedId.includes('/node_modules/@dimforge/')) {
     return 'vendor-physics';

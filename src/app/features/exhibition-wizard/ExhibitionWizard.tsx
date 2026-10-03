@@ -1,10 +1,12 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Progress } from "@/app/components/ui/progress";
 import { cn } from "@/app/components/ui/utils";
+import { useI18n } from "@/app/components/I18nProvider";
+import type { ExhibitionWizardMessageKey } from "@/app/i18n/catalogs/exhibitionWizard";
 
 import {
   createExhibitionWizardDraft,
@@ -17,47 +19,47 @@ import {
 
 const STEP_CONTENT: Record<
   ExhibitionWizardStep,
-  { shortLabel: string; title: string; description: string }
+  { shortLabel: ExhibitionWizardMessageKey; title: ExhibitionWizardMessageKey; description: ExhibitionWizardMessageKey }
 > = {
   theme: {
-    shortLabel: "主題",
-    title: "設定展覽主題",
-    description: "先用一句話說明這次成果展的主題。",
+    shortLabel: "wizard.themeShort",
+    title: "wizard.themeTitle",
+    description: "wizard.themeDescription",
   },
   upload: {
-    shortLabel: "作品",
-    title: "上傳學生作品",
-    description: "加入要展示的圖片、文件、影片或作品資料。",
+    shortLabel: "wizard.uploadShort",
+    title: "wizard.uploadTitle",
+    description: "wizard.uploadDescription",
   },
   style: {
-    shortLabel: "風格",
-    title: "選擇展覽風格",
-    description: "描述希望 AI 採用的空間氣氛與視覺方向。",
+    shortLabel: "wizard.styleShort",
+    title: "wizard.styleTitle",
+    description: "wizard.styleDescription",
   },
   layout: {
-    shortLabel: "排展",
-    title: "AI 自動排展",
-    description: "檢查作品配置、燈光與參觀動線。",
+    shortLabel: "wizard.layoutShort",
+    title: "wizard.layoutTitle",
+    description: "wizard.layoutDescription",
   },
   preview: {
-    shortLabel: "預覽",
-    title: "預覽展覽",
-    description: "在發布前確認展品內容與參觀體驗。",
+    shortLabel: "wizard.previewShort",
+    title: "wizard.previewTitle",
+    description: "wizard.previewDescription",
   },
   publish: {
-    shortLabel: "發布",
-    title: "發布成果展",
-    description: "設定分享方式，讓訪客進入展覽。",
+    shortLabel: "wizard.publishShort",
+    title: "wizard.publishTitle",
+    description: "wizard.publishDescription",
   },
 };
 
-const ERROR_MESSAGES: Record<string, string> = {
-  theme_required: "請先輸入展覽主題",
-  uploaded_asset_required: "請先完成至少一件作品的上傳",
-  style_required: "請先輸入展覽風格",
-  layout_required: "請先完成 AI 排展",
-  preview_required: "請先完成展覽預覽",
-  step_not_reached: "請依序完成前面的步驟",
+const ERROR_MESSAGES: Record<string, ExhibitionWizardMessageKey> = {
+  theme_required: "wizard.errorThemeRequired",
+  uploaded_asset_required: "wizard.errorUploadRequired",
+  style_required: "wizard.errorStyleRequired",
+  layout_required: "wizard.errorLayoutRequired",
+  preview_required: "wizard.errorPreviewRequired",
+  step_not_reached: "wizard.errorStepNotReached",
 };
 
 export type ExhibitionWizardSlotContext = {
@@ -99,14 +101,17 @@ export function ExhibitionWizard({
   renderPublish,
   className,
 }: ExhibitionWizardProps) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState<ExhibitionWizardDraft>(
     () => initialDraft ?? createExhibitionWizardDraft(),
   );
-  const [error, setError] = useState("");
+  const draftRef = useRef(draft);
+  const [error, setError] = useState<ExhibitionWizardMessageKey | null>(null);
   const currentIndex = EXHIBITION_WIZARD_STEPS.indexOf(draft.currentStep);
   const content = STEP_CONTENT[draft.currentStep];
 
   function updateDraft(nextDraft: ExhibitionWizardDraft) {
+    draftRef.current = nextDraft;
     setDraft(nextDraft);
     onDraftChange?.(nextDraft);
   }
@@ -116,27 +121,27 @@ export function ExhibitionWizard({
   ) => void
     ? Patch
     : never) {
-    updateDraft(transitionExhibitionWizard(draft, { type: "patch", patch }));
-    setError("");
+    updateDraft(transitionExhibitionWizard(draftRef.current, { type: "patch", patch }));
+    setError(null);
   }
 
   function move(direction: "next" | "back") {
     try {
       updateDraft(transitionExhibitionWizard(draft, { type: direction }));
-      setError("");
+      setError(null);
     } catch (caught) {
       const code = caught instanceof WizardStepError ? caught.code : "unknown";
-      setError(ERROR_MESSAGES[code] ?? "無法前往下一步，請檢查目前內容");
+      setError(ERROR_MESSAGES[code] ?? "wizard.errorNext");
     }
   }
 
   function goToStep(step: ExhibitionWizardStep) {
     try {
       updateDraft(transitionExhibitionWizard(draft, { type: "go-to", step }));
-      setError("");
+      setError(null);
     } catch (caught) {
       const code = caught instanceof WizardStepError ? caught.code : "unknown";
-      setError(ERROR_MESSAGES[code] ?? "暫時無法開啟這個步驟");
+      setError(ERROR_MESSAGES[code] ?? "wizard.errorOpenStep");
     }
   }
 
@@ -153,9 +158,9 @@ export function ExhibitionWizard({
     >
       <div className="mb-6 space-y-3">
         <div className="flex items-center justify-between gap-3 text-sm">
-          <span className="font-medium">建立 3D 成果展</span>
+          <span className="font-medium">{t('wizard.title')}</span>
           <span className="text-muted-foreground">
-            第 {currentIndex + 1} / {EXHIBITION_WIZARD_STEPS.length} 步
+            {t('wizard.stepCount', { current: currentIndex + 1, total: EXHIBITION_WIZARD_STEPS.length })}
           </span>
         </div>
         <Progress
@@ -163,9 +168,9 @@ export function ExhibitionWizard({
           aria-valuenow={Math.round(
             ((currentIndex + 1) / EXHIBITION_WIZARD_STEPS.length) * 100,
           )}
-          aria-label={`建展進度：第 ${currentIndex + 1} 步，共 ${EXHIBITION_WIZARD_STEPS.length} 步`}
+          aria-label={t('wizard.progress', { current: currentIndex + 1, total: EXHIBITION_WIZARD_STEPS.length })}
         />
-        <ol className="grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="建展步驟">
+        <ol className="grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label={t('wizard.steps')}>
           {EXHIBITION_WIZARD_STEPS.map((step, index) => {
             const reached = index <= EXHIBITION_WIZARD_STEPS.indexOf(draft.furthestStep);
             const current = step === draft.currentStep;
@@ -184,7 +189,7 @@ export function ExhibitionWizard({
                   onClick={() => goToStep(step)}
                 >
                   <span aria-hidden="true">{index + 1}. </span>
-                  {STEP_CONTENT[step].shortLabel}
+                  {t(STEP_CONTENT[step].shortLabel)}
                 </button>
               </li>
             );
@@ -195,19 +200,19 @@ export function ExhibitionWizard({
       <div className="min-h-64 space-y-6">
         <header className="space-y-1">
           <h2 id="exhibition-wizard-title" className="text-xl font-semibold tracking-tight sm:text-2xl">
-            {content.title}
+            {t(content.title)}
           </h2>
-          <p className="text-sm leading-6 text-muted-foreground">{content.description}</p>
+          <p className="text-sm leading-6 text-muted-foreground">{t(content.description)}</p>
         </header>
 
         {draft.currentStep === "theme" && (
           <div className="space-y-2">
-            <Label htmlFor="exhibition-theme">展覽主題</Label>
+            <Label htmlFor="exhibition-theme">{t('wizard.themeLabel')}</Label>
             <Input
               id="exhibition-theme"
               value={draft.theme}
               onChange={(event) => patchDraft({ theme: event.target.value })}
-              placeholder="例如：六年級畢業成果展"
+              placeholder={t('wizard.themePlaceholder')}
               aria-invalid={error === ERROR_MESSAGES.theme_required}
               aria-describedby="exhibition-wizard-error"
               autoFocus
@@ -216,16 +221,16 @@ export function ExhibitionWizard({
         )}
 
         {draft.currentStep === "upload" &&
-          (renderUpload?.(slotContext) ?? <DefaultSlot>在這裡接入批量上傳與作品資料匯入。</DefaultSlot>)}
+          (renderUpload?.(slotContext) ?? <DefaultSlot>{t('wizard.uploadUnavailable')}</DefaultSlot>)}
 
         {draft.currentStep === "style" && (
           <div className="space-y-2">
-            <Label htmlFor="exhibition-style">展覽風格</Label>
+            <Label htmlFor="exhibition-style">{t('wizard.styleLabel')}</Label>
             <Input
               id="exhibition-style"
               value={draft.style}
               onChange={(event) => patchDraft({ style: event.target.value })}
-              placeholder="例如：明亮、現代、適合校園作品"
+              placeholder={t('wizard.stylePlaceholder')}
               aria-invalid={error === ERROR_MESSAGES.style_required}
               aria-describedby="exhibition-wizard-error"
               autoFocus
@@ -234,13 +239,13 @@ export function ExhibitionWizard({
         )}
 
         {draft.currentStep === "layout" &&
-          (renderLayout?.(slotContext) ?? <DefaultSlot>在這裡接入 AI 排展工作。</DefaultSlot>)}
+          (renderLayout?.(slotContext) ?? <DefaultSlot>{t('wizard.layoutUnavailable')}</DefaultSlot>)}
 
         {draft.currentStep === "preview" &&
-          (renderPreview?.(slotContext) ?? <DefaultSlot>在這裡接入 3D 或 2D 預覽。</DefaultSlot>)}
+          (renderPreview?.(slotContext) ?? <DefaultSlot>{t('wizard.previewUnavailable')}</DefaultSlot>)}
 
         {draft.currentStep === "publish" &&
-          (renderPublish?.(slotContext) ?? <DefaultSlot>在這裡接入發布與分享設定。</DefaultSlot>)}
+          (renderPublish?.(slotContext) ?? <DefaultSlot>{t('wizard.publishUnavailable')}</DefaultSlot>)}
       </div>
 
       <p
@@ -249,20 +254,20 @@ export function ExhibitionWizard({
         role={error ? "alert" : "status"}
         aria-live="polite"
       >
-        {error}
+        {error ? t(error) : null}
       </p>
 
       <footer className="mt-2 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
         {currentIndex > 0 ? (
           <Button type="button" variant="outline" className="min-h-11" onClick={() => move("back")}>
-            返回
+            {t('wizard.back')}
           </Button>
         ) : (
           <span />
         )}
         {draft.currentStep !== "publish" && (
           <Button type="button" className="min-h-11" onClick={() => move("next")}>
-            下一步
+            {t('wizard.next')}
           </Button>
         )}
       </footer>

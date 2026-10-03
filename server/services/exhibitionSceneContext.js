@@ -1,3 +1,7 @@
+import { describeExhibitionWalls, inspectExhibitionDividers } from './exhibitionSpatialTools.js';
+import { editorWallSurfaces } from './editorSceneCommands.js';
+import { exhibitItemSchema, roomSizeSchema } from '../schemas/sceneSchema.js';
+
 const MAX_CONTEXT_ITEMS = 100;
 const GENERATED_ID_PATTERN = /^(ai-|label-|light-|section-)/;
 
@@ -39,6 +43,9 @@ function contextItem(item) {
     position: item.position,
     rotation: item.rotation,
     scale: item.scale,
+    frameWidth: item.frameWidth,
+    frameHeight: item.frameHeight,
+    isLocked: item.isLocked,
   };
   const title = compactString(item.title, 300);
   const artist = compactString(item.artist, 300);
@@ -51,9 +58,10 @@ function contextItem(item) {
   return result;
 }
 
-export function buildSceneContext(currentScene) {
+export function buildSceneContext(currentScene, complete = false) {
   const items = Array.isArray(currentScene?.items) ? currentScene.items : [];
-  const includedItems = items.slice(0, MAX_CONTEXT_ITEMS);
+  const limit = complete ? 500 : MAX_CONTEXT_ITEMS;
+  const includedItems = items.slice(0, limit);
   const countsByType = {};
   for (const item of items) {
     const type = String(item?.type || 'unknown');
@@ -66,6 +74,7 @@ export function buildSceneContext(currentScene) {
 
   return {
     room: {
+      ...(complete ? Object.fromEntries(Object.entries(currentScene?.roomSize || {}).filter(([key]) => key in roomSizeSchema.shape)) : {}),
       width: currentScene?.roomSize?.width,
       length: currentScene?.roomSize?.length,
       height: currentScene?.roomSize?.height,
@@ -73,10 +82,18 @@ export function buildSceneContext(currentScene) {
       wallMaterialPreset: currentScene?.roomSize?.wallMaterialPreset,
       floorColor: currentScene?.roomSize?.floorColor,
     },
-    items: includedItems.map(contextItem),
+    items: includedItems.map((item) => complete ? {
+      ...Object.fromEntries(Object.entries(item).filter(([key]) => key in exhibitItemSchema.shape && !['content', 'assetId', 'assetUrl', 'thumbnailUrl', 'videoThumbnailUrl'].includes(key))),
+      ...contextItem(item),
+      ...(['text', 'partition', 'lightstrip', 'neon'].includes(item.type) ? { content: compactString(item.content, 2000) } : {}),
+    } : contextItem(item)),
     countsByType,
     protectedItemIds: ids.filter((id) => !generatedSet.has(id)),
     generatedItemIds,
-    truncated: items.length > MAX_CONTEXT_ITEMS,
+    wallLayout: currentScene?.roomSize ? describeExhibitionWalls({ ...currentScene, items: includedItems }) : [],
+    spatialIssues: currentScene?.roomSize ? inspectExhibitionDividers({ ...currentScene, items: includedItems }) : [],
+    floorPlanElements: (currentScene?.floorPlanElements || []).slice(0, limit),
+    ...(complete ? { wallMaterialOverrides: currentScene?.wallMaterialOverrides || {}, wallSurfaces: editorWallSurfaces(currentScene) } : {}),
+    truncated: items.length > limit,
   };
 }

@@ -2,26 +2,29 @@
 
 :root {
   --font-size: 16px;
+  --home-red: #a82e23;
+  --home-serif: var(--font-serif-cjk);
+  --font-sans-ui: "Noto Sans TC", -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
   --font-serif-cjk: "Source Han Serif TC", "Source Han Serif", "Noto Serif TC", "Noto Serif CJK TC", "思源宋體", "思源宋体", "Songti TC", "SimSun", serif;
-  --background: #faf9f6;
-  --foreground: #1c1c1a;
-  --card: #ffffff;
-  --card-foreground: #1c1c1a;
-  --popover: #ffffff;
-  --popover-foreground: #1c1c1a;
-  --primary: #1c1c1a;
+  --background: #f5f2eb;
+  --foreground: #20201c;
+  --card: #fcfaf5;
+  --card-foreground: #20201c;
+  --popover: #fcfaf5;
+  --popover-foreground: #20201c;
+  --primary: #a82e23;
   --primary-foreground: #ffffff;
-  --secondary: #f4f3ee;
-  --secondary-foreground: #1c1c1a;
-  --muted: #f4f3ee;
-  --muted-foreground: #797670;
+  --secondary: #ede9e0;
+  --secondary-foreground: #20201c;
+  --muted: #ede9e0;
+  --muted-foreground: #66635c;
   --accent: #ede8dc;
-  --accent-foreground: #1c1c1a;
+  --accent-foreground: #20201c;
   --destructive: #a84c4c;
-  --destructive-foreground: #ffffff;
-  --border: #e5e2d9;
-  --input: #e5e2d9;
-  --input-background: #ffffff;
+  --destructive-foreground: #fcfaf5;
+  --border: #d8d3c8;
+  --input: #d8d3c8;
+  --input-background: #fcfaf5;
   --switch-background: #d8d2c5;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
@@ -31,40 +34,43 @@
   --chart-3: #4c8262;
   --chart-4: #d29d54;
   --chart-5: #a84c4c;
-  --radius: 0.5rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #1c1c1a;
-  --sidebar-primary: #1c1c1a;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f4f3ee;
-  --sidebar-accent-foreground: #1c1c1a;
-  --sidebar-border: #e5e2d9;
+  --radius: 0.25rem;
+  --sidebar: #fcfaf5;
+  --sidebar-foreground: #20201c;
+  --sidebar-primary: #20201c;
+  --sidebar-primary-foreground: #fcfaf5;
+  --sidebar-accent: #ede9e0;
+  --sidebar-accent-foreground: #20201c;
+  --sidebar-border: #d8d3c8;
   --sidebar-ring: #bca374;
-  --curator-brass: #bca374;
+  --curator-brass: #a82e23;
   --tool-blue: #3e6496;
   --success-quiet: #4c8262;
   --warning-quiet: #d29d54;
 }
 
 .dark {
-  --background: oklch(0.09 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.11 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.11 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.18 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.18 0 0);
-  --muted-foreground: oklch(0.74 0 0);
-  --accent: oklch(0.18 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --home-red: #c44636;
+  --curator-brass: #bca374;
+  --background: #201f1b;
+  --foreground: #f0ece2;
+  --card: #25241f;
+  --card-foreground: #f0ece2;
+  --popover: #25241f;
+  --popover-foreground: #f0ece2;
+  --primary: #b93b2e;
+  --primary-foreground: #ffffff;
+  --secondary: #3c3932;
+  --secondary-foreground: #f0ece2;
+  --muted: #3c3932;
+  --muted-foreground: #bbb6aa;
+  --accent: #3c3932;
+  --accent-foreground: #f0ece2;
   --destructive: oklch(0.396 0.141 25.723);
   --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.18 0 0);
-  --input: oklch(0.18 0 0);
+  --border: #3c3932;
+  --input: #3c3932;
+  --input-background: #3c3932;
   --ring: oklch(0.44 0 0);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
@@ -74,16 +80,17 @@
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.13 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.985 0 0);
+  --sidebar-foreground: #f0ece2;
+  --sidebar-primary: #f0ece2;
   --sidebar-primary-foreground: oklch(0.205 0 0);
   --sidebar-accent: oklch(0.22 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-accent-foreground: #f0ece2;
   --sidebar-border: oklch(0.22 0 0);
   --sidebar-ring: oklch(0.46 0 0);
 }
 
 @theme inline {
+  --font-sans: var(--font-sans-ui);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -141,16 +148,14 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-serif-cjk);
-    background-image:
-      linear-gradient(to bottom, rgba(250, 249, 246, 0.98), rgba(244, 243, 238, 0.98));
+    font-family: var(--font-sans-ui);
+    background-image: none;
     background-attachment: fixed;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   .dark body {
-    background-image:
-      linear-gradient(to bottom, rgba(22, 22, 20, 0.98), rgba(13, 13, 12, 0.99));
+    background-image: none;
   }
 
   /**

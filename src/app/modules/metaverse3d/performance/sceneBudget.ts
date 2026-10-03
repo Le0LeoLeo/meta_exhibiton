@@ -42,6 +42,8 @@ const LIGHT_ITEM_TYPES = new Set(['lightstrip', 'spotlight', 'chandelier']);
 const IMAGE_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#]|$)/i;
 const VIDEO_EXTENSION = /\.(?:m4v|mov|mp4|ogg|webm)(?:[?#]|$)/i;
 const MODEL_EXTENSION = /\.(?:glb|gltf|stl)(?:[?#]|$)/i;
+const DOCUMENT_EXTENSION = /\.(?:pdf|docx?)(?:[?#]|$)/i;
+const ASSET_URL = /^(?:blob:|data:|https?:|\/)/i;
 const LEVEL_WEIGHT: Record<SceneBudgetLevel, number> = { info: 0, warning: 1, critical: 2 };
 
 function asItem(value: unknown): ItemLike {
@@ -56,7 +58,9 @@ function asNonEmptyString(value: unknown): string | null {
 
 function addAssetUrl(target: Set<string>, value: unknown) {
   const url = asNonEmptyString(value);
-  if (url) target.add(url);
+  if (!url) return;
+  // A signed preview and its published URL refer to the same stored asset.
+  target.add(url.replace(/(\/api\/media\/[^/?#]+)(?:\?[^#]*)?(?:#.*)?$/, '$1'));
 }
 
 function metricLevel(metric: SceneBudgetMetricName, count: number): SceneBudgetLevel {
@@ -108,9 +112,14 @@ export function analyzeSceneBudget(scene: SceneBudgetInput | null | undefined): 
     if (LIGHT_ITEM_TYPES.has(type)) itemLightCount += 1;
 
     for (const url of primaryUrls) {
-      if (mime.startsWith('image/') || IMAGE_EXTENSION.test(url)) imageUrls.add(url);
-      else if (mime.startsWith('video/') || VIDEO_EXTENSION.test(url)) videoUrls.add(url);
-      else if (mime.startsWith('model/') || MODEL_EXTENSION.test(url) || (type === 'pedestal' && /^(?:blob:|data:|https?:|\/)/i.test(url))) modelUrls.add(url);
+      if (mime.startsWith('image/') || /^data:image\//i.test(url)) addAssetUrl(imageUrls, url);
+      else if (mime.startsWith('video/') || /^data:video\//i.test(url)) addAssetUrl(videoUrls, url);
+      else if (mime.startsWith('model/')) addAssetUrl(modelUrls, url);
+      else if (mime && mime !== 'application/octet-stream') continue;
+      else if (VIDEO_EXTENSION.test(url)) addAssetUrl(videoUrls, url);
+      else if (MODEL_EXTENSION.test(url) || (type === 'pedestal' && ASSET_URL.test(url))) addAssetUrl(modelUrls, url);
+      else if (IMAGE_EXTENSION.test(url)
+        || (type === 'painting' && ASSET_URL.test(url) && !DOCUMENT_EXTENSION.test(url))) addAssetUrl(imageUrls, url);
     }
 
     addAssetUrl(imageUrls, item.thumbnailUrl);

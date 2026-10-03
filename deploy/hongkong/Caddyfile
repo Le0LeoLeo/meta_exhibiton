@@ -1,0 +1,13 @@
+{
+	admin off
+	http_port 8080
+	https_port 8443
+}
+
+https://metaexb.com {
+	import /etc/caddy/routes.caddy
+}
+
+https://www.metaexb.com {
+	redir https://metaexb.com{uri} permanent
+}

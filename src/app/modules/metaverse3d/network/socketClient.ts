@@ -23,6 +23,7 @@ import type {
 
 let socket: Socket | null = null;
 let socketToken: string | null = null;
+let socketServerUrl: string | null = null;
 
 const EDIT_ROLES = new Set(["editor", "owner"]);
 const CHAT_ROLES = new Set(["participant", "editor", "owner"]);
@@ -36,7 +37,7 @@ export function connectMultiplayer(): Socket {
   const { serverUrl } = useMultiplayerStore.getState();
   const token = loadAuth().token;
 
-  if (socket && socket.io.uri === serverUrl && socketToken === token) {
+  if (socket && socketServerUrl === serverUrl && socketToken === token) {
     return socket;
   }
 
@@ -48,6 +49,7 @@ export function connectMultiplayer(): Socket {
   }
 
   socketToken = token;
+  socketServerUrl = serverUrl;
   socket = io(serverUrl, {
     transports: ["websocket"],
     autoConnect: true,
@@ -74,6 +76,7 @@ export function connectMultiplayer(): Socket {
   });
 
   socket.on("room:joined", (payload: RoomJoinedPayload) => {
+    if (payload.roomId !== useMultiplayerStore.getState().roomId) return;
     useMultiplayerStore.getState().applyRoomJoined(payload);
   });
 
@@ -216,15 +219,18 @@ export function emitSceneFocus(payload: {
 
 export function emitChatMessage(message: string) {
   const currentSocket = socket;
-  if (!currentSocket || !currentSocket.connected) return;
+  if (!currentSocket || !currentSocket.connected) return false;
 
   const { roomId, nickname, role } = useMultiplayerStore.getState();
-  if (!CHAT_ROLES.has(role || "")) return;
+  if (!CHAT_ROLES.has(role || "")) return false;
+  const text = message.trim();
+  if (!text || text.length > 300) return false;
   const payload: ChatSendPayload = {
     roomId,
     nickname,
-    message,
+    message: text,
   };
 
   currentSocket.emit("chat:send", payload);
+  return true;
 }

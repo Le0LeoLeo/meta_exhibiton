@@ -34,6 +34,19 @@ const items = [
 ] as ExhibitItem[];
 
 describe("useScenePreloader", () => {
+  it('does not restart asset loading for placement edits but loads replacement media', async () => {
+    const loadAsset = vi.fn(() => Promise.resolve());
+    const { result, rerender } = renderHook(({ sceneItems }) => useScenePreloader({ mode: 'edit', roomSize, items: sceneItems, loadAsset }), { initialProps: { sceneItems: items } });
+    await waitFor(() => expect(result.current.backgroundComplete).toBe(true));
+    loadAsset.mockClear();
+    rerender({ sceneItems: items.map(item => ({ ...item, position: [2, 1, 3] as [number, number, number] })) });
+    await act(async () => { await Promise.resolve(); });
+    expect(loadAsset).not.toHaveBeenCalled();
+    expect(result.current.backgroundComplete).toBe(true);
+    rerender({ sceneItems: items.map(item => item.id === 'painting-1' ? { ...item, content: 'https://cdn.example.test/replacement.webp' } : item) });
+    await waitFor(() => expect(loadAsset).toHaveBeenCalledWith('https://cdn.example.test/replacement.webp', 'image'));
+  });
+
   it("tracks cached completion as a new preload cycle when returning from floor plan", async () => {
     const loadAsset = vi.fn(() => Promise.resolve());
     const { result, rerender } = renderHook(

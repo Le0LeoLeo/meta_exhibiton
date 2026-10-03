@@ -31,6 +31,7 @@ export type ProceduralAvatarFallbackHandle = {
     legSwing: number;
     bob: number;
     lean: number;
+    sittingBlend?: number;
   }>) => void;
 };
 
@@ -59,13 +60,22 @@ export const ProceduralAvatarFallback = forwardRef<
     applyMotion(pose) {
       if (motionRootRef.current) {
         motionRootRef.current.position.y =
-          PROCEDURAL_AVATAR_BASE_Y + pose.bob;
-        motionRootRef.current.rotation.x = pose.lean;
+          PROCEDURAL_AVATAR_BASE_Y
+          + pose.bob
+          - (pose.sittingBlend ?? 0) * 0.08;
+        motionRootRef.current.rotation.x =
+          pose.lean - (pose.sittingBlend ?? 0) * 0.08;
       }
       if (leftArmRef.current) leftArmRef.current.rotation.x = pose.armSwing;
       if (rightArmRef.current) rightArmRef.current.rotation.x = -pose.armSwing;
-      if (leftLegRef.current) leftLegRef.current.rotation.x = pose.legSwing;
-      if (rightLegRef.current) rightLegRef.current.rotation.x = -pose.legSwing;
+      if (leftLegRef.current) {
+        leftLegRef.current.rotation.x =
+          pose.legSwing - (pose.sittingBlend ?? 0) * 1.38;
+      }
+      if (rightLegRef.current) {
+        rightLegRef.current.rotation.x =
+          -pose.legSwing - (pose.sittingBlend ?? 0) * 1.38;
+      }
     },
   }), []);
 

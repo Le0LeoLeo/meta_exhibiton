@@ -1,7 +1,11 @@
 import { useLayoutEffect, useRef } from "react";
 import type { RectAreaLight } from "three";
+import { RectAreaLightUniformsLib } from "three-stdlib";
 
 import type { RenderPerformanceProfile } from "../performanceProfile";
+import type { MuseumAtmosphere } from '../galleryAtmosphere';
+
+RectAreaLightUniformsLib.init();
 
 export interface GalleryLightingSettings {
   ambientIntensity: number;
@@ -17,8 +21,10 @@ export function getGalleryLightingSettings(
 ): GalleryLightingSettings {
   if (mode === "performance") {
     return {
-      ambientIntensity: 0.16,
-      hemisphereIntensity: 0.18,
+      // Replace the missing HDR environment and area/spot lights with cheap fill.
+      // Ambient reaches every wall, including faces opposite the key light.
+      ambientIntensity: 1.2,
+      hemisphereIntensity: 0.8,
       keyIntensity: 0.65,
       accentIntensity: 0,
       areaLightCount: 0,
@@ -28,9 +34,9 @@ export function getGalleryLightingSettings(
 
   if (mode === "balanced") {
     return {
-      ambientIntensity: 0.04,
-      hemisphereIntensity: 0.08,
-      keyIntensity: 0.7,
+      ambientIntensity: 0.08,
+      hemisphereIntensity: 0.22,
+      keyIntensity: 0.9,
       accentIntensity: 0,
       areaLightCount: 2,
       areaLightIntensity: 1.2,
@@ -38,9 +44,9 @@ export function getGalleryLightingSettings(
   }
 
   return {
-    ambientIntensity: 0.028,
-    hemisphereIntensity: 0.06,
-    keyIntensity: 0.32,
+    ambientIntensity: 0.07,
+    hemisphereIntensity: 0.2,
+    keyIntensity: 0.85,
     accentIntensity: 0,
     areaLightCount: 3,
     areaLightIntensity: 1.65,
@@ -77,12 +83,14 @@ function GalleryAreaLight({
 export function GalleryLighting({
   profile,
   environmentBrightness,
+  atmosphere = 'bright',
 }: {
   profile: RenderPerformanceProfile;
   environmentBrightness: number;
+  atmosphere?: MuseumAtmosphere;
 }) {
   const settings = getGalleryLightingSettings(profile.effectiveMode);
-  const brightness = Math.max(0.2, environmentBrightness);
+  const brightness = Math.max(0.2, environmentBrightness) * (atmosphere === 'bright' ? 1 : 0.8);
   const areaLightPositions: Array<{
     position: [number, number, number];
     target: [number, number, number];
@@ -96,11 +104,11 @@ export function GalleryLighting({
     <>
       <ambientLight
         intensity={settings.ambientIntensity * brightness}
-        color="#c7d2e8"
+        color="#f1f3f5"
       />
       <hemisphereLight
-        skyColor="#dbeafe"
-        groundColor="#263244"
+        color="#edf3ff"
+        groundColor="#79716a"
         intensity={settings.hemisphereIntensity * brightness}
       />
       <directionalLight
@@ -117,6 +125,7 @@ export function GalleryLighting({
         shadow-camera-bottom={-18}
         shadow-bias={-0.0001}
         shadow-normalBias={0.025}
+        shadow-radius={2}
       />
       {areaLightPositions.slice(0, settings.areaLightCount).map((light, index) => (
         <GalleryAreaLight

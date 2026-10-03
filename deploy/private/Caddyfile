@@ -1,0 +1,33 @@
+{
+	auto_https disable_redirects
+	admin off
+	skip_install_trust
+}
+
+https://localhost:8443 {
+	tls internal
+	encode zstd gzip
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+	}
+
+	@multiplayer path /socket.io /socket.io/*
+	handle @multiplayer {
+		reverse_proxy app:3001
+	}
+
+	@backend path /api /api/* /uploads /uploads/*
+	handle @backend {
+		# Upload authorization stays with Express, never a public file server.
+		reverse_proxy app:5176
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
+

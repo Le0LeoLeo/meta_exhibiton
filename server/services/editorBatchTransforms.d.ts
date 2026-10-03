@@ -1,0 +1,1 @@
+export function transformEditorBatch<T extends { id: string; position: [number, number, number]; isLocked?: boolean }>(items: T[], options: { itemIds: string[]; mode: 'snap' | 'align' | 'distribute'; axis?: 'x' | 'y' | 'z'; anchorId?: string | null; step?: number }): T[];

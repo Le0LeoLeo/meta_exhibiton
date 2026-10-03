@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createMemoryRouter,
@@ -10,6 +10,7 @@ import {
   getPublishedGalleryById,
   type ExhibitionDetail,
 } from '../api/exhibitions';
+import { I18nProvider, type Locale } from '../components/I18nProvider';
 import { useMetaverseStudioStore as useStore } from '../modules/metaverse3d/store/useMetaverseStudioStore';
 import ExhibitionView, {
   resetExhibitionViewCacheForTests,
@@ -87,7 +88,9 @@ function createGallery(
   };
 }
 
-function renderExhibition(initialEntry: InitialEntry) {
+function renderExhibition(initialEntry: InitialEntry, locale: Locale | null = 'zh-TW') {
+  if (locale) localStorage.setItem('metaexpo-locale', locale);
+  else localStorage.removeItem('metaexpo-locale');
   const router = createMemoryRouter(
     [
       {
@@ -100,14 +103,73 @@ function renderExhibition(initialEntry: InitialEntry) {
 
   const view = render(
     <StrictMode>
-      <RouterProvider router={router} />
+      <I18nProvider>
+        <RouterProvider router={router} />
+      </I18nProvider>
     </StrictMode>,
   );
 
   return { ...view, router };
 }
 
+it('opens explicit 2D links without probing WebGL or preparing the studio', async () => {
+  vi.mocked(getPublishedGalleryById).mockResolvedValue({ gallery: createGallery('accessible', { version: 1, items: [] }) });
+  const context = vi.mocked(HTMLCanvasElement.prototype.getContext);
+  context.mockClear();
+  renderExhibition('/exhibitions/accessible?mode=2d');
+  expect(await screen.findByText('2D 圖文展覽')).toBeVisible();
+  expect(context).not.toHaveBeenCalled();
+  expect(studioRender).not.toHaveBeenCalled();
+});
+
+it('uses English when no language preference has been saved', async () => {
+  vi.mocked(getPublishedGalleryById).mockResolvedValue({
+    gallery: createGallery('english-default', { version: 1, items: [] }),
+  });
+
+  renderExhibition('/exhibitions/english-default', null);
+
+  const displayMode = await screen.findByRole('group', { name: 'Exhibition display mode' });
+  expect(within(displayMode).getByRole('button', { name: '2D artworks' })).toBeInTheDocument();
+  expect(within(displayMode).getByRole('button', { name: '3D gallery' })).toBeInTheDocument();
+  expect(localStorage.getItem('metaexpo-locale')).toBe('en');
+});
+
 describe('ExhibitionView', () => {
+  it('asks for participation again on each visit, including a cached exhibition', async () => {
+    vi.mocked(getPublishedGalleryById).mockResolvedValue({
+      gallery: createGallery('exhibition-1', { version: 1, items: [] }),
+    });
+    useStore.setState({ mode: 'view', hasSelectedParticipationMode: true, allowPointerLock: true });
+    const first = renderExhibition('/exhibitions/exhibition-1');
+    await screen.findByText('Studio loaded');
+    expect(useStore.getState().hasSelectedParticipationMode).toBe(false);
+    expect(useStore.getState().allowPointerLock).toBe(false);
+    act(() => useStore.getState().setHasSelectedParticipationMode(true));
+    first.unmount();
+
+    renderExhibition('/exhibitions/exhibition-1');
+    await screen.findByText('Studio loaded');
+    expect(useStore.getState().hasSelectedParticipationMode).toBe(false);
+  });
+
+  it('asks again when navigating to another exhibition but preserves the current visit choice', async () => {
+    vi.mocked(getPublishedGalleryById).mockImplementation(async (id) => ({
+      gallery: createGallery(id, { version: 1, items: [] }),
+    }));
+    const { router } = renderExhibition('/exhibitions/exhibition-a');
+    await screen.findByText('Studio loaded');
+    act(() => useStore.getState().setHasSelectedParticipationMode(true));
+    act(() => screen.getByRole('button', { name: '2D 圖文' }).click());
+    act(() => screen.getByRole('button', { name: '3D 展廳' }).click());
+    await screen.findByText('Studio loaded');
+    expect(useStore.getState().hasSelectedParticipationMode).toBe(true);
+
+    await act(async () => router.navigate('/exhibitions/exhibition-b'));
+    await screen.findByText('Public exhibition exhibition-b');
+    await waitFor(() => expect(useStore.getState().hasSelectedParticipationMode).toBe(false));
+  });
+
   it('defaults to semantic 2D without loading or rendering the studio when WebGL is unavailable', async () => {
     vi.mocked(HTMLCanvasElement.prototype.getContext).mockReturnValue(null);
     vi.mocked(getPublishedGalleryById).mockResolvedValue({
@@ -164,7 +226,9 @@ describe('ExhibitionView', () => {
     );
     const view = render(
       <StrictMode>
-        <RouterProvider router={router} />
+        <I18nProvider>
+          <RouterProvider router={router} />
+        </I18nProvider>
       </StrictMode>,
     );
 
@@ -172,7 +236,9 @@ describe('ExhibitionView', () => {
 
     view.rerender(
       <StrictMode>
-        <RouterProvider router={router} />
+        <I18nProvider>
+          <RouterProvider router={router} />
+        </I18nProvider>
       </StrictMode>,
     );
 
@@ -246,11 +312,10 @@ describe('ExhibitionView', () => {
       });
     const importScene = vi.spyOn(useStore.getState(), 'importScene');
 
-    const failedView = renderExhibition('/exhibitions/exhibition-1');
-    expect(await screen.findByText('Temporary failure')).toBeInTheDocument();
-    failedView.unmount();
-
     renderExhibition('/exhibitions/exhibition-1');
+    expect(await screen.findByRole('heading', { name: '暫時無法開啟展覽' })).toBeInTheDocument();
+    expect(screen.queryByText('Temporary failure')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重新嘗試' }));
     expect(await screen.findByText('Studio loaded')).toBeInTheDocument();
     expect(getPublishedGalleryById).toHaveBeenCalledTimes(2);
     expect(importScene).toHaveBeenCalledTimes(1);
@@ -275,8 +340,28 @@ describe('ExhibitionView', () => {
     expect(screen.queryByText('Studio loaded')).not.toBeInTheDocument();
   });
 
+  it.each([403, 404])('explains unavailable public exhibitions for status %s', async (status) => {
+    vi.mocked(getPublishedGalleryById).mockRejectedValueOnce(Object.assign(new Error('internal response'), { status }));
+    renderExhibition('/exhibitions/unavailable');
+    expect(await screen.findByRole('heading', { name: '此展覽目前無法公開參觀' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('請向策展人索取最新連結');
+    expect(screen.queryByText('internal response')).not.toBeInTheDocument();
+  });
+
+  it('provides an exit while the exhibition request is pending', async () => {
+    vi.mocked(getPublishedGalleryById).mockReturnValueOnce(new Promise(() => {}));
+    const router = createMemoryRouter([
+      { path: '/exhibitions/:exhibitionId', element: <ExhibitionView /> },
+      { path: '/exhibitions', element: <p>Exhibition list</p> },
+    ], { initialEntries: ['/exhibitions/pending'] });
+    localStorage.setItem('metaexpo-locale', 'zh-TW');
+    render(<I18nProvider><RouterProvider router={router} /></I18nProvider>);
+    fireEvent.click(screen.getByRole('button', { name: '返回展覽活動' }));
+    expect(await screen.findByText('Exhibition list')).toBeInTheDocument();
+  });
+
   it('surfaces an import failure without entering view mode', async () => {
-    const scene = { version: 1, items: [{ id: 'broken' }] };
+    const scene = { version: 1, items: [{ id: 'broken', type: 'painting', title: 'Readable artwork', content: '/art.jpg' }] };
     vi.mocked(getPublishedGalleryById).mockResolvedValue({
       gallery: createGallery('exhibition-1', scene),
     });
@@ -294,6 +379,9 @@ describe('ExhibitionView', () => {
     expect(importScene).toHaveBeenCalledTimes(1);
     expect(setMode).not.toHaveBeenCalled();
     expect(screen.queryByText('Studio loaded')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '2D 圖文' }));
+    expect(await screen.findByRole('heading', { name: 'Readable artwork' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('imports a changed exhibition during route navigation', async () => {

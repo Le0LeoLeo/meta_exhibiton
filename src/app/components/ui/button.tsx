@@ -1,23 +1,23 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { motion } from "motion/react";
+
 
 import { cn } from "./utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-sm hover:bg-curator-brass hover:text-white",
+          "bg-primary text-primary-foreground hover:bg-curator-brass hover:text-primary-foreground",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline:
-          "border border-border bg-card text-foreground shadow-sm hover:bg-secondary hover:text-foreground",
+          "border border-border bg-card text-foreground hover:bg-secondary hover:text-foreground",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-sm hover:bg-accent",
+          "bg-secondary text-secondary-foreground hover:bg-accent",
         ghost:
           "text-foreground hover:bg-secondary hover:text-foreground",
         link: "text-tool-blue underline-offset-4 hover:underline",
@@ -42,7 +42,7 @@ function Button({
   size,
   asChild = false,
   ...props
-}: React.ComponentProps<"button"> &
+}: Omit<React.ComponentPropsWithoutRef<"button">, "onAnimationStart" | "onDrag" | "onDragStart" | "onDragEnd"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
   }) {
@@ -52,15 +52,12 @@ function Button({
     return <Slot data-slot="button" className={baseClassName} {...props} />;
   }
 
-  const MotionButton = motion.button;
+
 
   return (
-    <MotionButton
+    <button
       data-slot="button"
       className={baseClassName}
-      whileHover={{ y: -1 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 400, damping: 17 }}
       {...props}
     />
   );

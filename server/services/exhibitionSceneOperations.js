@@ -1,8 +1,13 @@
 import { z } from 'zod';
 import { sanitizeSceneSnapshot } from '../schemas/sceneSchema.js';
 import { normalizeSceneGeometry } from './sceneGeometryService.js';
+import { arrangeExhibitionSections, createExhibitionDivider } from './exhibitionSpatialTools.js';
+import { editorCommandSchemas, editorCommandTypes, applyCompleteEditorPlan } from './editorSceneCommands.js';
 
 export const operationTypes = [
+  ...editorCommandTypes,
+  'arrange-exhibition-sections',
+  'create-exhibition-divider',
   'update-room-style',
   'move-item',
   'update-item-copy',
@@ -27,6 +32,22 @@ const baseItemFields = {
 };
 
 const operationSchemas = [
+  ...editorCommandSchemas,
+  z.object({
+    type: z.literal('arrange-exhibition-sections'),
+    gap: z.number().min(0.3).max(3).default(0.5),
+    sections: z.array(z.object({
+      title: z.string().trim().min(1).max(24),
+      wall: z.enum(['north', 'west', 'east']),
+      itemIds: z.array(z.string().trim().min(1)).min(1).max(30),
+    }).strict()).min(1).max(3),
+  }).strict(),
+  z.object({
+    type: z.literal('create-exhibition-divider'),
+    id: z.string().regex(/^ai-divider-[a-zA-Z0-9-]{1,60}$/),
+    atZ: z.number().finite(),
+    aisleWidth: z.number().min(2).max(6).default(2),
+  }).strict(),
   z.object({
     type: z.literal('update-room-style'),
     wallColor: z.string().max(100).optional(),
@@ -74,7 +95,11 @@ const operationSchemas = [
   z.object({
     type: z.literal('add-furniture'),
     ...baseItemFields,
-    itemType: z.enum(['pedestal', 'flower', 'chandelier', 'bench', 'rug', 'vase', 'sculpture', 'spotlight', 'plant', 'column', 'neon']),
+    itemType: z.enum([
+      'pedestal', 'flower', 'chandelier', 'bench', 'rug', 'vase',
+      'sculpture', 'spotlight', 'plant', 'column', 'neon', 'chair',
+      'sofa', 'floorlamp', 'cabinet', 'turntable', 'fountain',
+    ]),
   }).strict(),
   z.object({
     type: z.literal('remove-generated-item'),
@@ -88,6 +113,8 @@ export const sceneOperationPlanSchema = z.object({
   summary: z.string().trim().min(1).max(500),
   operations: z.array(sceneOperationSchema).max(100),
 }).strict();
+
+export const sceneOperationJsonSchema = z.toJSONSchema(sceneOperationPlanSchema);
 
 export class SceneOperationError extends Error {
   constructor(message, cause) {
@@ -111,6 +138,8 @@ function addItem(scene, item) {
 }
 
 function applyOneOperation(scene, operation) {
+  if (operation.type === 'arrange-exhibition-sections') return arrangeExhibitionSections(scene, operation);
+  if (operation.type === 'create-exhibition-divider') return createExhibitionDivider(scene, operation);
   if (operation.type === 'update-room-style') {
     const { type: _type, ...style } = operation;
     return { ...scene, roomSize: { ...scene.roomSize, ...style } };
@@ -145,11 +174,32 @@ function applyOneOperation(scene, operation) {
   return { ...scene, items };
 }
 
-export function applySceneOperationPlan(currentScene, plan) {
+export function applySceneOperationPlan(currentScene, plan, options = {}) {
   try {
+    if (options.editMode === 'complete') return applyCompleteEditorPlan(currentScene, sceneOperationPlanSchema.parse(plan).operations, options, applyOneOperation);
     const source = sanitizeSceneSnapshot(structuredClone(currentScene));
     const parsedPlan = sceneOperationPlanSchema.parse(plan);
-    const next = parsedPlan.operations.reduce(applyOneOperation, source);
+    const validatedPlacements = new Map();
+    const next = parsedPlan.operations.reduce((scene, operation) => {
+      const updated = applyOneOperation(scene, operation);
+      if (['arrange-exhibition-sections', 'create-exhibition-divider'].includes(operation.type)) {
+        for (const item of updated.items) {
+          if (!scene.items.includes(item)) validatedPlacements.set(item.id, item);
+        }
+      }
+      return updated;
+    }, source);
+    if (parsedPlan.operations.some((op) => ['arrange-exhibition-sections', 'create-exhibition-divider'].includes(op.type))) {
+      // Semantic batches must not silently move unrelated works through legacy normalization.
+      const preserved = new Map(source.items.filter((item) => next.items.includes(item)).map((item) => [item.id, item]));
+      for (const [id, item] of validatedPlacements) if (next.items.includes(item)) preserved.set(id, item);
+      // Normalize only legacy edits, so restored poses never produce misleading adjustment warnings.
+      const result = normalizeSceneGeometry(sanitizeSceneSnapshot({ ...next, items: next.items.filter((item) => !preserved.has(item.id)) }));
+      const normalized = new Map(result.scene.items.map((item) => [item.id, item]));
+      result.scene.items = next.items.map((item) => preserved.get(item.id) || normalized.get(item.id));
+      result.scene.floorPlanElements = source.floorPlanElements;
+      return result;
+    }
     return normalizeSceneGeometry(sanitizeSceneSnapshot(next));
   } catch (error) {
     if (error instanceof SceneOperationError) throw error;

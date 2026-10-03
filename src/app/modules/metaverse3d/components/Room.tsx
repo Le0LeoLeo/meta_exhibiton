@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { useStore } from "../store/useStore";
-import { ExhibitItem, WallAnchor, WallFace, WallMaterialSettings } from "../types";
+import { ExhibitItem, RoomSize, WallAnchor, WallFace, WallMaterialSettings } from "../types";
 import { useThree, type ThreeEvent, type ThreeElements } from "@react-three/fiber";
 import { Group, Plane, Raycaster, Vector3 } from "three";
 import { ReactNode } from "react";
@@ -15,6 +15,10 @@ import { getGalleryWallFinish } from "../materials/galleryWallFinish";
 import { ArchitecturalTrim } from "./ArchitecturalTrim";
 import { GalleryCeiling } from "./GalleryCeiling";
 import { useRenderPerformanceProfile } from "../performanceProfile";
+import { resolveItemPlacementY, resolveItemPreviewSize } from "../items/itemBehaviorRegistry";
+import { getWallMountOffset } from "../items/wallPlacement";
+import { getTemplateDisplay } from '../items/templateDisplay';
+import type { SceneSnapshot } from "../store/metaverseStoreTypes";
 
 type WallSegment = {
   id: string;
@@ -34,36 +38,23 @@ type PartitionSurface = {
   isLocked: boolean;
 };
 
-function getPreviewBox(type: ExhibitItem["type"]): [number, number, number] {
-  if (type === "painting") return [2, 1.5, 0.12];
-  if (type === "text") return [1.6, 1.2, 0.12];
-  if (type === "partition") return [5, 3, 0.2];
-  if (type === "lightstrip") return [2, 0.12, 0.12];
-  if (type === "flower") return [0.8, 0.8, 0.8];
-  if (type === "chandelier") return [0.9, 0.9, 0.9];
-  if (type === "bench") return [2.4, 1.1, 1];
-  if (type === "rug") return [2.4, 0.04, 1.6];
-  if (type === "vase") return [0.9, 1.1, 0.9];
-  if (type === "sculpture") return [1.3, 1.8, 1.3];
-  if (type === "spotlight") return [0.9, 1.2, 0.9];
-  if (type === "plant") return [1.1, 1.4, 1.1];
-  if (type === "column") return [1, 3, 1];
-  if (type === "neon") return [1.8, 0.8, 0.12];
-  return [1, 1, 1];
-}
-
 const PreviewGhost = memo(function PreviewGhost({
   type,
   position,
   rotation,
   surfaceKind,
+  roomSize,
+  itemDefaults,
 }: {
   type: ExhibitItem["type"];
   position: [number, number, number];
   rotation: [number, number, number];
   surfaceKind?: "room-wall" | "partition";
+  roomSize: RoomSize;
+  itemDefaults?: Partial<ExhibitItem>;
 }) {
-  const box = getPreviewBox(type);
+  const display = getTemplateDisplay({ type, content: itemDefaults?.content ?? '', modelOffset: itemDefaults?.modelOffset });
+  const box = display?.size ?? resolveItemPreviewSize(type, roomSize);
   const isWallMounted = type === "painting" || type === "text" || type === "lightstrip";
   const isPartitionPreview = surfaceKind === "partition";
   const offsetZ = isWallMounted ? (isPartitionPreview ? 0.16 : 0.08) : 0;
@@ -76,7 +67,7 @@ const PreviewGhost = memo(function PreviewGhost({
           <meshStandardMaterial color="#93c5fd" transparent opacity={0.2} depthWrite={false} />
         </mesh>
       )}
-      <mesh position={[0, 0, offsetZ]} renderOrder={10}>
+      <mesh position={[0, display ? box[1] / 2 : 0, offsetZ]} renderOrder={10}>
         <boxGeometry args={box} />
         <meshBasicMaterial color="#22d3ee" transparent opacity={isWallMounted ? 0.85 : 0.28} wireframe={!isPartitionPreview} depthTest={false} depthWrite={false} />
       </mesh>
@@ -100,22 +91,30 @@ const Collision = memo(function Collision({ enabled, children, ...props }: { ena
   );
 });
 
-export function Room() {
+export function Room({ sceneOverride = null }: { sceneOverride?: SceneSnapshot | null } = {}) {
   const performanceProfile = useRenderPerformanceProfile();
-  const mode = useStore((state) => state.mode);
-  const roomSize = useStore((state) => state.roomSize);
-  const selectedWallFace = useStore((state) => state.selectedWallFace);
-  const selectedWallSegmentId = useStore((state) => state.selectedWallSegmentId);
-  const pendingPlacement = useStore((state) => state.pendingPlacement);
-  const items = useStore((state) => state.items);
-  const wallMaterialOverrides = useStore((state) => state.wallMaterialOverrides);
+  const storeMode = useStore((state) => state.mode);
+  const storeRoomSize = useStore((state) => state.roomSize);
+  const storeSelectedWallFace = useStore((state) => state.selectedWallFace);
+  const storeSelectedWallSegmentId = useStore((state) => state.selectedWallSegmentId);
+  const storePendingPlacement = useStore((state) => state.pendingPlacement);
+  const storeItems = useStore((state) => state.items);
+  const storeWallMaterialOverrides = useStore((state) => state.wallMaterialOverrides);
   const setSelectedWallFace = useStore((state) => state.setSelectedWallFace);
   const setSelectedWallAnchor = useStore((state) => state.setSelectedWallAnchor);
   const setSelectedWallSegmentId = useStore((state) => state.setSelectedWallSegmentId);
   const setSelectedItemId = useStore((state) => state.setSelectedItemId);
   const setPendingPlacement = useStore((state) => state.setPendingPlacement);
   const addItem = useStore((state) => state.addItem);
-  const floorPlanElements = useStore((state) => state.floorPlanElements);
+  const storeFloorPlanElements = useStore((state) => state.floorPlanElements);
+  const mode = sceneOverride ? "view" : storeMode;
+  const roomSize = sceneOverride?.roomSize ?? storeRoomSize;
+  const selectedWallFace = sceneOverride ? null : storeSelectedWallFace;
+  const selectedWallSegmentId = sceneOverride ? null : storeSelectedWallSegmentId;
+  const pendingPlacement = sceneOverride ? undefined : storePendingPlacement;
+  const items = sceneOverride?.items ?? storeItems;
+  const wallMaterialOverrides = sceneOverride?.wallMaterialOverrides ?? storeWallMaterialOverrides;
+  const floorPlanElements = sceneOverride?.floorPlanElements ?? storeFloorPlanElements;
   const isView = mode === "view";
   const [hoveredWallId, setHoveredWallId] = useState<string | null>(null);
   const previewRef = useRef<Group>(null);
@@ -172,9 +171,10 @@ export function Room() {
     const itemHeight = targetType === "painting" ? 1.5 : targetType === "text" ? 1.2 : 1;
     const desired = position[1] + itemHeight / 2 + 0.22;
     const lightY = Math.max(1.6, Math.min(roomSize.height - 0.2, desired));
+    const depthDelta = getWallMountOffset("lightstrip") - getWallMountOffset(targetType);
 
     return {
-      position: [position[0], lightY, position[2]] as [number, number, number],
+      position: [position[0] + Math.sin(rotation[1]) * depthDelta, lightY, position[2] + Math.cos(rotation[1]) * depthDelta] as [number, number, number],
       rotation: [0, rotation[1] ?? 0, 0] as [number, number, number],
     };
   };
@@ -215,50 +215,27 @@ export function Room() {
     return { horizontal: 0.6, vertical: 0.6 };
   };
 
-  const getFreePlacementY = (type: string) => {
-    switch (type) {
-      case "partition":
-        return roomSize.height / 2;
-      case "pedestal":
-      case "flower":
-      case "vase":
-      case "sculpture":
-      case "plant":
-      case "column":
-      case "bench":
-        return 0;
-      case "spotlight":
-        return 0.2;
-      case "neon":
-        return 1.4;
-      case "lightstrip":
-        return 2.2;
-      case "chandelier":
-        return Math.max(2.6, roomSize.height - 0.8);
-      case "rug":
-        return 0.01;
-      default:
-        return 1.5;
-    }
-  };
-
-  const resolveFreePlacement = (point: { x: number; y: number; z: number }) => {
+  const resolveFreePlacement = useCallback((point: { x: number; y: number; z: number }) => {
     const type = pendingPlacement?.type ?? "pedestal";
+    const display = getTemplateDisplay({ type, content: pendingPlacement?.itemDefaults?.content ?? '', modelOffset: pendingPlacement?.itemDefaults?.modelOffset });
+    const angle = pendingPlacement?.rotation[1] ?? 0;
+    const paddingX = display ? (Math.abs(Math.cos(angle)) * display.size[0] + Math.abs(Math.sin(angle)) * display.size[2]) / 2 + 0.1 : 0.5;
+    const paddingZ = display ? (Math.abs(Math.sin(angle)) * display.size[0] + Math.abs(Math.cos(angle)) * display.size[2]) / 2 + 0.1 : 0.5;
     const snapStep = type === "rug" ? 0.25 : 0.5;
     const snapValue = (value: number, step: number) => Math.round(value / step) * step;
-    const minX = roomExtents.minX + 0.5;
-    const maxX = roomExtents.maxX - 0.5;
-    const minZ = roomExtents.minZ + 0.5;
-    const maxZ = roomExtents.maxZ - 0.5;
+    const minX = roomExtents.minX + paddingX;
+    const maxX = roomExtents.maxX - paddingX;
+    const minZ = roomExtents.minZ + paddingZ;
+    const maxZ = roomExtents.maxZ - paddingZ;
     const x = Math.max(minX, Math.min(maxX, snapValue(point.x, snapStep)));
     const z = Math.max(minZ, Math.min(maxZ, snapValue(point.z, snapStep)));
-    const y = getFreePlacementY(type);
+    const y = resolveItemPlacementY(type, roomSize);
     const rotation = pendingPlacement?.rotation ?? [0, 0, 0];
     return {
       position: [x, y, z] as [number, number, number],
       rotation,
     };
-  };
+  }, [pendingPlacement?.itemDefaults?.content, pendingPlacement?.itemDefaults?.modelOffset, pendingPlacement?.rotation, pendingPlacement?.type, roomExtents.maxX, roomExtents.maxZ, roomExtents.minX, roomExtents.minZ, roomSize]);
 
   useEffect(() => {
     if (mode !== "edit" || !pendingPlacement || isWallMountedPending) return;
@@ -281,12 +258,12 @@ export function Room() {
       batchPositions: undefined,
       batchRotation: undefined,
     });
-  }, [mode, pendingPlacement, isWallMountedPending, pointer.x, pointer.y, camera, setPendingPlacement]);
+  }, [mode, pendingPlacement, isWallMountedPending, pointer.x, pointer.y, camera, setPendingPlacement, pointer, resolveFreePlacement]);
 
-  const resolveWallPreviewPlacement = (wall: WallSegment, point: { x: number; y: number; z: number }) => {
+  const resolveWallPreviewPlacement = useCallback((wall: WallSegment, point: { x: number; y: number; z: number }) => {
     const extent = getWallMountedExtent(pendingPlacement?.type ?? "painting");
     const edgePadding = 0.12;
-    const wallDepthOffset = roomSize.wallThickness / 2 + 0.02;
+    const wallDepthOffset = wall.size[2] / 2 + getWallMountOffset(pendingPlacement?.type ?? "painting");
     const isBackSide = pendingPlacement?.wallSide === "back";
     const normalSign = isBackSide ? -1 : 1;
     const snapStep = pendingPlacement?.type === "text" ? 0.25 : 0.5;
@@ -358,12 +335,12 @@ export function Room() {
         verticalEnd: [anchorPosition[0], roomSize.height - extent.vertical - 0.2, anchorPosition[2]] as [number, number, number],
       },
     };
-  };
+  }, [pendingPlacement?.batchPositions, pendingPlacement?.position, pendingPlacement?.type, pendingPlacement?.wallSide, roomSize.height]);
 
-  const resolvePartitionPreviewPlacement = (partition: PartitionSurface, point: { x: number; y: number; z: number }) => {
+  const resolvePartitionPreviewPlacement = useCallback((partition: PartitionSurface, point: { x: number; y: number; z: number }) => {
     const extent = getWallMountedExtent(pendingPlacement?.type ?? "painting");
     const edgePadding = 0.12;
-    const wallDepthOffset = roomSize.wallThickness / 2 + 0.02;
+    const wallDepthOffset = getWallMountOffset(pendingPlacement?.type ?? "painting");
     const isBackSide = pendingPlacement?.wallSide === "back";
     const sideMultiplier = isBackSide ? -1 : 1;
     const snapStep = pendingPlacement?.type === "text" ? 0.25 : 0.5;
@@ -427,7 +404,7 @@ export function Room() {
         verticalEnd: [anchorPosition[0], roomSize.height - extent.vertical - 0.2, anchorPosition[2]] as [number, number, number],
       },
     };
-  };
+  }, [pendingPlacement?.batchPositions, pendingPlacement?.position, pendingPlacement?.type, pendingPlacement?.wallSide, roomSize.height]);
 
   const handleWallPointerDown = (wall: WallSegment, e: ThreeEvent<PointerEvent>) => {
     if (mode !== "edit") return;
@@ -551,6 +528,7 @@ export function Room() {
   }, [mode, pendingPlacement, setPendingPlacement]);
 
   useEffect(() => {
+    if (sceneOverride) return;
     if (mode !== "edit") {
       setSelectedWallSegmentId(null);
       setHoveredWallId(null);
@@ -560,7 +538,7 @@ export function Room() {
     if (!selectedWallSegmentId) return;
     const exists = wallSegments.some((wall) => wall.id === selectedWallSegmentId);
     if (!exists) setSelectedWallSegmentId(null);
-  }, [mode, selectedWallSegmentId, wallSegments, setSelectedWallSegmentId]);
+  }, [mode, sceneOverride, selectedWallSegmentId, wallSegments, setSelectedWallSegmentId]);
 
   const resolvedWallTextureUrl = roomSize.wallTextureUrl || "/textures/wall-paint.svg";
   const resolvedFloorTextureUrl = roomSize.floorTextureUrl || "/textures/wall-concrete.svg";
@@ -603,7 +581,7 @@ export function Room() {
       y: pendingPlacement.position[1],
       z: pendingPlacement.position[2],
     }).guides;
-  }, [pendingPlacement, isWallMountedPending, selectedWallSegmentId, wallSegments, partitionSurfaces]);
+  }, [pendingPlacement, isWallMountedPending, selectedWallSegmentId, wallSegments, resolveWallPreviewPlacement, partitionSurfaces, resolvePartitionPreviewPlacement]);
 
   const previewPositions = pendingPlacement?.batchPositions?.length
     ? pendingPlacement.batchPositions
@@ -636,6 +614,8 @@ export function Room() {
               position={position}
               rotation={previewRotation as [number, number, number]}
               surfaceKind={pendingPlacement.surfaceKind}
+              roomSize={roomSize}
+              itemDefaults={pendingPlacement.itemDefaults}
             />
           ))}
           {previewGuide && (
@@ -701,7 +681,7 @@ export function Room() {
                   if (mode !== "edit" || !pendingPlacement || isWallMountedPending) return;
                   e.stopPropagation();
                   const next = resolveFreePlacement(e.point);
-                  addItem(pendingPlacement.type, { position: next.position, rotation: next.rotation });
+                  addItem(pendingPlacement.type, { ...pendingPlacement.itemDefaults, position: next.position, rotation: next.rotation });
                   if (pendingPlacement.autoTopLightstrip) {
                     const lightPlacement = createAutoTopLightstripPlacement(pendingPlacement.type, next.position, next.rotation);
                     if (lightPlacement) addItem("lightstrip", lightPlacement);
@@ -746,6 +726,8 @@ export function Room() {
                   length={length}
                   height={roomSize.height}
                   mode={performanceProfile.effectiveMode}
+                  neutralFinish={resolvedWallTextureUrl === '/textures/template-wall.svg'}
+                  darkFinish={resolvedWallTextureUrl === '/textures/template-wall-spotlight.svg' || resolvedWallTextureUrl === '/textures/template-wall-warm.svg'}
                 />
               </group>
             )}
@@ -754,6 +736,7 @@ export function Room() {
       })}
 
       <ArchitecturalTrim
+        baseboardColor={resolvedWallTextureUrl === '/textures/template-wall-spotlight.svg' || resolvedWallTextureUrl === '/textures/template-wall-warm.svg' ? '#292725' : undefined}
         wallSegments={wallTopology.segments}
         doorOpenings={wallTopology.doorOpenings}
         showCeilingShadowGap={isView}
@@ -910,15 +893,18 @@ export function Room() {
                     color={displayWallColor}
                     textureOffset={wallTextureTransform.offset}
                     textureRotation={wallTextureTransform.rotation}
+                    roughness={wallMaterialProps.roughness}
+                    metalness={wallMaterialProps.metalness}
+                    envMapIntensity={wallMaterialProps.envMapIntensity}
                   />
                 ) : (
                   <LegacySurfaceMaterial
                     textureUrl={wallMaterial.wallTextureUrl}
                     repeat={[wallMaterial.wallTextureTiling, wallMaterial.wallTextureTiling]}
                     color={displayWallColor}
-                    roughness={Math.max(0.42, wallMaterialProps.roughness)}
-                    metalness={Math.min(0.06, wallMaterialProps.metalness)}
-                    envMapIntensity={Math.max(0.18, wallMaterialProps.envMapIntensity)}
+                    roughness={wallMaterialProps.roughness}
+                    metalness={wallMaterialProps.metalness}
+                    envMapIntensity={wallMaterialProps.envMapIntensity}
                   />
                 )}
               </mesh>

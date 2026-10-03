@@ -2,16 +2,199 @@ import { Text, TransformControls, useGLTF } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { ExhibitItem } from "../types";
+import {
+  getExhibitModelQuality,
+  optimizeExhibitModel,
+  type ExhibitModelQuality,
+} from "../../../features/metaverse-studio/exhibits/exhibitModelOptimization";
+import {
+  getPaintingFrameAppearance,
+} from "../paintingFrameAppearance";
+import { PaintingRailGeometry, PaintingRailMaterial } from "./PaintingRailSurface";
 import { useMetaverseStudioStore } from "../store/useMetaverseStudioStore";
+import { useI18n } from "../../../components/I18nProvider";
 import flowerModelUrl from "../../../../../flower.glb?url";
 
+function PaintingFrame({
+  item,
+  quality,
+}: {
+  item: ExhibitItem;
+  quality: ExhibitModelQuality;
+}) {
+  const artworkWidth = item.frameWidth ?? 2;
+  const artworkHeight = item.frameHeight ?? 1.4;
+  const appearance = getPaintingFrameAppearance(item);
+  const hasFrame = appearance.frameStyle !== "borderless";
+  const revealWidth = appearance.frameStyle === "floating"
+    ? Math.max(0.04, appearance.frameMatWidth)
+    : appearance.frameMatEnabled
+      ? appearance.frameMatWidth
+      : 0;
+  const frameThickness = hasFrame ? appearance.frameThickness : 0;
+  const innerWidth = artworkWidth + revealWidth * 2;
+  const innerHeight = artworkHeight + revealWidth * 2;
+  const outerWidth = innerWidth + frameThickness * 2;
+  const outerHeight = innerHeight + frameThickness * 2;
+  const frameDepth = appearance.frameDepth;
+  const accentSize = Math.min(Math.max(frameThickness * 0.16, 0.012), 0.028);
+  const showAccent = hasFrame &&
+    (appearance.frameStyle === "classic" || appearance.frameStyle === "metal");
+
+  const railMaterial = (
+    <PaintingRailMaterial
+      style={appearance.frameStyle}
+      color={appearance.frameColor}
+    />
+  );
+  const accentMaterial = (
+    <meshStandardMaterial
+      color={appearance.frameInnerColor}
+      roughness={0.24}
+      metalness={0.68}
+    />
+  );
+
+  return (
+    <group name="painting-frame" userData={{ frameStyle: appearance.frameStyle }}>
+      <mesh
+        name="painting-frame-backboard"
+        position={[0, 0, -frameDepth * 0.58]}
+        castShadow={quality.castShadows}
+        receiveShadow={quality.castShadows}
+      >
+        <boxGeometry
+          args={[
+            Math.max(artworkWidth, innerWidth),
+            Math.max(artworkHeight, innerHeight),
+            Math.max(0.025, frameDepth * 0.38),
+          ]}
+        />
+        <meshStandardMaterial
+          color={appearance.frameStyle === "floating" ? appearance.frameInnerColor : "#202226"}
+          roughness={0.78}
+          metalness={0.04}
+        />
+      </mesh>
+
+      {appearance.frameMatEnabled && appearance.frameStyle !== "floating" && (
+        <mesh
+          name="painting-frame-mat"
+          position={[0, 0, -0.012]}
+          receiveShadow={quality.castShadows}
+        >
+          <planeGeometry args={[innerWidth, innerHeight]} />
+          <meshStandardMaterial color={appearance.frameMatColor} roughness={0.92} metalness={0} />
+        </mesh>
+      )}
+
+      {hasFrame && (
+        <group name="painting-frame-rails">
+          <mesh
+            name="painting-frame-rail"
+            position={[0, outerHeight / 2 - frameThickness / 2, -frameDepth / 2]}
+            castShadow={quality.castShadows}
+            receiveShadow={quality.castShadows}
+          >
+            <PaintingRailGeometry args={[outerWidth, frameThickness, frameDepth]} />
+            {railMaterial}
+          </mesh>
+          <mesh
+            name="painting-frame-rail"
+            position={[0, -outerHeight / 2 + frameThickness / 2, -frameDepth / 2]}
+            castShadow={quality.castShadows}
+            receiveShadow={quality.castShadows}
+          >
+            <PaintingRailGeometry args={[outerWidth, frameThickness, frameDepth]} />
+            {railMaterial}
+          </mesh>
+          <mesh
+            name="painting-frame-rail"
+            position={[-outerWidth / 2 + frameThickness / 2, 0, -frameDepth / 2]}
+            rotation={[0, 0, Math.PI / 2]}
+            castShadow={quality.castShadows}
+            receiveShadow={quality.castShadows}
+          >
+            <PaintingRailGeometry args={[Math.max(0.01, innerHeight), frameThickness, frameDepth]} />
+            {railMaterial}
+          </mesh>
+          <mesh
+            name="painting-frame-rail"
+            position={[outerWidth / 2 - frameThickness / 2, 0, -frameDepth / 2]}
+            rotation={[0, 0, Math.PI / 2]}
+            castShadow={quality.castShadows}
+            receiveShadow={quality.castShadows}
+          >
+            <PaintingRailGeometry args={[Math.max(0.01, innerHeight), frameThickness, frameDepth]} />
+            {railMaterial}
+          </mesh>
+        </group>
+      )}
+
+      {showAccent && (
+        <group name="painting-frame-accent">
+          <mesh position={[0, innerHeight / 2 + accentSize / 2, 0.008]}>
+            <boxGeometry args={[innerWidth + accentSize * 2, accentSize, accentSize]} />
+            {accentMaterial}
+          </mesh>
+          <mesh position={[0, -innerHeight / 2 - accentSize / 2, 0.008]}>
+            <boxGeometry args={[innerWidth + accentSize * 2, accentSize, accentSize]} />
+            {accentMaterial}
+          </mesh>
+          <mesh position={[-innerWidth / 2 - accentSize / 2, 0, 0.008]}>
+            <boxGeometry args={[accentSize, innerHeight, accentSize]} />
+            {accentMaterial}
+          </mesh>
+          <mesh position={[innerWidth / 2 + accentSize / 2, 0, 0.008]}>
+            <boxGeometry args={[accentSize, innerHeight, accentSize]} />
+            {accentMaterial}
+          </mesh>
+        </group>
+      )}
+
+      <mesh
+        userData={{ itemType: "painting", itemId: item.id }}
+        position={[0, 0, 0.018]}
+      >
+        <planeGeometry args={[artworkWidth, artworkHeight]} />
+        <meshBasicMaterial color="#ffffff" />
+      </mesh>
+
+      {appearance.frameGlassEnabled && (
+        <mesh name="painting-frame-glass" position={[0, 0, 0.032]} renderOrder={2}>
+          <planeGeometry args={[artworkWidth, artworkHeight]} />
+          <meshPhysicalMaterial
+            color="#ffffff"
+            transparent
+            opacity={0.055}
+            roughness={0.06}
+            metalness={0}
+            clearcoat={1}
+            clearcoatRoughness={0.04}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
 function StudioExhibitItemImpl({ item }: { item: ExhibitItem }) {
+  const { t } = useI18n();
   const mode = useMetaverseStudioStore((s) => s.mode);
   const roomSize = useMetaverseStudioStore((s) => s.roomSize);
   const selectedItemId = useMetaverseStudioStore((s) => s.selectedItemId);
   const setSelectedItemId = useMetaverseStudioStore((s) => s.setSelectedItemId);
   const updateItem = useMetaverseStudioStore((s) => s.updateItem);
+  const effectivePerformanceMode = useMetaverseStudioStore(
+    (s) => s.effectivePerformanceMode,
+  );
+  const quality = useMemo(
+    () => getExhibitModelQuality(effectivePerformanceMode),
+    [effectivePerformanceMode],
+  );
 
   const groupRef = useRef<THREE.Group>(null);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale">("translate");
@@ -63,21 +246,35 @@ function StudioExhibitItemImpl({ item }: { item: ExhibitItem }) {
   }, [isSelected]);
 
   const flowerScene = useGLTF(flowerModelUrl);
+  const optimizedFlower = useMemo(() => {
+    if (item.type !== "plant") return null;
+    const root = cloneSkeleton(flowerScene.scene);
+    optimizeExhibitModel(root, quality, quality.textureAnisotropy);
+    return root;
+  }, [flowerScene.scene, item.type, quality]);
 
   const content = useMemo(() => {
     if (item.type === "painting") {
+      const appearance = getPaintingFrameAppearance(item);
+      const revealWidth = appearance.frameStyle === "floating"
+        ? Math.max(0.04, appearance.frameMatWidth)
+        : appearance.frameMatEnabled
+          ? appearance.frameMatWidth
+          : 0;
+      const frameThickness = appearance.frameStyle === "borderless"
+        ? 0
+        : appearance.frameThickness;
+      const labelY = -(
+        (item.frameHeight ?? 1.4) / 2 +
+        revealWidth +
+        frameThickness +
+        0.16
+      );
       return (
         <group>
-          <mesh position={[0, 0, -0.05]}>
-            <boxGeometry args={[(item.frameWidth ?? 2) + 0.2, (item.frameHeight ?? 1.4) + 0.2, 0.1]} />
-            <meshStandardMaterial color="#1f2937" />
-          </mesh>
-          <mesh userData={{ itemType: "painting", itemId: item.id }}>
-            <planeGeometry args={[item.frameWidth ?? 2, item.frameHeight ?? 1.4]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          <Text position={[0, -((item.frameHeight ?? 1.4) / 2 + 0.25), 0.02]} fontSize={0.1} color="#111827">
-            {item.title || "未命名作品"}
+          <PaintingFrame item={item} quality={quality} />
+          <Text position={[0, labelY, 0.02]} fontSize={0.1} color="#111827">
+            {item.title || t("artworkEditUntitled")}
           </Text>
         </group>
       );
@@ -87,11 +284,11 @@ function StudioExhibitItemImpl({ item }: { item: ExhibitItem }) {
       return (
         <group>
           <mesh position={[0, 0.5, 0]}>
-            <cylinderGeometry args={[0.45, 0.5, 1, 24]} />
+            <cylinderGeometry args={[0.45, 0.5, 1, quality.radialSegments]} />
             <meshStandardMaterial color="#e2e8f0" />
           </mesh>
           <mesh position={[0, 1.1, 0]}>
-            <cylinderGeometry args={[0.35, 0.35, 0.1, 24]} />
+            <cylinderGeometry args={[0.35, 0.35, 0.1, quality.radialSegments]} />
             <meshStandardMaterial color="#cbd5e1" />
           </mesh>
         </group>
@@ -101,7 +298,7 @@ function StudioExhibitItemImpl({ item }: { item: ExhibitItem }) {
     if (item.type === "plant") {
       return (
         <group>
-          <primitive object={flowerScene.scene.clone(true)} />
+          {optimizedFlower && <primitive object={optimizedFlower} />}
         </group>
       );
     }
@@ -117,7 +314,7 @@ function StudioExhibitItemImpl({ item }: { item: ExhibitItem }) {
       return (
         <group>
           {item.textBackboardEnabled && (
-            <mesh data-testid="studio-text-backboard" data-color={item.textBackboardColor || "#ffffff"} position={[0, 0, -0.04]}>
+            <mesh name="studio-text-backboard" position={[0, 0, -0.04]}>
               <planeGeometry args={[boardWidth, boardHeight]} />
               <meshStandardMaterial color={item.textBackboardColor || "#ffffff"} roughness={0.75} metalness={0.04} />
             </mesh>
@@ -135,7 +332,7 @@ function StudioExhibitItemImpl({ item }: { item: ExhibitItem }) {
         <meshStandardMaterial color={item.content || "#e5e7eb"} />
       </mesh>
     );
-  }, [flowerScene.scene, item]);
+  }, [item, optimizedFlower, quality, t]);
 
   return (
     <>
@@ -150,7 +347,7 @@ function StudioExhibitItemImpl({ item }: { item: ExhibitItem }) {
           translationSnap={0.5}
           rotationSnap={Math.PI / 12}
           onMouseUp={(e) => {
-            if (typeof e.button === "number" && e.button !== 0) return;
+            if (e && "button" in e && typeof e.button === "number" && e.button !== 0) return;
             if (!groupRef.current) return;
             const [x, y, z] = groupRef.current.position.toArray();
             const [rx, ry, rz] = groupRef.current.rotation.toArray();

@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import type { BaseMetaverseActions, BaseMetaverseState } from "./metaverseStoreTypes";
+import type { AppState } from "./useMetaverseStudioStore";
 
-export type MetaverseStoreState = BaseMetaverseState & BaseMetaverseActions;
+export type MetaverseStoreState = AppState;
 export type MetaverseStoreSlice<T> = StateCreator<MetaverseStoreState, [], [], T>;

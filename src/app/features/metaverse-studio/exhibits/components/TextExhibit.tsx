@@ -1,8 +1,9 @@
 import { Text } from "@react-three/drei";
 
+import { BeveledBox } from "@/app/modules/metaverse3d/components/geometry/BeveledBox";
 import type { ExhibitRendererProps } from "../exhibitRegistry";
 
-export function TextExhibit({ item, isSelected }: ExhibitRendererProps) {
+export function TextExhibit({ item, isSelected, quality }: ExhibitRendererProps) {
   const normalizedContent = item.content || " ";
   const lines = normalizedContent.split("\n");
   const lineCount = Math.max(1, lines.length);
@@ -24,10 +25,21 @@ export function TextExhibit({ item, isSelected }: ExhibitRendererProps) {
   return (
     <group>
       {backboardEnabled && (
-        <mesh position={[0, 0, -0.04]} castShadow receiveShadow>
-          <planeGeometry args={[boardWidth, boardHeight]} />
-          <meshStandardMaterial color={backboardColor} roughness={0.75} metalness={0.04} />
-        </mesh>
+        <BeveledBox
+          dimensions={[boardWidth, boardHeight, 0.07]}
+          bevelRadius={0.018}
+          position={[0, 0, -0.04]}
+          castShadow={quality.castShadows}
+          receiveShadow={quality.castShadows}
+        >
+          <meshPhysicalMaterial
+            color={backboardColor}
+            roughness={0.62}
+            metalness={0.03}
+            clearcoat={0.18}
+            clearcoatRoughness={0.42}
+          />
+        </BeveledBox>
       )}
       <Text
         color={color}

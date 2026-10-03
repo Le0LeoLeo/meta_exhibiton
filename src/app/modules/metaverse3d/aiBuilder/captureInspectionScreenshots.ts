@@ -1,11 +1,13 @@
 import type { BuilderScreenshot } from "../../../api/exhibitionScene";
-import type { RoomSize } from "../types";
+import type { FloorPlanElement, RoomSize } from "../types";
+import { getFloorPlanCenter, getFloorPlanRoomBounds } from '../store/floorPlanGeometry';
 
 type CaptureOptions = {
   canvas?: HTMLCanvasElement | null;
   documentRef?: Document;
   frameDelayMs?: number;
   roomSize?: RoomSize;
+  floorPlanElements?: FloorPlanElement[];
 };
 
 export type BuilderInspectionView = {
@@ -17,14 +19,9 @@ export type BuilderInspectionView = {
 };
 
 export type BuilderInspectionCaptureController = {
+  roomSize?: RoomSize;
   captureInspectionView: (view: BuilderInspectionView) => Promise<string>;
 };
-
-const INSPECTION_VIEWS = [
-  { viewId: "entrance-current", label: "Current editor view for entrance/readability check" },
-  { viewId: "wall-current", label: "Current editor view for wall-object collision check" },
-  { viewId: "layout-current", label: "Current editor view for spacing/path check" },
-] as const;
 
 let activeCaptureController: BuilderInspectionCaptureController | null = null;
 
@@ -32,42 +29,56 @@ function round(value: number) {
   return Math.round(value * 10) / 10;
 }
 
-export function createBuilderInspectionViews(roomSize: Pick<RoomSize, "width" | "length" | "height">): BuilderInspectionView[] {
-  const halfWidth = Math.max(4, roomSize.width / 2);
-  const halfLength = Math.max(4, roomSize.length / 2);
-  const eyeHeight = Math.min(Math.max(2.8, roomSize.height * 0.53), 4.2);
+export function createBuilderInspectionViews(roomSize: Pick<RoomSize, "width" | "length" | "height">, floorPlanElements: FloorPlanElement[] = []): BuilderInspectionView[] {
+  const halfWidth = roomSize.width / 2;
+  const halfLength = roomSize.length / 2;
+  const eyeHeight = Math.min(2.8, roomSize.height - 0.6);
   const targetHeight = Math.min(Math.max(1.6, roomSize.height * 0.3), 2.2);
 
-  return [
+  const views: BuilderInspectionView[] = [
     {
       viewId: "entrance",
       label: "Entrance view: readability, first impression, and path opening",
-      position: [0, round(eyeHeight), round(halfLength * 1.4)],
+      position: [0, round(eyeHeight), round(halfLength * 0.65)],
       target: [0, round(targetHeight), 0],
       fov: 58,
     },
     {
       viewId: "left-wall",
       label: "Left wall view: wall-mounted object clearance and label readability",
-      position: [round(-halfWidth * 1.35), round(eyeHeight), 0],
-      target: [0, round(targetHeight), 0],
+      position: [round(halfWidth * 0.55), round(eyeHeight), 0],
+      target: [round(-halfWidth + 0.4), round(targetHeight), 0],
       fov: 58,
     },
     {
       viewId: "right-wall",
       label: "Right wall view: wall-mounted object clearance and spacing",
-      position: [round(halfWidth * 1.35), round(eyeHeight), 0],
-      target: [0, round(targetHeight), 0],
+      position: [round(-halfWidth * 0.55), round(eyeHeight), 0],
+      target: [round(halfWidth - 0.4), round(targetHeight), 0],
       fov: 58,
     },
     {
-      viewId: "top-down",
-      label: "Top-down view: circulation, overlaps, and floor object placement",
-      position: [0, round(Math.max(roomSize.height + 6, halfLength * 1.5)), 0.1],
-      target: [0, 0, 0],
+      viewId: "rear-overview",
+      label: "Elevated indoor rear view: entrance, circulation, and floor objects (not a floor plan)",
+      position: [round(halfWidth * 0.3), round(roomSize.height - 0.6), round(-halfLength * 0.65)],
+      target: [0, round(targetHeight), round(halfLength * 0.5)],
       fov: 62,
     },
   ];
+  const bounds = getFloorPlanRoomBounds(floorPlanElements, roomSize.width, roomSize.length);
+  const center = getFloorPlanCenter(bounds);
+  const additionalRooms = bounds.filter((room) => Math.abs((room.minX + room.maxX) / 2 - center.x) > 0.1 || Math.abs((room.minZ + room.maxZ) / 2 - center.z) > 0.1);
+  // Inspect opposing display walls in every annex, not just half its exhibits.
+  if (additionalRooms.length > 6) views.splice(2);
+  for (const room of additionalRooms.slice(0, Math.floor((16 - views.length) / 2))) {
+    const x = (room.minX + room.maxX) / 2 - center.x;
+    const z = (room.minZ + room.maxZ) / 2 - center.z;
+    views.push({ viewId: `room-${room.id}-north`, label: `Additional room ${room.id}: north display wall`,
+      position: [round(x), round(eyeHeight), round(z + (room.maxZ - room.minZ) * 0.3)], target: [round(x), round(targetHeight), round(z - (room.maxZ - room.minZ) * 0.25)], fov: 65 });
+    views.push({ viewId: `room-${room.id}-south`, label: `Additional room ${room.id}: opposite south display wall, same room`,
+      position: [round(x), round(eyeHeight), round(z - (room.maxZ - room.minZ) * 0.3)], target: [round(x), round(targetHeight), round(z + (room.maxZ - room.minZ) * 0.25)], fov: 65 });
+  }
+  return views;
 }
 
 export function registerBuilderInspectionCaptureController(
@@ -81,29 +92,20 @@ export function registerBuilderInspectionCaptureController(
   };
 }
 
-function waitForNextFrame(frameDelayMs: number) {
-  return new Promise<void>((resolve) => {
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(() => {
-        window.setTimeout(resolve, frameDelayMs);
-      });
-      return;
-    }
-    window.setTimeout(resolve, frameDelayMs);
-  });
-}
-
-function findSceneCanvas(documentRef: Document) {
-  return documentRef.querySelector<HTMLCanvasElement>("canvas");
-}
-
 export async function captureBuilderInspectionScreenshots(
   options: CaptureOptions = {},
 ): Promise<BuilderScreenshot[]> {
-  if (activeCaptureController && options.roomSize) {
+  // A suspended preview must not accidentally capture the previous scene.
+  const deadline = Date.now() + 10000;
+  while (options.roomSize && activeCaptureController?.roomSize !== options.roomSize && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  const controller = activeCaptureController;
+  if (controller && options.roomSize && controller.roomSize === options.roomSize) {
     const screenshots: BuilderScreenshot[] = [];
-    for (const view of createBuilderInspectionViews(options.roomSize)) {
-      const dataUrl = await activeCaptureController.captureInspectionView(view);
+    for (const view of createBuilderInspectionViews(options.roomSize, options.floorPlanElements)) {
+      if (activeCaptureController !== controller) throw new Error("Inspection scene changed during capture. Try again.");
+      const dataUrl = await controller.captureInspectionView(view);
       if (!dataUrl.startsWith("data:image/")) {
         throw new Error(`3D canvas screenshot capture failed for ${view.viewId}`);
       }
@@ -116,20 +118,5 @@ export async function captureBuilderInspectionScreenshots(
     return screenshots;
   }
 
-  const documentRef = options.documentRef ?? document;
-  const canvas = options.canvas ?? findSceneCanvas(documentRef);
-  if (!canvas) throw new Error("3D canvas is not available for visual review");
-
-  const screenshots: BuilderScreenshot[] = [];
-  const frameDelayMs = options.frameDelayMs ?? 80;
-  for (const view of INSPECTION_VIEWS) {
-    await waitForNextFrame(frameDelayMs);
-    const dataUrl = canvas.toDataURL("image/png");
-    if (!dataUrl.startsWith("data:image/")) {
-      throw new Error("3D canvas screenshot capture failed");
-    }
-    screenshots.push({ ...view, dataUrl });
-  }
-
-  return screenshots;
+  throw new Error("Multi-view inspection is unavailable. Reopen the 3D editor and try again.");
 }

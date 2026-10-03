@@ -1,5 +1,5 @@
-import { Trash2 } from "lucide-react";
-import { ExhibitItem } from "../../types";
+import { Trash2, X } from "lucide-react";
+import { ExhibitItem, PaintingFrameAppearance } from "../../types";
 import { GenericColorInspector } from "./GenericColorInspector";
 import { LightstripInspector } from "./LightstripInspector";
 import { PaintingInspector } from "./PaintingInspector";
@@ -26,6 +26,7 @@ type Props = {
   updateItem: (id: string, updates: Partial<ExhibitItem>) => void;
   removeItem: (id: string) => void;
   setAllPaintingFrameSize: (width: number, height: number) => void;
+  setAllPaintingFrameAppearance: (appearance: PaintingFrameAppearance) => void;
   setAllLightStripsIntensity: (intensity: number) => void;
   isTtsGenerating: boolean;
   isTtsSpeaking: boolean;
@@ -33,6 +34,7 @@ type Props = {
   playGuideAudio: () => Promise<void>;
   stopGuideAudio: () => void;
   className?: string;
+  onClose?: () => void;
 };
 
 export function EditorInspectorPanel({
@@ -51,6 +53,7 @@ export function EditorInspectorPanel({
   updateItem,
   removeItem,
   setAllPaintingFrameSize,
+  setAllPaintingFrameAppearance,
   setAllLightStripsIntensity,
   isTtsGenerating,
   isTtsSpeaking,
@@ -58,6 +61,7 @@ export function EditorInspectorPanel({
   playGuideAudio,
   stopGuideAudio,
   className,
+  onClose,
 }: Props) {
   const { t } = useI18n();
   if (!canEditSelectedItem || !selectedItem) return null;
@@ -65,16 +69,19 @@ export function EditorInspectorPanel({
   const genericColorType = selectedItem.type in genericColorItems ? (selectedItem.type as GenericColorItemType) : null;
 
   return (
-    <div className={`absolute bottom-3 left-3 right-3 top-[23rem] overflow-y-auto rounded-[1.5rem] p-3 pointer-events-auto sm:left-auto sm:right-0 sm:top-[7.25rem] sm:bottom-4 sm:w-[20rem] sm:rounded-l-[1.8rem] sm:rounded-r-none sm:p-4 lg:w-[21rem] xl:w-[22rem] ${glassPanelClass} text-white ${className ?? ""}`}>
-      <div className="mb-4 flex items-start justify-between gap-3 sm:mb-6">
+    <div className={`editor-inspector absolute overflow-y-auto pointer-events-auto ${glassPanelClass} text-white ${className ?? ""}`}>
+      <div className="editor-panel-heading mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className={`${sectionTitleClass} text-white/60`}>Inspector</p>
+          <p className={sectionTitleClass}>{selectedItemTypeLabel}</p>
           <h3 className="text-lg font-bold text-white">{t('editorInspectorTitle')}</h3>
           <p className="mt-1 text-xs text-white/70">{t('editorInspectorCurrent')}：{selectedItemTypeLabel}</p>
         </div>
-        <button onClick={() => removeItem(selectedItem.id)} className="rounded-2xl border border-white/15 bg-white/8 p-2 text-white transition-colors hover:bg-white/14" title={t('editorInspectorDelete')}>
+        <div className="flex gap-1">
+        <button onClick={() => removeItem(selectedItem.id)} className="editor-delete rounded-lg border border-white/15 p-2 text-white" title={t('editorInspectorDelete')} aria-label={t('editorInspectorDelete')}>
           <Trash2 className="h-5 w-5" />
         </button>
+        {onClose && <button onClick={onClose} className="rounded-lg p-2 text-slate-300 hover:bg-white/10" aria-label={t('close')}><X className="size-5" /></button>}
+        </div>
       </div>
 
       <div className="mb-4 rounded-2xl border border-white/15 bg-white/8 px-3 py-2 text-[11px] text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
@@ -96,6 +103,7 @@ export function EditorInspectorPanel({
             selectedItemIsVideo={selectedItemIsVideo}
             updateItem={updateItem}
             setAllPaintingFrameSize={setAllPaintingFrameSize}
+            setAllPaintingFrameAppearance={setAllPaintingFrameAppearance}
             isTtsGenerating={isTtsGenerating}
             isTtsSpeaking={isTtsSpeaking}
             ttsError={ttsError}
@@ -125,7 +133,7 @@ export function EditorInspectorPanel({
         )}
 
         {selectedIsLockedPartition && (
-          <div className="rounded-2xl border border-amber-200/70 bg-amber-300/15 px-3 py-2 text-xs text-amber-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] backdrop-blur-md">
+          <div className="rounded-xl border border-amber-200/40 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
             {t('editorLockedPartitionNotice')}
           </div>
         )}

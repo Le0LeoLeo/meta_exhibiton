@@ -18,22 +18,23 @@ import {
 import { ExhibitItem, RoomSize } from "../../types";
 
 export const wallTexturePresets = [
-  { label: "乳膠漆細紋", value: "/textures/wall-paint.svg" },
-  { label: "清水混凝土", value: "/textures/wall-concrete.svg" },
-  { label: "木紋", value: "/textures/wall-wood.svg" },
-  { label: "金屬髮絲紋", value: "/textures/wall-metal.svg" },
+  { labelKey: "editorWallTexturePaint", value: "/textures/wall-paint.svg" },
+  { labelKey: "editorWallTextureConcrete", value: "/textures/wall-concrete.svg" },
+  { labelKey: "editorWallTextureWood", value: "/textures/wall-wood.svg" },
+  { labelKey: "editorWallTextureMetal", value: "/textures/wall-metal.svg" },
 ] as const;
 
 export const floorTexturePresets = [
-  { label: "霧面石材", value: "/textures/wall-concrete.svg" },
-  { label: "木地板", value: "/textures/wall-wood.svg" },
-  { label: "細紋塗層", value: "/textures/wall-paint.svg" },
-  { label: "金屬地坪", value: "/textures/wall-metal.svg" },
+  { labelKey: "editorFloorTextureStone", value: "/textures/wall-concrete.svg" },
+  { labelKey: "editorFloorTextureWood", value: "/textures/wall-wood.svg" },
+  { labelKey: "editorFloorTextureCoating", value: "/textures/wall-paint.svg" },
+  { labelKey: "editorFloorTextureMetal", value: "/textures/wall-metal.svg" },
 ] as const;
 
-export const decorThemePresets: Array<{ name: string; settings: Partial<RoomSize> }> = [
+export const decorThemePresets: Array<{ name: string; labelKey: string; settings: Partial<RoomSize> }> = [
   {
     name: "北歐畫廊",
+    labelKey: "editorPresetNordicGallery",
     settings: {
       wallMaterialPreset: "paint",
       wallColor: "#f4f1ea",
@@ -47,6 +48,7 @@ export const decorThemePresets: Array<{ name: string; settings: Partial<RoomSize
   },
   {
     name: "工業風",
+    labelKey: "editorPresetIndustrial",
     settings: {
       wallMaterialPreset: "concrete",
       wallColor: "#9ca3af",
@@ -60,6 +62,7 @@ export const decorThemePresets: Array<{ name: string; settings: Partial<RoomSize
   },
   {
     name: "木質藝廊",
+    labelKey: "editorPresetWarmWood",
     settings: {
       wallMaterialPreset: "wood",
       wallColor: "#b08968",
@@ -73,6 +76,7 @@ export const decorThemePresets: Array<{ name: string; settings: Partial<RoomSize
   },
   {
     name: "未來金屬",
+    labelKey: "editorPresetFutureMetal",
     settings: {
       wallMaterialPreset: "metal",
       wallColor: "#cbd5e1",
@@ -89,6 +93,7 @@ export const decorThemePresets: Array<{ name: string; settings: Partial<RoomSize
   },
   {
     name: "玻璃空間",
+    labelKey: "editorPresetGlassSpace",
     settings: {
       wallMaterialPreset: "glass",
       wallColor: "#e0f2fe",
@@ -105,51 +110,73 @@ export const decorThemePresets: Array<{ name: string; settings: Partial<RoomSize
   },
 ];
 
-export const selectedItemTypeLabelMap: Partial<Record<ExhibitItem["type"], string>> = {
-  painting: "畫作",
-  pedestal: "展台",
-  text: "文字",
-  partition: "隔間牆",
-  lightstrip: "燈條",
-  flower: "花藝",
-  chandelier: "吊燈",
-  bench: "長椅",
-  rug: "地毯",
-  vase: "花瓶",
-  sculpture: "雕塑",
-  spotlight: "投射燈",
-  plant: "盆栽",
-  column: "立柱",
-  neon: "霓虹牌",
+export const selectedItemTypeLabelMap: Record<ExhibitItem["type"], string> = {
+  painting: "editorAddPainting",
+  pedestal: "editorAddPedestal",
+  text: "editorAddText",
+  partition: "editorAddPartition",
+  lightstrip: "editorItemLightstrip",
+  flower: "editorItemFlower",
+  chandelier: "editorItemChandelier",
+  bench: "editorItemBench",
+  rug: "editorItemRug",
+  vase: "editorItemVase",
+  sculpture: "editorItemSculpture",
+  spotlight: "editorItemSpotlight",
+  plant: "editorItemPlant",
+  column: "editorItemColumn",
+  neon: "editorItemNeon",
+  chair: "editorItemChair",
+  sofa: "editorItemSofa",
+  floorlamp: "editorItemFloorLamp",
+  cabinet: "editorItemCabinet",
+  turntable: "editorItemTurntable",
+  fountain: "editorItemFountain",
+};
+
+export const editorThemePresetLabelKeys: Record<string, string> = {
+  "nordic-gallery": "editorPresetNordicGallery",
+  industrial: "editorPresetIndustrial",
+  "warm-wood": "editorPresetWarmWood",
+  "future-metal": "editorPresetFutureMetal",
+  "glass-space": "editorPresetGlassSpace",
 };
 
 export const itemToolButtons: Array<{
   type: ExhibitItem["type"];
-  label: string;
+  preset?: 'vehicle-platform';
+  labelKey: string;
   icon: typeof Square;
   className: string;
 }> = [
-  { type: "painting", label: "畫作", icon: ImageIcon, className: "text-white/90 hover:bg-white/10" },
-  { type: "pedestal", label: "展台", icon: Square, className: "text-white/90 hover:bg-white/10" },
-  { type: "text", label: "文字", icon: Type, className: "text-white/90 hover:bg-white/10" },
-  { type: "partition", label: "隔間牆", icon: Columns, className: "text-white/90 hover:bg-white/10" }
+  { type: "painting", labelKey: "editorAddPainting", icon: ImageIcon, className: "text-white/90 hover:bg-white/10" },
+  { type: "pedestal", labelKey: "editorAddPedestal", icon: Square, className: "text-white/90 hover:bg-white/10" },
+  { type: "pedestal", preset: 'vehicle-platform', labelKey: 'editorRectangularPlatform', icon: RectangleHorizontal, className: "text-white/90 hover:bg-white/10" },
+  { type: "text", labelKey: "editorAddText", icon: Type, className: "text-white/90 hover:bg-white/10" },
+  { type: "partition", labelKey: "editorAddPartition", icon: Columns, className: "text-white/90 hover:bg-white/10" }
 ];
 
 export const modelLibraryButtons: Array<{
   type: ExhibitItem["type"];
-  label: string;
+  labelKey: string;
   icon: typeof Square;
   className: string;
 }> = [
-  { type: "lightstrip", label: "燈條", icon: Lamp, className: "text-white/85 hover:bg-white/10" },
-  { type: "flower", label: "花藝", icon: Flower2, className: "text-white/85 hover:bg-white/10" },
-  { type: "chandelier", label: "吊燈", icon: Lightbulb, className: "text-white/85 hover:bg-white/10" },
-  { type: "bench", label: "長椅", icon: Armchair, className: "text-white/85 hover:bg-white/10" },
-  { type: "rug", label: "地毯", icon: RectangleHorizontal, className: "text-white/85 hover:bg-white/10" },
-  { type: "vase", label: "花瓶", icon: Package, className: "text-white/85 hover:bg-white/10" },
-  { type: "sculpture", label: "雕塑", icon: Shapes, className: "text-white/85 hover:bg-white/10" },
-  { type: "spotlight", label: "投射燈", icon: ScanSearch, className: "text-white/85 hover:bg-white/10" },
-  { type: "plant", label: "盆栽", icon: Leaf, className: "text-white/85 hover:bg-white/10" },
-  { type: "column", label: "立柱", icon: Pill, className: "text-white/85 hover:bg-white/10" },
-  { type: "neon", label: "霓虹牌", icon: Zap, className: "text-white/85 hover:bg-white/10" }
+  { type: "lightstrip", labelKey: "editorItemLightstrip", icon: Lamp, className: "text-white/85 hover:bg-white/10" },
+  { type: "flower", labelKey: "editorItemFlower", icon: Flower2, className: "text-white/85 hover:bg-white/10" },
+  { type: "chandelier", labelKey: "editorItemChandelier", icon: Lightbulb, className: "text-white/85 hover:bg-white/10" },
+  { type: "bench", labelKey: "editorItemBench", icon: Armchair, className: "text-white/85 hover:bg-white/10" },
+  { type: "rug", labelKey: "editorItemRug", icon: RectangleHorizontal, className: "text-white/85 hover:bg-white/10" },
+  { type: "vase", labelKey: "editorItemVase", icon: Package, className: "text-white/85 hover:bg-white/10" },
+  { type: "sculpture", labelKey: "editorItemSculpture", icon: Shapes, className: "text-white/85 hover:bg-white/10" },
+  { type: "spotlight", labelKey: "editorItemSpotlight", icon: ScanSearch, className: "text-white/85 hover:bg-white/10" },
+  { type: "plant", labelKey: "editorItemPlant", icon: Leaf, className: "text-white/85 hover:bg-white/10" },
+  { type: "column", labelKey: "editorItemColumn", icon: Pill, className: "text-white/85 hover:bg-white/10" },
+  { type: "neon", labelKey: "editorItemNeon", icon: Zap, className: "text-white/85 hover:bg-white/10" },
+  { type: "chair", labelKey: "editorItemChair", icon: Armchair, className: "text-white/85 hover:bg-white/10" },
+  { type: "sofa", labelKey: "editorItemSofa", icon: Armchair, className: "text-white/85 hover:bg-white/10" },
+  { type: "floorlamp", labelKey: "editorItemFloorLamp", icon: Lamp, className: "text-white/85 hover:bg-white/10" },
+  { type: "cabinet", labelKey: "editorItemCabinet", icon: Package, className: "text-white/85 hover:bg-white/10" },
+  { type: "turntable", labelKey: "editorItemTurntable", icon: ScanSearch, className: "text-white/85 hover:bg-white/10" },
+  { type: "fountain", labelKey: "editorItemFountain", icon: Shapes, className: "text-white/85 hover:bg-white/10" }
 ];

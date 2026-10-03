@@ -7,8 +7,8 @@ import {
 
 describe("scene scale", () => {
   it("uses a natural standing eye height", () => {
-    expect(DEFAULT_EYE_HEIGHT).toBeGreaterThanOrEqual(1.65);
-    expect(DEFAULT_EYE_HEIGHT).toBeLessThanOrEqual(1.75);
+    expect(DEFAULT_EYE_HEIGHT).toBeGreaterThanOrEqual(1.35);
+    expect(DEFAULT_EYE_HEIGHT).toBeLessThanOrEqual(1.45);
   });
 
   it("keeps artwork near gallery eye level", () => {

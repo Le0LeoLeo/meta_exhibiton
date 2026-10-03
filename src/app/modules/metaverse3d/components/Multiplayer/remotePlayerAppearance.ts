@@ -1,6 +1,7 @@
-import { DEFAULT_EYE_HEIGHT } from "../../sceneScale";
 import { AVATAR_MANIFEST } from "../../avatar/avatarManifest";
+import * as THREE from "three";
 import type { AvatarAppearanceV1 } from "../../avatar/avatarAppearance";
+import { getAvatarEyeHeight } from "../../avatar/avatarEyeHeight";
 
 export type RemoteAvatarPalette = {
   jacket: string;
@@ -94,11 +95,13 @@ export type RemoteAvatarMotion = {
   legSwing: number;
   bob: number;
   lean: number;
+  sittingBlend?: number;
 };
 
 type RemotePlayerTransformInput = {
   renderPosition: { x: number; y: number; z: number };
   renderYaw: number;
+  appearance: AvatarAppearanceV1;
 };
 
 type AvatarAppearanceKeyInput = {
@@ -123,10 +126,14 @@ export function getRemotePlayerTransform(player: RemotePlayerTransformInput) {
   return {
     position: [
       player.renderPosition.x,
-      player.renderPosition.y - DEFAULT_EYE_HEIGHT,
+      player.renderPosition.y - getAvatarEyeHeight(player.appearance),
       player.renderPosition.z,
     ] as [number, number, number],
-    rotation: [0, player.renderYaw, 0] as [number, number, number],
+    rotation: [0, player.renderYaw + Math.PI, 0] as [
+      number,
+      number,
+      number,
+    ],
   };
 }
 
@@ -154,11 +161,13 @@ export function updateRemoteAvatarMotion(
   target: RemoteAvatarMotion,
   elapsedSeconds: number,
   speedMetersPerSecond: number,
+  sitting = false,
+  deltaSeconds = 1 / 60,
 ) {
   const sanitizedSpeed = Number.isFinite(speedMetersPerSecond)
     ? Math.max(0, speedMetersPerSecond)
     : 0;
-  const movement = Math.min(1, sanitizedSpeed / 1.8);
+  const movement = sitting ? 0 : Math.min(1, sanitizedSpeed / 1.8);
   const phase = elapsedSeconds * 8;
   const swing = Math.sin(phase) * 0.58 * movement;
 
@@ -167,5 +176,13 @@ export function updateRemoteAvatarMotion(
   target.bob = Math.abs(Math.sin(phase)) * 0.028 * movement;
   target.lean =
     sanitizedSpeed === 0 ? 0 : -Math.min(0.07, sanitizedSpeed * 0.018);
+  if (target.sittingBlend !== undefined || sitting) {
+    target.sittingBlend = THREE.MathUtils.damp(
+      target.sittingBlend ?? 0,
+      sitting ? 1 : 0,
+      8,
+      deltaSeconds,
+    );
+  }
   return target;
 }

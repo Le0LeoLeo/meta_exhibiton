@@ -34,10 +34,16 @@ export interface BaseMetaverseState {
   performanceMode?: PerformanceMode;
 }
 
+export type ImportedSceneSnapshot = Partial<Omit<SceneSnapshot, "roomSize">> & {
+  roomSize?: Partial<RoomSize>;
+};
+
+export type AddItemOptions = Partial<Pick<ExhibitItem, 'position' | 'rotation' | 'scale' | 'content' | 'modelOffset' | 'title'>>;
+
 export interface BaseMetaverseActions {
   setMode: (mode: AppMode) => void;
   setRoomSize: (size: Partial<RoomSize>) => void;
-  addItem: (type: ExhibitItem["type"], options?: { position?: [number, number, number]; rotation?: [number, number, number] }) => void;
+  addItem: (type: ExhibitItem["type"], options?: AddItemOptions) => void;
   updateItem: (id: string, updates: Partial<ExhibitItem>) => void;
   removeItem: (id: string) => void;
   duplicateItem: (id: string) => void;
@@ -58,7 +64,7 @@ export interface BaseMetaverseActions {
   setIsPointerLocked: (locked: boolean) => void;
   canOpenViewingItem: () => boolean;
   exportScene: () => SceneSnapshot;
-  importScene: (snapshot: SceneSnapshot) => void;
+  importScene: (snapshot: ImportedSceneSnapshot) => void;
   syncSceneSnapshot: (snapshot: SceneSnapshot) => void;
   setSelectedWallFace: (face: WallFace | null) => void;
   setSelectedWallAnchor: (anchor: WallAnchor | null) => void;

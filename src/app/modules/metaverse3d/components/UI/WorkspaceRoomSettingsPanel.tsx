@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ImageOff } from "lucide-react";
 import { WallMaterialPreset, RoomSize } from "../../types";
-import { floorTexturePresets, wallTexturePresets } from "./editorConstants";
+import { editorThemePresetLabelKeys, floorTexturePresets, wallTexturePresets } from "./editorConstants";
 import type { EditorThemePreset } from "../../store/useMetaverseStudioStore";
 import { useI18n } from "../../../../components/I18nProvider";
 
@@ -114,7 +114,7 @@ export function WorkspaceRoomSettingsPanel({
             </div>
             <div className="mt-2 flex gap-2">
               <select value={selectedPresetId} onChange={(e) => handleSelectPreset(e.target.value)} className={`min-w-0 flex-1 rounded-xl px-2 py-1.5 text-xs ${glassInputClass}`}>
-                {editorThemePresets.map((theme) => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
+                {editorThemePresets.map((theme) => <option key={theme.id} value={theme.id}>{t(editorThemePresetLabelKeys[theme.id] ?? theme.name)}</option>)}
               </select>
               <button onClick={() => activePreset && handleSelectPreset(activePreset.id)} className="rounded-xl border border-white/12 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/16">{t('editorApply')}</button>
               <button onClick={() => activePreset && onRemoveThemePreset(activePreset.id)} disabled={!activePreset?.id.startsWith("custom-") } className="rounded-xl border border-white/12 bg-rose-500/15 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-40">{t('editorDelete')}</button>
@@ -142,7 +142,7 @@ export function WorkspaceRoomSettingsPanel({
               <div>
                 <div className="mb-1 flex justify-between"><label className="text-xs font-medium text-white/85">{t('editorFloorTexture')}</label></div>
                 <select value={floorTextureUrl} onChange={(e) => setRoomSize({ floorTextureUrl: e.target.value })} className={`w-full rounded-xl px-2 py-1.5 text-sm ${glassInputClass}`}>
-                  {floorTexturePresets.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
+                  {floorTexturePresets.map((preset) => <option key={preset.value} value={preset.value}>{t(preset.labelKey)}</option>)}
                 </select>
               </div>
               <Slider label={t('editorFloorTextureDensity')} value={`${floorTextureTiling.toFixed(1)}x`} min={0.5} max={8} step={0.5} current={floorTextureTiling} onChange={(value) => setRoomSize({ floorTextureTiling: value })} />
@@ -191,8 +191,8 @@ export function WorkspaceRoomSettingsPanel({
           <div>
             <div className="mb-1 flex justify-between"><label className="text-xs font-medium text-gray-700">{t('editorTextureStyle')}</label></div>
             <select value={wallTextureUrl} onChange={(e) => applyWallSettings({ wallTextureUrl: e.target.value, wallMaterialPreset: "paint" })} className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-black">
-              {wallTexturePresets.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
-              {customWallTexturePresets.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}（自訂）</option>)}
+              {wallTexturePresets.map((preset) => <option key={preset.value} value={preset.value}>{t(preset.labelKey)}</option>)}
+              {customWallTexturePresets.map((preset) => <option key={preset.value} value={preset.value}>{preset.label} ({t('editorPresetCustomSuffix')})</option>)}
             </select>
             <label className="mt-2 block text-xs font-medium text-gray-700">{t('editorUploadCustomWallTexture')}</label>
             <input type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" className={`mt-1 w-full rounded-xl px-2 py-1.5 text-sm ${glassInputClass} file:mr-2 file:rounded-lg file:border-0 file:bg-indigo-500 file:px-2 file:py-1 file:text-white hover:file:bg-indigo-600`} onChange={(e) => {
@@ -275,7 +275,6 @@ export function WorkspaceRoomSettingsPanel({
           <p><span className="font-mono text-white">Ctrl/Cmd + D</span>：{t('editorShortcutDuplicate')}</p>
           <p><span className="font-mono text-white">Ctrl/Cmd + Z</span>：{t('editorShortcutUndo')}</p>
           <p><span className="font-mono text-white">Ctrl/Cmd + Shift + Z</span>：{t('editorShortcutRedo')}</p>
-          <p><span className="font-mono text-white">Ctrl/Cmd + V</span>：{t('editorShortcutViewMode')}</p>
           <p><span className="font-mono text-white">Ctrl/Cmd + F</span>：{t('editorShortcutFloorPlan')}</p>
           <p className="mt-2">• {t('editorTipMaterials')}</p>
           <p>• {t('editorTipTextureDensity')}</p>
@@ -303,7 +302,7 @@ function Slider({ label, value, min, max, current, step, onChange }: SliderProps
         <label className="text-xs font-medium text-gray-700">{label}</label>
         <span className="text-xs text-gray-500">{value}</span>
       </div>
-      <input type="range" min={min} max={max} step={step} value={current} onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-indigo-600" />
+      <input type="range" aria-label={label} aria-valuetext={value} min={min} max={max} step={step} value={current} onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-indigo-600" />
     </div>
   );
 }

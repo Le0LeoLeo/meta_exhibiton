@@ -110,14 +110,14 @@ describe('aiCuratorService', () => {
     const { _private } = await import('./aiCuratorService.js');
 
     const messages = _private.buildCuratorMessages({
-      theme: 'Student design awards',
+      theme: 'Student design exhibition',
       language: 'zh-TW',
-      intent: 'competition-showcase',
+      intent: 'professional-gallery',
     }, 6);
 
-    expect(messages[1].content).toContain('Curatorial intent: competition-showcase');
+    expect(messages[1].content).toContain('Curatorial intent: professional-gallery');
     expect(messages[1].content).toContain(
-      'Intent instruction: Use a showcase tone that highlights strengths, completion quality, and judging clarity.',
+      'Intent instruction: Use a precise gallery tone with clear sections, concise labels, and a calm visitor flow.',
     );
   });
 

@@ -20,6 +20,11 @@ import {
   normalizeAvatarAppearance,
   type AvatarAppearanceV1,
 } from "../avatar/avatarAppearance";
+import { normalizeAvatarPose, type AvatarPose } from "../avatar/avatarPose";
+import {
+  normalizeAvatarEmote,
+  type AvatarEmoteState,
+} from "../avatar/avatarEmote";
 
 export type RemotePlayerState = {
   id: string;
@@ -29,6 +34,9 @@ export type RemotePlayerState = {
   renderPosition: Vec3;
   targetYaw: number;
   renderYaw: number;
+  pose: AvatarPose;
+  emote: AvatarEmoteState;
+  emoteNonce: number;
   seq: number;
   updatedAt: number;
   appearanceUpdatedAt?: number;
@@ -130,6 +138,11 @@ function toRemoteState(snapshot: PlayerSnapshot): RemotePlayerState {
     renderPosition: { ...snapshot.position },
     targetYaw: snapshot.yaw,
     renderYaw: snapshot.yaw,
+    pose: normalizeAvatarPose(snapshot.pose),
+    emote: normalizeAvatarEmote(snapshot.emote),
+    emoteNonce: Number.isSafeInteger(snapshot.emoteNonce)
+      ? Math.max(0, snapshot.emoteNonce!)
+      : 0,
     seq: snapshot.lastSeq,
     updatedAt: snapshot.updatedAt,
     appearanceUpdatedAt: snapshot.updatedAt,
@@ -174,6 +187,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       if (normalizedRoomId === state.roomId) return { roomId: normalizedRoomId };
       return {
         roomId: normalizedRoomId,
+        selfId: null,
+        role: null,
+        roomError: null,
+        chatMessages: [],
+        remotePlayers: {},
+        remoteEditorFocuses: {},
+        sceneFocusPayload: null,
         sceneSyncPayload: null,
         lastSceneVersion: null,
         sceneResyncRequested: false,
@@ -195,6 +215,11 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       ? { connected }
       : {
           connected,
+          selfId: null,
+          role: null,
+          remotePlayers: {},
+          remoteEditorFocuses: {},
+          sceneFocusPayload: null,
           lastSceneVersion: null,
           sceneResyncRequested: false,
           sceneResyncEpoch: 0,
@@ -336,7 +361,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   },
 
   applyPlayerJoined: (payload) => {
-    if (!payload.player) return;
+    if (!payload.player || payload.roomId !== get().roomId) return;
     const selfId = get().selfId;
     if (payload.player.id === selfId) return;
 
@@ -377,7 +402,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   applyPlayerMoved: (payload) => {
     const selfId = get().selfId;
-    if (payload.id === selfId) return;
+    if (payload.id === selfId || payload.roomId !== get().roomId) return;
 
     set((state) => {
       const existing = state.remotePlayers[payload.id];
@@ -400,6 +425,11 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             renderPosition: { ...baseRender },
             targetYaw: payload.yaw,
             renderYaw: existing?.renderYaw ?? payload.yaw,
+            pose: normalizeAvatarPose(payload.pose),
+            emote: normalizeAvatarEmote(payload.emote),
+            emoteNonce: Number.isSafeInteger(payload.emoteNonce)
+              ? Math.max(0, payload.emoteNonce!)
+              : existing?.emoteNonce ?? 0,
             seq: payload.seq,
             updatedAt: payload.updatedAt,
           },
@@ -410,6 +440,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   applyPlayerLeft: (payload) => {
     set((state) => {
+      if (payload.roomId !== state.roomId) return state;
       const nextPlayers = { ...state.remotePlayers };
       delete nextPlayers[payload.id];
 
@@ -426,6 +457,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   pushChatMessage: (payload) =>
     set((state) => {
       if (payload.roomId !== state.roomId) return state;
+      if (state.chatMessages.some((message) => message.id === payload.id)) return state;
       const next = [...state.chatMessages, payload];
       return { chatMessages: next.slice(-100) };
     }),
@@ -633,7 +665,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         pendingSceneOpIds,
       };
     }),
-  setSceneFocusPayload: (payload) => set({ sceneFocusPayload: payload }),
+  setSceneFocusPayload: (payload) => set((state) =>
+    payload && payload.roomId !== state.roomId ? state : { sceneFocusPayload: payload }),
 
   upsertRemoteEditorFocus: (focus) =>
     set((state) => ({
@@ -671,6 +704,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
     set((state) => {
       const next: Record<string, RemotePlayerState> = {};
+      let changed = false;
       for (const [id, player] of Object.entries(state.remotePlayers)) {
         const dx = player.targetPosition.x - player.renderPosition.x;
         const dy = player.targetPosition.y - player.renderPosition.y;
@@ -678,18 +712,26 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
         const yawDelta = normalizeYaw(player.targetYaw - player.renderYaw);
 
+        if (dx === 0 && dy === 0 && dz === 0 && yawDelta === 0) {
+          next[id] = player;
+          continue;
+        }
+        changed = true;
+        const settled = Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001
+          && Math.abs(dz) < 0.001 && Math.abs(yawDelta) < 0.001;
+        const step = settled ? 1 : clampedAlpha;
         next[id] = {
           ...player,
           renderPosition: {
-            x: player.renderPosition.x + dx * clampedAlpha,
-            y: player.renderPosition.y + dy * clampedAlpha,
-            z: player.renderPosition.z + dz * clampedAlpha,
+            x: player.renderPosition.x + dx * step,
+            y: player.renderPosition.y + dy * step,
+            z: player.renderPosition.z + dz * step,
           },
-          renderYaw: normalizeYaw(player.renderYaw + yawDelta * clampedAlpha),
+          renderYaw: normalizeYaw(player.renderYaw + yawDelta * step),
         };
       }
 
-      return { remotePlayers: next };
+      return changed ? { remotePlayers: next } : state;
     });
   },
 

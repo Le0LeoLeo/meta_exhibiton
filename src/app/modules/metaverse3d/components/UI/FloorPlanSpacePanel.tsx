@@ -21,8 +21,8 @@ interface FloorPlanSpacePanelProps {
 export function FloorPlanSpacePanel({ selectedRoomElement, roomSize, onUpdateSelectedRoom, onSetRoomSize }: FloorPlanSpacePanelProps) {
   const { t } = useI18n();
   return (
-    <details className="rounded-2xl border border-white/14 bg-white/8 p-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md" open>
-      <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.22em] text-white/60">{t('fpspSummary')}</summary>
+    <section className="floorplan-section text-white">
+      <p className="text-xs font-semibold text-slate-300">{selectedRoomElement ? t('fpiRoomType') : t('floorPlanRoom')}</p>
       <div className="mt-3 space-y-3">
         <NumericControlField
           label={t('fpspWidth')}
@@ -62,6 +62,6 @@ export function FloorPlanSpacePanel({ selectedRoomElement, roomSize, onUpdateSel
 
         {!selectedRoomElement && <p className="text-[11px] text-[rgb(192,179,170)]">{t('fpspHint')}</p>}
       </div>
-    </details>
+    </section>
   );
 }

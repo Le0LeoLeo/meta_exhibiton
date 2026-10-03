@@ -56,6 +56,16 @@ function createScene(): SceneSnapshot {
 }
 
 describe("buildBuilderInput", () => {
+  it("keeps selected assets usable in large scenes without exceeding the legacy image limit", () => {
+    const scene = createScene();
+    scene.items = Array.from({ length: 250 }, (_, index) => ({ ...scene.items[0], id: `art-${index}` }));
+    const input = buildBuilderInput(scene, { prompt: 'Use selected model', style: 'white-box', exhibitCount: 1, complete: true,
+      editorAssets: [{ key: 'chosen', label: 'Model', kind: 'model', url: '/templates/concept-car.glb' }] });
+    expect(input.assets).toHaveLength(30);
+    expect(input.editorAssets).toHaveLength(200);
+    expect(input.editorAssets![0].key).toBe('chosen');
+    expect(input.currentScene!.items).toHaveLength(250);
+  });
   it("grounds the request in the current scene and reusable artwork assets", () => {
     const scene = createScene();
     const result = buildBuilderInput(scene, {
@@ -100,4 +110,15 @@ describe("buildBuilderInput", () => {
     expect(JSON.stringify(result.assets)).not.toContain("data:");
     expect(JSON.stringify(result.assets)).not.toContain("blob:");
   });
+
+  it.each(['not a URL', '//other.example/art.png', '/\\other.example/art.png', 'javascript:alert(1)', 'file:///tmp/art.png'])(
+    'skips an invalid media candidate and retains a reusable thumbnail: %s', (assetUrl) => {
+      const scene = createScene();
+      scene.items[0].assetUrl = assetUrl;
+      scene.items[0].thumbnailUrl = '/api/media/assets/asset-1/thumb';
+      const result = buildBuilderInput(scene, { prompt: 'Arrange', style: 'white-box', exhibitCount: 3 });
+      expect(result.assets?.[0].imageUrl).toBe('/api/media/assets/asset-1/thumb');
+      expect(result.currentScene).toBe(scene);
+    },
+  );
 });

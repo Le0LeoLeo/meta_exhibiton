@@ -122,7 +122,7 @@ export function GalleryPostprocessing({
 
   return (
     <EffectComposer multisampling={0} enableNormalPass={ao.enabled}>
-      {ao.enabled && (
+      {ao.enabled ? (
         <SSAO
           samples={ao.samples}
           rings={4}
@@ -135,7 +135,7 @@ export function GalleryPostprocessing({
           worldProximityFalloff={1}
           resolutionScale={ao.resolutionScale}
         />
-      )}
+      ) : <></>}
       <Bloom
         intensity={finish.bloomIntensity}
         luminanceThreshold={finish.bloomThreshold}

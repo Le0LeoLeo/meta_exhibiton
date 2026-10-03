@@ -15,11 +15,11 @@ type I18nContextValue = {
 const STORAGE_KEY = 'metaexpo-locale';
 
 const I18nContext = createContext<I18nContextValue>({
-  locale: 'zh-TW',
+  locale: 'en',
   setLocale: () => {},
   toggleLocale: () => {},
   t: (key: string, values?: InterpolationValues) => {
-    let template = dictionaries['zh-TW'][key] || key;
+    let template = dictionaries.en[key] || key;
     if (values) {
       Object.entries(values).forEach(([valueKey, value]) => {
         template = template.replace(new RegExp(`\\{${valueKey}\\}`, 'g'), String(value));
@@ -30,12 +30,12 @@ const I18nContext = createContext<I18nContextValue>({
 });
 
 function readStoredLocale(): Locale {
-  if (typeof window === 'undefined') return 'zh-TW';
+  if (typeof window === 'undefined') return 'en';
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY) as Locale | null;
-    return stored === 'zh-CN' || stored === 'en' ? stored : 'zh-TW';
+    return stored === 'zh-TW' || stored === 'zh-CN' || stored === 'en' ? stored : 'en';
   } catch {
-    return 'zh-TW';
+    return 'en';
   }
 }
 
@@ -65,7 +65,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       setLocale: setLocaleState,
       toggleLocale: () => setLocaleState((prev) => (prev === 'zh-TW' ? 'zh-CN' : prev === 'zh-CN' ? 'en' : 'zh-TW')),
       t: (key: string, values?: InterpolationValues) => {
-        const template = dictionary[key] ?? dictionaries['zh-TW'][key] ?? key;
+        const template = dictionary[key] ?? dictionaries.en[key] ?? key;
         if (!values) return template;
         return template.replace(/\{(\w+)\}/g, (match, token) => {
           const value = values[token];

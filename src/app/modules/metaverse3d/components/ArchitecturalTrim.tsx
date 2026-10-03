@@ -5,6 +5,7 @@ import type {
   WallTopology,
 } from "../store/floorPlanGeometry";
 import { BeveledBox } from "./geometry/BeveledBox";
+import { DEFAULT_DOOR_HEIGHT } from "../store/floorPlanGeometry";
 
 type DoorOpening = WallTopology["doorOpenings"][number];
 
@@ -20,8 +21,9 @@ export interface ArchitecturalTrimProps {
 const BASEBOARD_HEIGHT = 0.08;
 const BASEBOARD_DEPTH = 0.012;
 const CEILING_GAP_HEIGHT = 0.03;
-const DOOR_TRIM_WIDTH = 0.06;
-const DOOR_TRIM_DEPTH = 0.03;
+const DOOR_TRIM_WIDTH = 0.08;
+// Wrap the exposed wall ends instead of leaving coplanar jamb/soffit faces.
+const DOOR_REVEAL_OVERLAP = 0.008;
 const VERTICAL_SEAM_WIDTH = 0.012;
 const VERTICAL_SEAM_DEPTH = 0.008;
 const THRESHOLD_HEIGHT = 0.012;
@@ -72,7 +74,7 @@ export function getVerticalSeamLayout(
     ReturnType<typeof getWallEndpoints>
   >();
 
-  for (const endpoint of wallSegments.flatMap(getWallEndpoints)) {
+  for (const endpoint of wallSegments.filter((wall) => wall.position[1] - wall.size[1] / 2 < 0.05).flatMap(getWallEndpoints)) {
     const key = `${endpoint.x.toFixed(2)}:${endpoint.z.toFixed(2)}`;
     const group = endpointGroups.get(key) ?? [];
     group.push(endpoint);
@@ -143,7 +145,7 @@ export function ArchitecturalTrim({
   baseboardColor = "#e7e5e4",
   showCeilingShadowGap = false,
   showJunctionDetails = showCeilingShadowGap,
-  doorHeight = 2.2,
+  doorHeight = DEFAULT_DOOR_HEIGHT,
 }: ArchitecturalTrimProps) {
   const verticalSeams = useMemo(
     () =>
@@ -182,10 +184,15 @@ export function ArchitecturalTrim({
       }),
     [],
   );
+  const doorFrameMaterial = useMemo(
+    () => new MeshStandardMaterial({ color: "#756b5e", roughness: 0.48, metalness: 0.35 }),
+    [],
+  );
 
   useEffect(() => () => baseboardMaterial.dispose(), [baseboardMaterial]);
   useEffect(() => () => shadowGapMaterial.dispose(), [shadowGapMaterial]);
   useEffect(() => () => thresholdMaterial.dispose(), [thresholdMaterial]);
+  useEffect(() => () => doorFrameMaterial.dispose(), [doorFrameMaterial]);
 
   return (
     <group>
@@ -196,7 +203,7 @@ export function ArchitecturalTrim({
 
         return (
           <group key={wall.id}>
-            <BeveledBox
+            {floorY < 0.05 && <BeveledBox
               dimensions={[wall.size[0], BASEBOARD_HEIGHT, BASEBOARD_DEPTH]}
               bevelRadius={0.004}
               position={[
@@ -207,7 +214,7 @@ export function ArchitecturalTrim({
               rotation={wall.rotation}
               material={baseboardMaterial}
               receiveShadow
-            />
+            />}
             {showCeilingShadowGap && (
               <BeveledBox
                 dimensions={[wall.size[0], CEILING_GAP_HEIGHT, BASEBOARD_DEPTH]}
@@ -225,7 +232,13 @@ export function ArchitecturalTrim({
         );
       })}
 
-      {doorOpenings.map((opening) => (
+      {doorOpenings.map((opening) => {
+        const height = opening.height ?? doorHeight;
+        // Span the wall thickness so the frame is visible from both rooms.
+        // An 8mm return covers the wall end faces, avoiding depth fighting
+        // at both jambs and the lintel when viewed from inside the doorway.
+        const depth = (opening.depth ?? 0.12) + 0.04;
+        return (
         <group
           key={opening.id}
           position={opening.position}
@@ -234,30 +247,30 @@ export function ArchitecturalTrim({
           {[-1, 1].map((side) => (
             <BeveledBox
               key={side}
-              dimensions={[DOOR_TRIM_WIDTH, doorHeight, DOOR_TRIM_DEPTH]}
+              dimensions={[DOOR_TRIM_WIDTH + DOOR_REVEAL_OVERLAP, height - DOOR_REVEAL_OVERLAP, depth]}
               bevelRadius={0.004}
               position={[
-                side * (opening.width / 2 + DOOR_TRIM_WIDTH / 2),
-                doorHeight / 2,
+                side * (opening.width / 2 + (DOOR_TRIM_WIDTH - DOOR_REVEAL_OVERLAP) / 2),
+                (height - DOOR_REVEAL_OVERLAP) / 2,
                 0,
               ]}
-              material={baseboardMaterial}
+              material={doorFrameMaterial}
               receiveShadow
             />
           ))}
           <BeveledBox
             dimensions={[
               opening.width + DOOR_TRIM_WIDTH * 2,
-              DOOR_TRIM_WIDTH,
-              DOOR_TRIM_DEPTH,
+              DOOR_TRIM_WIDTH + DOOR_REVEAL_OVERLAP,
+              depth,
             ]}
             bevelRadius={0.004}
-            position={[0, doorHeight + DOOR_TRIM_WIDTH / 2, 0]}
-            material={baseboardMaterial}
+            position={[0, height + (DOOR_TRIM_WIDTH - DOOR_REVEAL_OVERLAP) / 2, 0]}
+            material={doorFrameMaterial}
             receiveShadow
           />
         </group>
-      ))}
+      );})}
 
       {verticalSeams.map((seam) => (
         <BeveledBox

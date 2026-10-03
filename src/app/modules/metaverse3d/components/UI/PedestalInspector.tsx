@@ -1,5 +1,6 @@
 import { ExhibitItem } from "../../types";
 import { useI18n } from "../../../../components/I18nProvider";
+import { VEHICLE_PLATFORM_URL } from "../../items/templateDisplay";
 
 type Props = {
   selectedItem: ExhibitItem;
@@ -9,12 +10,20 @@ type Props = {
 
 export function PedestalInspector({ selectedItem, glassButtonClass, updateItem }: Props) {
   const { t } = useI18n();
+  if (selectedItem.content === VEHICLE_PLATFORM_URL) return (
+    <div className="space-y-2 text-sm">
+      <p className="font-medium">{t('editorRectangularPlatform')}</p>
+      <p>{t('editorRectangularPlatformDimensions')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t('editorRectangularPlatformHint')}</p>
+    </div>
+  );
   return (
     <div className="space-y-3">
       <div>
         <label className="mb-1 block text-xs font-medium text-gray-700">{t('editorModelUrl')}</label>
         <input
           type="text"
+          aria-label={t('editorModelUrl')}
           value={selectedItem.content}
           onChange={(e) => updateItem(selectedItem.id, { content: e.target.value, fileName: undefined, fileMimeType: undefined })}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500"
@@ -26,6 +35,7 @@ export function PedestalInspector({ selectedItem, glassButtonClass, updateItem }
         <label className="mb-1 block text-xs font-medium text-gray-700">{t('editorUploadModel')}</label>
         <input
           type="file"
+          aria-label={t('editorUploadModel')}
           accept=".glb,.gltf,.stl,model/gltf-binary,model/gltf+json,model/stl,application/sla"
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 file:mr-3 file:rounded file:border-0 file:bg-indigo-600 file:px-3 file:py-1.5 file:text-white hover:file:bg-indigo-700"
           onChange={(e) => {
@@ -55,6 +65,7 @@ export function PedestalInspector({ selectedItem, glassButtonClass, updateItem }
             <label className="mb-1 block text-xs font-medium text-gray-700">{t('editorModelOffset')} {"XYZ"[idx]}</label>
             <input
               type="number"
+              aria-label={`${t('editorModelOffset')} ${"XYZ"[idx]}`}
               step="0.01"
               value={selectedItem.modelOffset?.[idx] ?? 0}
               onChange={(e) => {

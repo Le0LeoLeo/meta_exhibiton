@@ -9,8 +9,8 @@ import type { ExhibitItem as ExhibitItemType } from "../types";
 import { useRenderPerformanceProfile } from "../performanceProfile";
 import type { PlayerInputState } from "../input/playerInput";
 import { GalleryPostprocessing } from "./GalleryPostprocessing";
-import { GalleryVisitors } from "./GalleryVisitors";
 import { GalleryGrounding } from "./GalleryGrounding";
+import type { ItemInteractionDescriptor } from "../interaction/itemInteraction";
 
 const AgentSystem = lazy(() => import("./AgentSystem").then((mod) => ({ default: mod.AgentSystem })));
 
@@ -18,12 +18,14 @@ export const ViewCanvas = memo(function ViewCanvas({
   items,
   allowMotion = true,
   playerInput,
-  onNearbyItemChange,
+  onNearbyInteractionChange,
 }: {
   items: ExhibitItemType[];
   allowMotion?: boolean;
   playerInput?: MutableRefObject<PlayerInputState>;
-  onNearbyItemChange?: (title: string | null) => void;
+  onNearbyInteractionChange?: (
+    descriptor: ItemInteractionDescriptor | null,
+  ) => void;
 }) {
   const visibleItems = useMemo(() => items, [items]);
   const isAgentEnabled = useStore((state) => state.agent.enabled);
@@ -34,17 +36,13 @@ export const ViewCanvas = memo(function ViewCanvas({
       <>
         <Room />
         {visibleItems.map((item) => <ExhibitItem key={item.id} item={item} />)}
-        <GalleryVisitors
-          mode={performanceProfile.effectiveMode}
-          allowMotion={allowMotion}
-        />
         {performanceProfile.enableRemotePlayers && (
           <RemotePlayers allowMotion={allowMotion} />
         )}
         <Player
           allowMotion={allowMotion}
           input={playerInput}
-          onNearbyItemChange={onNearbyItemChange}
+          onNearbyInteractionChange={onNearbyInteractionChange}
         />
         {isAgentEnabled && (
           <Suspense fallback={null}>

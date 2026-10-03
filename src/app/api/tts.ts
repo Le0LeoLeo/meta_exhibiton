@@ -18,11 +18,13 @@ export async function requestQwenTts(
     text: string;
     voice?: string;
   },
+  options?: { signal?: AbortSignal },
 ): Promise<Blob> {
   const res = await apiFetch(apiUrl('/api/tts/qwen'), {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(payload),
+    signal: options?.signal,
   }, { timeoutMs: LONG_API_TIMEOUT_MS });
 
   if (!res.ok) {

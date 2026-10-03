@@ -209,7 +209,6 @@ export { useMetaverseStudioStore } from "./store/studioStore";
 | `/virtual-gallery` | `pages/VirtualGallery.tsx` | `features/virtual-gallery/pages/VirtualGalleryLandingPage.tsx` |
 | `/virtual-gallery/my-exhibitions` | `pages/MyExhibitions.tsx` | `features/virtual-gallery/pages/MyExhibitionsPage.tsx` |
 | `/virtual-gallery/create` | `pages/VirtualGalleryCreate.tsx` | `features/virtual-gallery/pages/CreateGalleryPage.tsx` |
-| `/virtual-gallery/upload` | `pages/ExhibitionUploadPlatform.tsx` | `features/virtual-gallery/pages/ExhibitionUploadPage.tsx` |
 | `/exhibitions` | `pages/Exhibitions.tsx` | `features/exhibition-viewer/pages/ExhibitionsPage.tsx` |
 | `/exhibitions/:exhibitionId` | `pages/ExhibitionView.tsx` | `features/exhibition-viewer/pages/ExhibitionViewPage.tsx` |
 | `/growth-memories/*` | `pages/Growth*` | `features/growth-memories/pages/*` |
@@ -236,6 +235,10 @@ export { useMetaverseStudioStore } from "./store/studioStore";
 | `server/multiplayer/*` | `server/modules/multiplayer/*` |
 
 ## 搬遷時的兼容策略
+
+2026-09-14 編輯器的 AI 建展流程已移至 `useEditorAiBuilder.ts`，畫面移至 `EditorAiBuilderPanel.tsx`。`EditUI.tsx` 保留面板開關與整合；hook 持續掛載，因此暫時收合面板會保留預覽和版本。離開頁面後的回應會被忽略；舊的記憶工作階段還原不能覆蓋新建展結果。瀏覽器中的工作階段指標是可選快取，存取失敗不阻止預覽／套用。
+
+2026-09-14 已完成比賽與成長紀錄的資料存取拆分：`server/repositories/competitionRepository.js`、`growthRepository.js` 以最後一個參數接收資料庫連線。`server/db.js` 保留原有函式名稱、參數及預設連線，供路由繼續使用；資料表初始化尚在原檔。新增的記憶體資料庫測試涵蓋查詢範圍、分享撤銷、投票回滾及刪除關聯資料。後續拆分應沿用這個模式，避免 repository 反向匯入 `db.js` 產生循環依賴。
 
 每次搬遷先保留舊路徑 re-export，避免全專案 import 同時爆炸。
 

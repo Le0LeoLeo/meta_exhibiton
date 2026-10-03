@@ -5,6 +5,7 @@ import { AGENT_FOLLOW_COMFORT_DISTANCE, AGENT_GUIDE_STOP_DISTANCE, AGENT_GUIDE_T
 import { buildRouteViaDoors, requestAutoGuideAnswer, findClosestExhibit, toExhibitData } from "./behaviorHelpers";
 import { getAgentResponse } from "./response";
 import type { AgentRecommendation } from "./types";
+import { resolveVisitorFocus } from './companion';
 
 export type AgentBehaviorContext = {
   mode: string;
@@ -79,6 +80,7 @@ function isCurrentTourRequest({
   fallbackRouteIds: string[];
 }) {
   if (latest.tourSession.status !== "running" && latest.tourSession.status !== "arrived") return false;
+  if (!latest.enabled || latest.participationMode !== 'ai' || latest.isAnswering) return false;
   if (latest.tourSession.tourRunId !== tourRunId) return false;
   if (latest.tourSession.currentStopIndex !== currentStopIndex) return false;
 
@@ -113,7 +115,8 @@ export function runAgentBehaviors(ctx: AgentBehaviorContext) {
   }
 
   const { exhibit: playerNearestExhibit, distance: playerToExhibitDistance } = findClosestExhibit(playerPos, nearbyExhibits);
-  const { exhibit: agentNearestExhibit, distance: agentToExhibitDistance } = findClosestExhibit(current, nearbyExhibits);
+  const { distance: agentToExhibitDistance } = findClosestExhibit(current, nearbyExhibits);
+  const visitorFocus = resolveVisitorFocus(nearbyExhibits, [playerPos.x, playerPos.y, playerPos.z], viewingItem?.id ?? null);
   const distanceToPlayer = current.distanceTo(playerPos);
   const target = current.clone();
   let nextMode: AgentState["mode"];
@@ -125,12 +128,14 @@ export function runAgentBehaviors(ctx: AgentBehaviorContext) {
   const roomMaxZ = ctx.roomSize.length / 2 - 0.8;
 
   if (agent.isAnswering) {
-    refs.thinkingTimerRef.current += deltaSeconds;
-    if (refs.thinkingTimerRef.current > 1.1) {
-      const answer = getAgentResponse({ question: agent.pendingQuestion || agent.lastQuestion, personality: agent.personality, exhibit: agentNearestExhibit, nearbyExhibits });
-      actions.setAgentDialogue(answer);
-      actions.setAgent({ isAnswering: false, mode: agent.followUser ? "follow" : "idle", pendingQuestion: "" });
-      refs.thinkingTimerRef.current = 0;
+    if (agent.answerSource === "local") {
+      refs.thinkingTimerRef.current += deltaSeconds;
+      if (refs.thinkingTimerRef.current > 1.1) {
+        const answer = getAgentResponse({ question: agent.pendingQuestion || agent.lastQuestion, personality: agent.personality, exhibit: visitorFocus, nearbyExhibits, preferredLanguage: agent.preferredLanguage });
+        actions.setAgentDialogue(answer);
+        actions.setAgent({ isAnswering: false, answerSource: null, mode: agent.followUser ? "follow" : "idle", pendingQuestion: "" });
+        refs.thinkingTimerRef.current = 0;
+      }
     }
     return;
   }
@@ -179,6 +184,7 @@ export function runAgentBehaviors(ctx: AgentBehaviorContext) {
     if (distanceToWaypoint <= 0.35 && clampedWaypointIndex < route.length - 1) refs.routeWaypointIndexRef.current = clampedWaypointIndex + 1;
     if (
       distanceToWaypoint <= 0.35
+      && playerPos.distanceTo(finalTourSpot) <= 4.8
       && clampedWaypointIndex >= route.length - 1
       && refs.lastGuidedRequestKeyRef.current !== requestKey
     ) {
@@ -212,7 +218,7 @@ export function runAgentBehaviors(ctx: AgentBehaviorContext) {
             progressRouteIds,
             fallbackRouteIds,
           });
-          if (!isCurrentRequest) {
+          if (!isCurrentRequest || latest.memory.sessionId !== agent.memory.sessionId || latest.lastQuestion !== agent.lastQuestion) {
             if (refs.lastGuidedRequestKeyRef.current === requestKey) refs.lastGuidedRequestKeyRef.current = null;
             return;
           }
@@ -221,6 +227,8 @@ export function runAgentBehaviors(ctx: AgentBehaviorContext) {
           actions.setAgentRecommendedExhibit(result.recommendedExhibit);
           actions.setAgent({
             isAnswering: false,
+            answerSource: null,
+            replySource: result.source,
             currentDialogue: result.answer,
             recommendedExhibit: result.recommendedExhibit,
             memory: {
@@ -243,7 +251,7 @@ export function runAgentBehaviors(ctx: AgentBehaviorContext) {
             progressRouteIds,
             fallbackRouteIds,
           });
-          if (!isCurrentRequest) {
+          if (!isCurrentRequest || latest.memory.sessionId !== agent.memory.sessionId || latest.lastQuestion !== agent.lastQuestion) {
             if (refs.lastGuidedRequestKeyRef.current === requestKey) refs.lastGuidedRequestKeyRef.current = null;
             return;
           }
@@ -253,10 +261,13 @@ export function runAgentBehaviors(ctx: AgentBehaviorContext) {
             personality: agent.personality,
             exhibit: targetExhibit,
             nearbyExhibits,
+            preferredLanguage: agent.preferredLanguage,
           });
           actions.setAgentDialogue(answer);
           actions.setAgent({
             isAnswering: false,
+            answerSource: null,
+            replySource: 'fallback',
             currentDialogue: answer,
             memory: {
               ...latest.memory,
@@ -277,11 +288,11 @@ export function runAgentBehaviors(ctx: AgentBehaviorContext) {
     }
     target.copy(wanderTarget);
     nextMode = "wander";
-    nextActiveExhibit = agentNearestExhibit;
+    nextActiveExhibit = visitorFocus;
     refs.guideTimerRef.current = 0;
   } else {
     nextMode = "idle";
-    nextActiveExhibit = agentNearestExhibit;
+    nextActiveExhibit = visitorFocus;
     refs.guideTimerRef.current = 0;
   }
 

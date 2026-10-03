@@ -1,0 +1,63 @@
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getPublishedGalleries } from '@/app/api/gallery';
+import { I18nProvider } from '@/app/components/I18nProvider';
+import { dictionaries } from '@/app/i18n/catalogs';
+import Home from './Home';
+vi.mock('@/app/api/gallery', () => ({ getPublishedGalleries: vi.fn() }));
+function showHome() { return render(<MemoryRouter><I18nProvider><Home/></I18nProvider></MemoryRouter>); }
+beforeEach(() => { localStorage.setItem('metaexpo-locale', 'zh-TW'); });
+afterEach(() => { cleanup(); vi.resetAllMocks(); localStorage.removeItem('metaexpo-locale'); });
+describe('official-only homepage', () => {
+  it('never requests or promotes user exhibitions and preserves official and creation links', () => {
+    vi.mocked(getPublishedGalleries).mockResolvedValue({ galleries: [] });
+    const { container } = showHome();
+    expect(getPublishedGalleries).not.toHaveBeenCalled();
+    expect(screen.getAllByRole('link', { name: '參觀學習示範展', exact: true })).toHaveLength(1);
+    screen.getAllByRole('link', { name: '參觀學習示範展', exact: true }).forEach(link => expect(link).toHaveAttribute('href', '/demo'));
+    expect(container.querySelector('.home-hero-actions a')).toHaveAttribute('href', '/solutions');
+    screen.getAllByRole('link', { name: dictionaries['zh-TW'].homeAIWorkspace }).forEach(link => expect(link).toHaveAttribute('href', '/graduation'));
+    const headings = screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent);
+    expect(headings.indexOf(dictionaries['zh-TW'].homeAILearningTitle)).toBeLessThan(headings.indexOf(dictionaries['zh-TW'].demoCollectionTitle));
+    expect(container.querySelector('a[href^="/exhibitions/"]')).toBeNull();
+    expect(container.querySelector('.home-thumbnail-strip')).toBeNull();
+    expect(container.querySelector('.home-exhibition-wall')).toBeNull();
+    expect(container.querySelectorAll('.home-demo-card')).toHaveLength(3);
+    expect(screen.getByRole('link', { name: /印象・花園/ })).toHaveAttribute('href', '/demo?exhibition=garden');
+    expect(screen.getByRole('link', { name: /浮世・山水/ })).toHaveAttribute('href', '/demo?exhibition=landscape');
+  });
+  it('shows a labeled fallback if the official artwork cannot load', () => {
+    showHome();
+    fireEvent.error(screen.getByRole('img', { name: dictionaries['zh-TW'].demoArtwork2Title }));
+    expect(screen.getByText('展覽封面待提供')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: '參觀學習示範展', exact: true })).toHaveLength(1);
+    screen.getAllByRole('link', { name: '參觀學習示範展', exact: true }).forEach(link => expect(link).toHaveAttribute('href', '/demo'));
+  });
+  it.each(['zh-TW', 'zh-CN', 'en'] as const)('preserves translated official content in %s', locale => {
+    localStorage.setItem('metaexpo-locale', locale);
+    showHome();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(dictionaries[locale].homeAIHeroStart + dictionaries[locale].homeAIHeroEnd);
+    expect(screen.getByText(dictionaries[locale].homeDemoCaption)).toBeVisible();
+    expect(screen.getByText(dictionaries[locale].demoCollectionIntro)).toBeVisible();
+    expect(screen.getByText(dictionaries[locale].homeLearningNote)).toBeVisible();
+    expect(screen.getByText(dictionaries[locale].homeLearningHint)).toBeVisible();
+    expect(screen.getByText(dictionaries[locale].homeAIIntro)).toBeVisible();
+    screen.getAllByRole('link', { name: dictionaries[locale].homeAIPrimary }).forEach(link => expect(link).toHaveAttribute('href', '/solutions'));
+    screen.getAllByRole('link', { name: dictionaries[locale].homeAIWorkspace }).forEach(link => expect(link).toHaveAttribute('href', '/graduation'));
+    expect(screen.getByRole('link', { name: dictionaries[locale].homeCreateAction })).toHaveAttribute('href', '/virtual-gallery/quick-create');
+    expect(screen.getAllByRole('link', { name: dictionaries[locale].homeEnter, exact: true }).length).toBeGreaterThan(0);
+    screen.getAllByRole('link', { name: dictionaries[locale].homeChooseSpace }).forEach(link => expect(link).toHaveAttribute('href', '/virtual-gallery'));
+    expect(screen.getByRole('heading', { name: dictionaries[locale].aiEducationStudentTitle })).toBeVisible();
+    expect(screen.getByRole('heading', { name: dictionaries[locale].aiEducationTeacherTitle })).toBeVisible();
+    expect(screen.getByRole('heading', { name: dictionaries[locale].aiEducationAgentTitle })).toBeVisible();
+    expect(screen.getByRole('link', { name: dictionaries[locale].aiEducationStudentAction })).toHaveAttribute('href', '/graduation#student');
+    expect(screen.getByRole('link', { name: dictionaries[locale].aiEducationTeacherAction })).toHaveAttribute('href', '/graduation#teacher');
+    expect(screen.getByRole('link', { name: dictionaries[locale].aiEducationAgentAction })).toHaveAttribute('href', '/demo');
+    expect(screen.getByRole('heading', { name: dictionaries[locale].homeEducationTitle })).toBeVisible();
+    expect(screen.getByRole('heading', { name: dictionaries[locale].homeCultureTitle })).toBeVisible();
+    expect(screen.getByRole('heading', { name: dictionaries[locale].homeBusinessTitle })).toBeVisible();
+    expect(screen.getByRole('link', { name: dictionaries[locale].homeFindExhibitions })).toHaveAttribute('href', '/exhibitions');
+    expect(screen.getByRole('link', { name: dictionaries[locale].homeCreateShort, exact: true })).toHaveAttribute('href', '/virtual-gallery/quick-create');
+  });
+});

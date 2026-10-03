@@ -5,6 +5,8 @@ import type {
   WallMaterialSettings,
 } from "../types";
 import type { AvatarAppearanceV1 } from "../avatar/avatarAppearance";
+import type { AvatarPose } from "../avatar/avatarPose";
+import type { AvatarEmoteState } from "../avatar/avatarEmote";
 
 export type Vec3 = { x: number; y: number; z: number };
 
@@ -31,6 +33,9 @@ export type PlayerMovePayload = {
   t: number;
   position: Vec3;
   yaw: number;
+  pose?: AvatarPose;
+  emote?: AvatarEmoteState;
+  emoteNonce?: number;
 };
 
 export type PlayerSnapshot = {
@@ -39,6 +44,9 @@ export type PlayerSnapshot = {
   appearance: AvatarAppearanceV1;
   position: Vec3;
   yaw: number;
+  pose?: AvatarPose;
+  emote?: AvatarEmoteState;
+  emoteNonce?: number;
   lastSeq: number;
   updatedAt: number;
 };
@@ -74,6 +82,9 @@ export type PlayerMovedPayload = {
   t: number;
   position: Vec3;
   yaw: number;
+  pose?: AvatarPose;
+  emote?: AvatarEmoteState;
+  emoteNonce?: number;
   updatedAt: number;
 };
 

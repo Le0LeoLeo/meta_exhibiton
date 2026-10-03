@@ -55,6 +55,29 @@ describe('analyzeSceneBudget', () => {
     expect(result.suggestions.join(' ')).toContain(`${SCENE_BUDGET_THRESHOLDS.items.warning - 1}`);
   });
 
+  it('counts extensionless uploaded artwork and deduplicates signed and published URLs', () => {
+    const result = analyzeSceneBudget({ items: [
+      { type: 'painting', content: '/api/media/art-1?accessToken=preview-token' },
+      { type: 'painting', content: '/api/media/art-1?shareToken=share-token' },
+      { type: 'painting', content: '/api/media/art-1' },
+      { type: 'painting', content: '/api/media/art-2' },
+      { type: 'painting', content: '/api/media/video-1', fileMimeType: 'video/mp4' },
+      { type: 'painting', content: '/api/media/doc-1', fileMimeType: 'application/pdf' },
+      { type: 'painting', content: '/documents/handbook.pdf' },
+      { type: 'text', content: '/api/media/mentioned-in-text' },
+    ] });
+    expect(result.counts.images).toBe(2);
+    expect(result.counts.videos).toBe(1);
+  });
+
+  it('warns when generated paintings using stored media reach the image budget', () => {
+    const result = analyzeSceneBudget({ items: makeItems(SCENE_BUDGET_THRESHOLDS.images.warning)
+      .map((item, index) => ({ ...item, content: `/api/media/art-${index}` })) });
+    expect(result.counts.images).toBe(SCENE_BUDGET_THRESHOLDS.images.warning);
+    expect(result.metrics.images.level).toBe('warning');
+    expect(result.level).toBe('warning');
+  });
+
   it('promotes the overall level to critical when any metric reaches its critical threshold', () => {
     const repeatedModelItems = makeItems(SCENE_BUDGET_THRESHOLDS.models.critical, {
       type: 'pedestal',

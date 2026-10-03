@@ -18,6 +18,7 @@ export function GenericColorInspector({ selectedItem, itemType, updateItem }: Pr
         <label className="mb-1 block text-xs font-medium text-gray-700">{t(config.labelKey)}</label>
         <input
           type="color"
+          aria-label={t(config.labelKey)}
           value={selectedItem.content || config.defaultColor}
           onChange={(e) => updateItem(selectedItem.id, { content: e.target.value })}
           className="h-9 w-full rounded-md border border-gray-300"

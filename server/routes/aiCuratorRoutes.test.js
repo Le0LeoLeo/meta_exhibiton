@@ -127,19 +127,19 @@ describe('aiCuratorRoutes', () => {
 
   it('passes a valid curator intent to generation', async () => {
     const generateCuratorPlan = vi.fn().mockResolvedValue({
-      exhibition: { title: 'Competition plan' },
+      exhibition: { title: 'Gallery plan' },
     });
     const response = await postCuratorPlan(await startApp({ generateCuratorPlan }), {
-      theme: 'Student design awards',
-      intent: 'competition-showcase',
+      theme: 'Student design exhibition',
+      intent: 'professional-gallery',
     });
 
     expect(response.status).toBe(200);
     expect(generateCuratorPlan).toHaveBeenCalledWith({
-      theme: 'Student design awards',
+      theme: 'Student design exhibition',
       language: 'zh-TW',
       exhibitCount: 6,
-      intent: 'competition-showcase',
+      intent: 'professional-gallery',
     });
   });
 

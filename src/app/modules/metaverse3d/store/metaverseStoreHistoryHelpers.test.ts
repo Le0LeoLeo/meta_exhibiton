@@ -4,6 +4,14 @@ import { createImportedSceneSnapshot, normalizeImportedItemPosition } from "./me
 import { parseVec3 } from "./metaverseStoreUtils";
 
 describe("imported scene geometry", () => {
+  it("supplies room dimensions for partial scenes and preserves authored dimensions", () => {
+    expect(createImportedSceneSnapshot({}).roomSize).toMatchObject({
+      width: 20, length: 20, height: 6, wallThickness: 0.1,
+    });
+    expect(createImportedSceneSnapshot({ roomSize: { width: 12, height: 4 } }).roomSize)
+      .toMatchObject({ width: 12, length: 20, height: 4, wallThickness: 0.1 });
+  });
+
   it("preserves valid zero vector components instead of replacing them with fallbacks", () => {
     expect(parseVec3([0, 0, 0], [4, 1.5, 8])).toEqual([0, 0, 0]);
   });

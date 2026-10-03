@@ -1,8 +1,9 @@
 import OpenAI from 'openai';
 import { normalizeSceneGeometry } from './sceneGeometryService.js';
-import { sanitizeSceneSnapshot } from '../schemas/sceneSchema.js';
+import { persistentSceneSchema, sanitizeSceneSnapshot } from '../schemas/sceneSchema.js';
 import { buildSceneContext } from './exhibitionSceneContext.js';
-import { applySceneOperationPlan, sceneOperationPlanSchema } from './exhibitionSceneOperations.js';
+import { inspectEditorScene } from './editorScenePreflight.js';
+import { applySceneOperationPlan, sceneOperationPlanSchema, sceneOperationJsonSchema } from './exhibitionSceneOperations.js';
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&q=80&w=1200';
 const PLACEHOLDER_IMAGES = [
@@ -46,18 +47,24 @@ function findBlobUrlPath(value, path = '$', seen = new WeakSet()) {
 }
 
 export function assertPersistentScenePayload(payload) {
+  if (payload === undefined || payload === null) return;
   let scene = payload;
   if (typeof payload === 'string' && !isBlobUrl(payload)) {
     try {
       scene = JSON.parse(payload);
     } catch {
-      return;
+      throw new Error('sceneJson must contain valid JSON');
     }
   }
 
   const blobUrlPath = findBlobUrlPath(scene);
   if (blobUrlPath) {
     throw new Error(`scene contains a non-persistent blob URL at ${blobUrlPath}`);
+  }
+  const parsed = persistentSceneSchema.safeParse(scene);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw new Error(`invalid scene at ${issue.path.join('.') || '$'}: ${issue.message}`);
   }
 }
 
@@ -77,7 +84,8 @@ function createQwenClient(apiKey, baseUrl, timeoutMs) {
   return new OpenAI({
     apiKey,
     baseURL: baseUrl,
-    timeout: timeoutMs,
+    timeout: Math.min(45000, Math.max(1000, timeoutMs)),
+    maxRetries: 0,
   });
 }
 
@@ -416,14 +424,14 @@ function normalizeExhibits(input, rawExhibits = []) {
       id,
       type: 'painting',
       title: String(source.title || asset.title || `展品 ${index + 1}`),
-      artist: String(source.artist || asset.artist || 'AI 策展'),
+      artist: String(asset.artist || (input.language === 'en' ? 'Concept exhibit' : input.language === 'zh-CN' ? '概念展品' : '概念展品')),
       description: String(
         source.description
         || source.label
         || asset.description
         || `此展品回應「${input.prompt || '展覽主題'}」的策展線索。`,
       ),
-      imageUrl: source.imageUrl || asset.imageUrl || imageForIndex(index),
+      imageUrl: assets.find((candidate) => candidate.imageUrl && candidate.imageUrl === source.imageUrl)?.imageUrl || asset.imageUrl || imageForIndex(index),
     };
   });
 }
@@ -481,12 +489,12 @@ function createCuratedScene(input = {}, plan = normalizeExhibitionPlan(input)) {
     {
       id: 'ai-title',
       type: 'text',
-      ...wallMount('south', roomSize, 0, 4.65, 0.16),
+      ...wallMount('south', roomSize, 0, 4.85, 0.35),
       scale: [1, 1, 1],
       content: compactWallText(plan.exhibition.title, 24, 1),
       textFontFamily: 'sans',
       textColor: '#111827',
-      textFontSize: 0.72,
+      textFontSize: 0.6,
       textIsBold: true,
       textBackboardEnabled: true,
       textBackboardColor: '#ffffff',
@@ -513,7 +521,7 @@ function createCuratedScene(input = {}, plan = normalizeExhibitionPlan(input)) {
     items.push({
       id: `${section.id}-title`,
       type: 'text',
-      ...wallMount(face, roomSize, signAxis, 4.1, 0.15),
+      ...wallMount(face, roomSize, signAxis, 4.75, 0.35),
       scale: [1, 1, 1],
       content: compactWallText(section.title, 22, 1),
       textFontFamily: 'sans',
@@ -528,9 +536,9 @@ function createCuratedScene(input = {}, plan = normalizeExhibitionPlan(input)) {
       items.push({
         id: `${section.id}-intro`,
         type: 'text',
-        ...wallMount(face, roomSize, signAxis, 3.55, 0.15),
+        ...wallMount(face, roomSize, signAxis, 3.95, 0.35),
         scale: [1, 1, 1],
-        content: compactWallText(section.description, 28, 2),
+        content: compactWallText(section.description, 24, 2),
         textFontFamily: 'sans',
         textColor: '#334155',
         textFontSize: 0.2,
@@ -556,19 +564,6 @@ function createCuratedScene(input = {}, plan = normalizeExhibitionPlan(input)) {
         externalUrl: '',
       });
       items.push({
-        id: `label-${String(globalIndex + 1 || exhibitIndex + 1).padStart(2, '0')}`,
-        type: 'text',
-        ...wallMount(face, roomSize, axis, 1.45, 0.15),
-        scale: [1, 1, 1],
-        content: compactWallText(exhibit.title, 28, 1),
-        textFontFamily: 'sans',
-        textColor: '#111827',
-        textFontSize: 0.18,
-        textIsBold: true,
-        textBackboardEnabled: true,
-        textBackboardColor: '#ffffff',
-      });
-      items.push({
         id: `light-${String(globalIndex + 1 || exhibitIndex + 1).padStart(2, '0')}`,
         type: 'lightstrip',
         ...wallMount(face, roomSize, axis, 3.35, 0.45),
@@ -581,7 +576,7 @@ function createCuratedScene(input = {}, plan = normalizeExhibitionPlan(input)) {
 
   items.push(
     { id: 'route-rug-01', type: 'rug', position: [0, 0.01, 0.4], rotation: [0, 0, 0], scale: [5.8, 1, 2.2], content: '#1d4ed8' },
-    { id: 'bench-01', type: 'bench', position: [0, 0, 2.6], rotation: [0, Math.PI, 0], scale: [2.4, 1.1, 1], content: '#8b5e3c' },
+    { id: 'bench-01', type: 'bench', position: [-roomSize.width / 2 + 2.5, 0, roomSize.length / 2 - 3], rotation: [0, Math.PI / 2, 0], scale: [1.2, 1, 1], content: '#8b5e3c' },
     { id: 'plant-entrance-left', type: 'plant', position: [-roomSize.width / 2 + 1.4, 0, roomSize.length / 2 - 1.4], rotation: [0, 0, 0], scale: [1.1, 1.4, 1.1], content: '#22c55e' },
     { id: 'plant-entrance-right', type: 'plant', position: [roomSize.width / 2 - 1.4, 0, roomSize.length / 2 - 1.4], rotation: [0, 0, 0], scale: [1.1, 1.4, 1.1], content: '#22c55e' },
   );
@@ -697,10 +692,24 @@ function _coerceQwenScene(scene, input) {
 }
 
 function shouldReviseExistingScene(input = {}) {
-  return Boolean(input.currentScene && Array.isArray(input.currentScene.items) && input.currentScene.items.length > 0);
+  return Boolean(input.currentScene && Array.isArray(input.currentScene.items) && (input.editMode === 'complete' || input.currentScene.items.length > 0));
 }
 
 function buildSystemPrompt(input = {}) {
+  if (input.editMode === 'complete') return [
+    'You are the exhibition editor agent. Return JSON containing exhibition and operationPlan, obeying operationSchema. No markdown.',
+    'Use the exact scene context and the smallest set of operations that fulfils the request. Existing and previously created IDs can be referenced. Never invent asset URLs; use place-asset or replace-item-asset with an editorAssets key.',
+    'For many named zones with a fixed exhibit count (for example A–F, ten works each), use ONE build-exhibition-zones operation with id, zones:[{title:"A",count:10},...], assetKeys from supplied images, decorate:true. This creates connected annex rooms with collision-spaced artwork and decor; original rooms/items stay unchanged. It reuses provided media as display copies; with no images it creates explicitly labelled demonstration slots. State that reuse or placeholder limitation, never claim sixty unique original works. Do not expand this into dozens of coordinates or add duplicate zone labels. User-explicit per-zone counts override the form exhibitCount default. This operation requires height>=4.5; edit-room first only if needed.',
+    'Use edit-item for text content, frame appearance, video playback, model offset, light properties and exact transforms; edit-room for full room/material/lighting settings; edit-wall-material for one supplied wall target.',
+    'Partition material uses edit-wall-material with targetId equal to the partition ID, and changes such as wallColor and wallRoughness. frameColor and all frame fields belong only to paintings; frameRoughness does not exist. Example: {"type":"edit-wall-material","targetId":"ai-partition","changes":{"wallColor":"#f0e4cc","wallRoughness":0.8}}.',
+    'For new primitive furniture or partitions use add-editor-item. For multiple rooms/custom walls use floor-element commands. Use mount-on-partition for front/back mounting. Use batch-transform and duplicate-items for batch editing.',
+    'Floor-plan rooms are axis-aligned. When extending a scene that has no explicit room elements, first represent the existing room as a locked room element centred at [0,0.02,0] with its current dimensions, then add adjoining rooms. Keep floor-standing objects at y=0 unless a supported raised placement is explicitly requested.',
+    'For thematic groups on a single centred rectangular room use arrange-exhibition-sections. This tool ALREADY adds one collision-aware heading per section and positions artwork around existing text. Do NOT add separate section labels or move/delete existing headings after this tool. Preserve existing text and media. Do not create physical partitions unless the user asks for partition walls; keeping an aisle clear does not mean adding walls.',
+    'Only delete or replace original media if allowDestructive is true AND the request explicitly asks for it. Do not unlock locked objects unless requested. Never use deletion merely to bypass a geometry error.',
+    'Transforms are exact, not automatically corrected. Keep artwork, captions and text clear of each other and of walls; maintain walkable routes. Paintings already have title/artist captions.',
+    'Apply named presets via their actual settings. Describe only the changes in your operationPlan; do not claim unsupported sensors, audio generation, publishing, file access or external asset search.',
+    'If operationFeedback exists, correct the rejected plan against the unchanged scene. Missing assets must be explained, not invented.',
+  ].join(' ');
   if (shouldReviseExistingScene(input)) {
     return [
       'You are a precise virtual exhibition editor.',
@@ -710,6 +719,10 @@ function buildSystemPrompt(input = {}) {
       'Only reference item IDs included in sceneContext.',
       'Never replace or remove protected items. Never change content, assetId, assetUrl, thumbnailUrl, or other media fields.',
       'Make the smallest set of operations needed to satisfy the request.',
+      'For thematic wall groups use arrange-exhibition-sections with existing painting IDs: it computes spacing from actual dimensions and adds section signs. It supports up to three unique north/west/east walls, preserves media and rejects locked works or insufficient capacity.',
+      'Create physical partitions only when the user explicitly requests new partition walls or dividers. Thematic wall sections and preserving the central aisle do not require partitions. For explicitly requested physical subdivisions use create-exhibition-divider: paired partitions across X at atZ with a central aisle of at least 2 metres. These tools currently require a single centred rectangular room; no arbitrary floor plans or painting mounts on partitions. Never claim a whole route is clear solely because a divider leaves an aisle.',
+      'Paintings already render their own title/artist caption. Do not add duplicate text labels beneath them. Keep separate signs clear of frames and built-in captions.',
+      'Only describe existing supported visual content. Do not claim to add audio, sensors, touch interactions, scent, water effects or other unimplemented experiences.',
     ].join(' ');
   }
   return [
@@ -721,6 +734,8 @@ function buildSystemPrompt(input = {}) {
     'Create exactly the requested number of exhibits.',
     'Each exhibit must be specific to the user request, not generic museum filler.',
     'Do not invent real historical authors, dates, or factual claims when the user did not provide them.',
+    'The renderer creates static framed images with built-in title/artist captions and wall text. It cannot create audio, sensors, touch interactions, scent, water effects or immersive installations. Do not describe those as present.',
+    'Without supplied artwork assets, explicitly describe this as a concept exhibition with placeholder images, not a completed exhibition of real works.',
   ].join(' ');
 }
 
@@ -747,8 +762,12 @@ function buildUserPrompt(input) {
       mode: 'revise-existing-scene',
       request: input.prompt,
       language: input.language || 'zh-TW',
-      sceneContext: buildSceneContext(input.currentScene),
-      instructions: [
+      sceneContext: buildSceneContext(input.currentScene, input.editMode === 'complete'),
+      ...(input.editMode === 'complete' ? { editorAssets: (input.editorAssets || []).map(({ key, label, kind, mimeType }) => ({ key, label, kind, mimeType })), allowDestructive: input.allowDestructive === true,
+        style: input.style, exhibitCount: input.exhibitCount,
+        operationFeedback: input.operationFeedback, revisionFeedback: input.revisionFeedback, texturePresets: ['/textures/wall-paint.svg', '/textures/wall-concrete.svg', '/textures/wall-wood.svg', '/textures/wall-metal.svg'] } : {}),
+      operationSchema: sceneOperationJsonSchema,
+      instructions: input.editMode === 'complete' ? ['Return the same language as language. Use operations only; never replace the entire scene. Honour requested scope and preserve unrelated fields.'] : [
         'Return the same language as language.',
         'Preserve every protected item and all of its media references.',
         'Do not return a replacement scene, items array, floor plan, or renderer settings.',
@@ -808,7 +827,7 @@ async function callQwenForScene(input) {
   const apiKey = getApiKey();
   if (!apiKey) return null;
 
-  const client = createQwenClient(apiKey, getQwenBaseUrl(), Number(process.env.QWEN_TIMEOUT_MS || 20000));
+  const client = createQwenClient(apiKey, getQwenBaseUrl(), Number(process.env.QWEN_BUILDER_TIMEOUT_MS || 45000));
   const completion = await client.chat.completions.create({
     model: process.env.QWEN_MODEL || 'qwen3.6-plus',
     messages: [
@@ -831,13 +850,12 @@ export async function generateExhibitionScene(input = {}) {
   const revisionMode = shouldReviseExistingScene(input);
 
   function currentSceneFallback(message) {
-    const normalized = normalizeSceneGeometry(sanitizeSceneSnapshot(input.currentScene));
     return {
       exhibition: fallback.exhibition,
-      scene: normalized.scene,
+      scene: input.editMode === 'complete' ? structuredClone(input.currentScene) : sanitizeSceneSnapshot(input.currentScene),
       operations: [],
       operationSummary: '',
-      warnings: [message, ...normalized.warnings],
+      warnings: [message],
       source: 'fallback',
     };
   }
@@ -857,11 +875,44 @@ export async function generateExhibitionScene(input = {}) {
       };
     }
 
-    const parsed = extractJsonObject(qwenContent);
+    let parsed = extractJsonObject(qwenContent);
     if (revisionMode) {
-      const operationPlan = sceneOperationPlanSchema.parse(parsed.operationPlan);
-      const applied = applySceneOperationPlan(input.currentScene, operationPlan);
+      let operationPlan;
+      let applied;
+      const applyPlan = (plan) => {
+        const result = applySceneOperationPlan(input.currentScene, plan, input);
+        if (input.editMode === 'complete') {
+          const before = { ...input.currentScene, floorPlanElements: input.currentScene.floorPlanElements || [], wallMaterialOverrides: input.currentScene.wallMaterialOverrides || {} };
+          if (JSON.stringify(before) === JSON.stringify(result.scene)) throw Object.assign(new Error('The plan makes no scene changes. Supply concrete edits that fulfill the brief.'), { code: 'INVALID_SCENE_OPERATION' });
+          const existing = new Set(inspectEditorScene(input.currentScene).map((issue) => issue.message));
+          const introduced = inspectEditorScene(result.scene).filter((issue) => !existing.has(issue.message));
+          if (introduced.length) throw Object.assign(new Error(introduced.map((issue) => issue.message).join(' ')), { code: 'INVALID_SCENE_OPERATION' });
+        }
+        return result;
+      };
+      try {
+        operationPlan = sceneOperationPlanSchema.parse(parsed.operationPlan);
+        applied = applyPlan(operationPlan);
+      } catch (error) {
+        if (input.editMode !== 'complete') throw error;
+        const correction = await callQwenForScene({ ...input, operationFeedback: String(error.message).slice(0, 1800) });
+        parsed = extractJsonObject(correction);
+        operationPlan = sceneOperationPlanSchema.parse(parsed.operationPlan);
+        applied = applyPlan(operationPlan);
+      }
       const metadata = normalizeExhibitionPlan(input, parsed).exhibition;
+      const zoneCommands = operationPlan.operations.filter(operation => operation.type === 'build-exhibition-zones');
+      if (zoneCommands.length) {
+        metadata.sections = zoneCommands.flatMap(operation => operation.zones.map((zone, index) => ({
+          title: zone.title,
+          description: operation.assetKeys.length ? '使用已提供素材的展示副本。' : '示意展品位置，等待正式作品。',
+          exhibitIds: applied.scene.items.filter(item => item.id.startsWith(`${operation.id}-${index}-work-`)).map(item => item.id),
+        })));
+        const total = metadata.sections.reduce((sum, section) => sum + section.exhibitIds.length, 0);
+        metadata.curatorialStatement = input.language === 'en'
+          ? `Created ${metadata.sections.length} connected zones with ${total} display positions. The original room and works are retained. New displays use supplied-media copies or labelled demonstration images; replace these with final artwork when ready.`
+          : `已建立 ${metadata.sections.length} 個相連展區，共 ${total} 個展示位置；原展間與作品保留。新增展示使用已提供素材的副本或明確標示的示意圖片，可再替換為正式作品。`;
+      }
       return {
         exhibition: metadata,
         scene: applied.scene,
@@ -882,8 +933,11 @@ export async function generateExhibitionScene(input = {}) {
       warnings: normalized.warnings,
       source: 'qwen',
     };
-  } catch {
+  } catch (error) {
     if (revisionMode) {
+      if (error?.code === 'INVALID_SCENE_OPERATION') {
+        return currentSceneFallback(`Scene operation rejected; kept the existing scene. ${error.message}`);
+      }
       return currentSceneFallback('Qwen scene revision failed; kept the existing scene.');
     }
     const normalizedFallback = normalizeSceneGeometry(sanitizeSceneSnapshot(fallback.scene));

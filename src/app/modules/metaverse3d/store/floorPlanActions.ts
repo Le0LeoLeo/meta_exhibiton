@@ -36,7 +36,7 @@ export function addFloorPlanElementAction(state: {
     return {
       floorPlanElements: [...state.floorPlanElements, newElement],
       selectedFloorPlanElementId: newElement.id,
-      floorPlanEditTarget: type === "room" ? "room" : "wall",
+      floorPlanEditTarget: type === "room" ? "room" as const : "wall" as const,
     };
   };
 }
@@ -47,7 +47,7 @@ export function createAppliedFloorPlan(state: {
   roomSize: RoomSize;
 }) {
   const roomElements = state.floorPlanElements.filter((el) => el.type === "room");
-  const wallElements = state.floorPlanElements.filter((el) => el.type === "wall" || el.type === "partition");
+  const wallElements = state.floorPlanElements.filter((el) => ["wall", "partition"].includes(el.type));
 
   let nextRoomSize = state.roomSize;
   const anchorRoom = roomElements.find((room) => room.isLocked) || roomElements[0] || null;

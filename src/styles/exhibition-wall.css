@@ -1,0 +1,47 @@
+/* A gently curved hanging line; captions stay level for easy scanning. */
+.home-exhibition-wall {
+  display: flex;
+  gap: clamp(24px, 3vw, 48px);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding: 48px 26px 32px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.home-exhibition-wall .home-exhibition {
+  flex: 0 0 clamp(250px, 25vw, 360px);
+  scroll-snap-align: center;
+}
+.home-exhibition-wall .home-exhibition:first-child { margin-left: auto; }
+.home-exhibition-wall .home-exhibition:last-child { margin-right: auto; }
+.home-exhibition-wall .home-exhibition-image {
+  height: auto;
+  aspect-ratio: 4 / 5;
+  padding: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 12px 24px -18px rgb(30 25 20 / .4);
+  transform: translateY(var(--wall-rise, 0px)) rotate(var(--wall-angle, 0deg));
+  transform-origin: center 85%;
+  transition: transform .55s var(--museum-ease), box-shadow .55s var(--museum-ease);
+}
+.home-exhibition-wall .home-exhibition-image img { object-fit: contain; }
+.home-exhibition-wall .home-exhibition:hover img { transform: none; }
+.home-exhibition-wall .home-category { margin-top: 28px; }
+@media (hover: hover) and (pointer: fine) {
+  .home-exhibition-wall .home-exhibition:hover .home-exhibition-image {
+    transform: translateY(-10px) rotate(0deg);
+    box-shadow: 0 20px 35px -23px rgb(30 25 20 / .55);
+  }
+}
+.home-exhibition-wall .home-exhibition:focus-visible .home-exhibition-image { transform: translateY(-10px) rotate(0deg); }
+@media (max-width: 650px) {
+  .home-exhibition-wall { gap: 24px; padding: 24px 14px; scroll-snap-type: x mandatory; }
+  .home-exhibition-wall .home-exhibition { flex-basis: 78%; }
+  .home-exhibition-wall .home-exhibition-image { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-exhibition-wall { scroll-behavior: auto; }
+  .home-exhibition-wall .home-exhibition .home-exhibition-image { transform: none; transition: none; }
+}

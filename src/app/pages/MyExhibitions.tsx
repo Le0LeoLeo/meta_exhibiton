@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import {
   Plus,
+  ImagePlus,
   Pencil,
   Calendar,
   ArrowRight,
@@ -12,23 +13,18 @@ import {
   Trash2,
   Globe,
   Eye,
-  Trophy,
   BarChart3,
+  MoreHorizontal,
 } from 'lucide-react';
-import { Button } from '../components/ui/button';
+import { Button, buttonVariants } from '../components/ui/button';
 import {
-  createCompetition,
   createGallery,
   deleteGalleryById,
-  getMyCompetitionEntries,
-  getMyHostedCompetitions,
   getMyGalleries,
   loadAuth,
   publishGalleryById,
   unpublishGalleryById,
   updateGalleryById,
-  type Competition,
-  type CompetitionEntry,
   type GallerySummary,
 } from '../api/client';
 import { toast } from 'sonner';
@@ -46,8 +42,13 @@ import {
   CREATE_GALLERY_TEMPLATE_TITLES,
   GALLERY_TEMPLATES,
 } from '../constants/galleryTemplates';
-import { getTemplateSceneJson } from '../constants/gallerySceneTemplates';
+import { getDefaultGalleryAtmosphere, getTemplateSceneJson, type GalleryAtmosphere } from '../constants/gallerySceneTemplates';
+import { GalleryAtmosphereSelector } from '../components/GalleryAtmosphereSelector';
 import { useI18n } from '../components/I18nProvider';
+import { useMobileDevice } from '../hooks/useMobileDevice';
+import { ExhibitionShareDialog } from '../components/ExhibitionShareDialog';
+import { ExhibitionFolders } from '../features/exhibition-folders/ExhibitionFolders';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 
 const createTemplates = GALLERY_TEMPLATES.filter((template) =>
   CREATE_GALLERY_TEMPLATE_TITLES.includes(
@@ -81,6 +82,7 @@ const tDesc = (t: (key: string) => string, title: string) => {
 };
 
 export default function MyExhibitions() {
+  const isMobile = useMobileDevice();
   const navigate = useNavigate();
   const { t } = useI18n();
   const [items, setItems] = useState<GallerySummary[]>([]);
@@ -100,6 +102,7 @@ export default function MyExhibitions() {
   const [newTitle, setNewTitle] = useState('');
   const [selectedTemplateTitle, setSelectedTemplateTitle] =
     useState(defaultTemplateTitle);
+  const [selectedAtmosphere, setSelectedAtmosphere] = useState<GalleryAtmosphere>(() => getDefaultGalleryAtmosphere(defaultTemplateTitle));
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [publishingId, setPublishingId] = useState<string | null>(null);
@@ -107,20 +110,6 @@ export default function MyExhibitions() {
   const [publishGallery, setPublishGallery] = useState<GallerySummary | null>(
     null,
   );
-  const [competitions, setCompetitions] = useState<Competition[]>([]);
-  const [, setMyCompetitionEntries] = useState<
-    CompetitionEntry[]
-  >([]);
-  const [hostCompetitionEnabled, setHostCompetitionEnabled] = useState(false);
-  const [competitionTitle, setCompetitionTitle] = useState('');
-  const [competitionDescription, setCompetitionDescription] = useState('');
-  const [competitionRules, setCompetitionRules] = useState('');
-  const [competitionIsPublic, setCompetitionIsPublic] = useState(true);
-  const [competitionRegistrationDeadline, setCompetitionRegistrationDeadline] =
-    useState('');
-  const [competitionVotingDeadline, setCompetitionVotingDeadline] =
-    useState('');
-
   const sortedItems = useMemo(
     () =>
       [...items].sort(
@@ -130,7 +119,7 @@ export default function MyExhibitions() {
     [items],
   );
 
-  const fetchMyExhibitions = async () => {
+  const fetchMyExhibitions = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -142,22 +131,9 @@ export default function MyExhibitions() {
         );
         return;
       }
-      const [galleryResult, hostedCompetitionResult, myEntriesResult] =
-        await Promise.all([
-          getMyGalleries(token),
-          getMyHostedCompetitions(token),
-          getMyCompetitionEntries(token),
-        ]);
+      const galleryResult = await getMyGalleries(token);
       setItems(
         Array.isArray(galleryResult.galleries) ? galleryResult.galleries : [],
-      );
-      setCompetitions(
-        Array.isArray(hostedCompetitionResult.competitions)
-          ? hostedCompetitionResult.competitions
-          : [],
-      );
-      setMyCompetitionEntries(
-        Array.isArray(myEntriesResult.entries) ? myEntriesResult.entries : [],
       );
     } catch (err) {
       const message =
@@ -167,18 +143,21 @@ export default function MyExhibitions() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate, t]);
 
   useEffect(() => {
     void fetchMyExhibitions();
-  }, []);
+  }, [fetchMyExhibitions]);
 
   const handleCreateNew = () => {
+    if (isMobile) return;
     setNewTitle('');
     setSelectedTemplateTitle(defaultTemplateTitle);
+    setSelectedAtmosphere(getDefaultGalleryAtmosphere(defaultTemplateTitle));
     setCreateOpen(true);
   };
   const handleConfirmCreate = async () => {
+    if (isMobile) return;
     const title = newTitle.trim();
     if (!title) return toast.error(t('pleaseEnterExhibitionName'));
     const selectedTemplate =
@@ -192,7 +171,7 @@ export default function MyExhibitions() {
           '/login?returnTo=' +
             encodeURIComponent('/virtual-gallery/my-exhibitions'),
         );
-      const sceneJson = getTemplateSceneJson(selectedTemplate.title);
+      const sceneJson = getTemplateSceneJson(selectedTemplate.title, selectedAtmosphere);
       const result = await createGallery(token, {
         title,
         description: selectedTemplate.description,
@@ -241,6 +220,7 @@ export default function MyExhibitions() {
     setSavingEditId(gallery.id);
     try {
       const result = await updateGalleryById(token, gallery.id, {
+        expectedRevision: gallery.revision,
         title,
         description,
       });
@@ -316,55 +296,7 @@ export default function MyExhibitions() {
       return;
     }
     setPublishGallery(gallery);
-    const existingHostedCompetition = competitions.find(
-      (competition) => competition.hostGalleryId === gallery.id,
-    );
-    setHostCompetitionEnabled(Boolean(existingHostedCompetition));
-    setCompetitionTitle(
-      existingHostedCompetition?.title ||
-        `${gallery.title} ${t('competitionSuffix')}`,
-    );
-    setCompetitionDescription(
-      existingHostedCompetition?.description || gallery.description || '',
-    );
-    setCompetitionRules(
-      existingHostedCompetition?.rules || t('defaultCompetitionRules'),
-    );
-    setCompetitionIsPublic(existingHostedCompetition?.isPublic ?? true);
-    setCompetitionRegistrationDeadline(
-      existingHostedCompetition
-        ? existingHostedCompetition.registrationDeadline.slice(0, 16)
-        : '',
-    );
-    setCompetitionVotingDeadline(
-      existingHostedCompetition?.votingDeadline
-        ? existingHostedCompetition.votingDeadline.slice(0, 16)
-        : '',
-    );
     setPublishOpen(true);
-  };
-
-  const copy = async (text: string, ok: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(ok);
-    } catch {
-      toast.error(t('copyFailed'), { description: t('pleaseCopyManually') });
-    }
-  };
-  const handleCopyEditShare = async () => {
-    if (!shareGalleryId) return;
-    await copy(
-      `${window.location.origin}/virtual-gallery/create?exhibitionId=${encodeURIComponent(shareGalleryId)}`,
-      t('copiedEditShareLink'),
-    );
-  };
-  const handleCopyViewShare = async () => {
-    if (!shareGalleryId) return;
-    await copy(
-      `${window.location.origin}/virtual-gallery/create?exhibitionId=${encodeURIComponent(shareGalleryId)}&share=view`,
-      t('copiedViewShareLink'),
-    );
   };
 
   const handleConfirmPublish = async () => {
@@ -383,41 +315,9 @@ export default function MyExhibitions() {
           item.id === publishGallery.id ? result.gallery : item,
         ),
       );
-      let hosted = false;
-      const existingHostedCompetition = competitions.find(
-        (competition) => competition.hostGalleryId === publishGallery.id,
-      );
-      if (hostCompetitionEnabled && !existingHostedCompetition) {
-        if (
-          !competitionTitle.trim() ||
-          !competitionDescription.trim() ||
-          !competitionRules.trim() ||
-          !competitionRegistrationDeadline.trim()
-        )
-          throw new Error(t('completeCompetitionInfo'));
-        const created = await createCompetition(token, {
-          hostGalleryId: publishGallery.id,
-          title: competitionTitle.trim(),
-          description: competitionDescription.trim(),
-          rules: competitionRules.trim(),
-          coverImage: publishGallery.templateImage || null,
-          isPublic: competitionIsPublic,
-          registrationDeadline: new Date(
-            competitionRegistrationDeadline,
-          ).toISOString(),
-          votingDeadline: competitionVotingDeadline.trim()
-            ? new Date(competitionVotingDeadline).toISOString()
-            : null,
-          status: 'open',
-        });
-        setCompetitions((prev) => [created.competition, ...prev]);
-        hosted = true;
-      }
       setPublishOpen(false);
       toast.success(t('publishedExhibition'), {
-        description: hosted
-          ? `「${publishGallery.title}」${t('publishedAndHostedCompetition')}`
-          : `「${publishGallery.title}」${t('nowPubliclyViewable')}`,
+        description: `「${publishGallery.title}」${t('nowPubliclyViewable')}`,
       });
     } catch (err) {
       toast.error(t('publishFailed'), {
@@ -435,7 +335,7 @@ export default function MyExhibitions() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-10 text-balance"
+          className="museum-workspace-heading text-balance"
         >
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-curator-brass">
             {t('manageExhibitions')}
@@ -452,21 +352,29 @@ export default function MyExhibitions() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="mb-8 rounded-md border border-border bg-card p-6 shadow-[0_18px_45px_-38px_rgba(28,28,26,0.45)]"
+          className="mb-8 rounded-md border border-border bg-card p-6"
         >
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
               <h2 className="mb-1 text-2xl font-semibold text-foreground">
                 {t('createNewExhibition')}
               </h2>
-              <p className="text-muted-foreground">
-                {t('createNewExhibitionDesc')}
+              <p className="text-sm leading-6 text-muted-foreground">
+                {t('quickExhibitionSubtitle')}
               </p>
             </div>
-            <Button onClick={handleCreateNew}>
-              <Plus className="mr-2 size-4" />
-              {t('newExhibition')}
-            </Button>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
+              <Button asChild className="min-h-11">
+                <Link to="/virtual-gallery/quick-create">
+                  <ImagePlus className="size-4" aria-hidden="true" />
+                  {t('quickExhibitionCreateAction')}
+                </Link>
+              </Button>
+              <Button variant="outline" className="min-h-11" onClick={handleCreateNew} disabled={isMobile} title={isMobile ? t('mobileEditorDesktopRequired') : undefined}>
+                <Plus className="size-4" aria-hidden="true" />
+                {t(isMobile ? 'mobileEditorDesktopRequired' : 'selectTemplate')}
+              </Button>
+            </div>
           </div>
         </motion.div>
 
@@ -474,7 +382,7 @@ export default function MyExhibitions() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="rounded-md border border-border bg-card shadow-[0_18px_45px_-38px_rgba(28,28,26,0.45)]"
+          className="rounded-md border border-border bg-card"
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-6">
             <div>
@@ -515,16 +423,13 @@ export default function MyExhibitions() {
             </div>
           ) : error ? (
             <div className="p-8 text-destructive">{error}</div>
-          ) : sortedItems.length === 0 ? (
-            <div className="p-6 text-muted-foreground">
-              {t('noExhibitionsYet')}
-            </div>
           ) : (
+            <ExhibitionFolders items={sortedItems}>{(folderItems, folderControls) => (
             <div className="divide-y divide-border">
-              {sortedItems.map((item) => (
+              {folderItems.map((item) => (
                 <div key={item.id} className="flex flex-col gap-4 p-6">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex min-w-0 items-center gap-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 items-center gap-4 lg:flex-1">
                       <div className="h-20 w-28 flex-shrink-0 overflow-hidden rounded-md border border-border bg-secondary">
                         <ImageWithFallback
                           src={
@@ -539,6 +444,9 @@ export default function MyExhibitions() {
                         <div className="flex flex-wrap items-center gap-2">
                           {editingGalleryId === item.id ? (
                             <Input
+                              id={`gallery-title-${item.id}`}
+                              autoFocus
+                              aria-label={t('exhibitionName')}
                               value={editTitle}
                               onChange={(e) => setEditTitle(e.target.value)}
                               placeholder={t('enterExhibitionName')}
@@ -565,6 +473,7 @@ export default function MyExhibitions() {
                               {t('exhibitionDescription')}
                             </label>
                             <textarea
+                              aria-label={t('exhibitionDescription')}
                               value={editDescription}
                               onChange={(e) =>
                                 setEditDescription(e.target.value)
@@ -609,24 +518,15 @@ export default function MyExhibitions() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {/* actions */}
-                      <Button
-                        variant={item.isPublished ? 'outline' : 'default'}
-                        className={
-                          item.isPublished
-                            ? ''
-                            : 'bg-success-quiet text-white hover:bg-curator-brass'
-                        }
-                        onClick={() => void handleTogglePublish(item)}
-                        disabled={publishingId === item.id}
-                      >
-                        <Globe className="mr-2 size-4" />
-                        {publishingId === item.id
-                          ? t('processing')
-                          : item.isPublished
-                            ? t('unpublish')
-                            : t('publishEvent')}
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 lg:max-w-md lg:justify-end">
+                      {folderControls(item)}
+                      <Button asChild className="min-h-11">
+                        <Link to={item.quickDraftId && !item.isPublished
+                          ? `/virtual-gallery/quick-create?draftId=${encodeURIComponent(item.quickDraftId)}`
+                          : `/virtual-gallery/edit-artworks?exhibitionId=${encodeURIComponent(item.id)}`}>
+                          <Pencil className="mr-2 size-4" aria-hidden="true" />
+                          {t(item.quickDraftId && !item.isPublished ? 'quickExhibitionResume' : 'artworkEditTitle')}
+                        </Link>
                       </Button>
                       {item.isPublished ? (
                         <Button
@@ -641,18 +541,6 @@ export default function MyExhibitions() {
                           {t('viewPage')}
                         </Button>
                       ) : null}
-                      {competitions.some(
-                        (competition) => competition.hostGalleryId === item.id,
-                      ) ? (
-                        <Button
-                          variant="outline"
-                          className="border-tool-blue/50 text-tool-blue hover:bg-secondary"
-                          onClick={() => navigate('/admin/competitions')}
-                        >
-                          <Trophy className="mr-2 size-4" />
-                          {t('hostBackend')}
-                        </Button>
-                      ) : null}
                       <Button
                         variant="outline"
                         onClick={() => {
@@ -663,71 +551,54 @@ export default function MyExhibitions() {
                         <Share2 className="mr-2 size-4" />
                         {t('share')}
                       </Button>
-                      {editingGalleryId === item.id ? null : (
-                        <Button
-                          variant="outline"
-                          onClick={() => handleStartInlineEdit(item)}
-                        >
-                          <Pencil className="mr-2 size-4" />
-                          {t('editInfo')}
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          navigate(
-                            `/virtual-gallery/create?exhibitionId=${encodeURIComponent(item.id)}`,
-                          )
-                        }
-                      >
-                        <ArrowRight className="mr-2 size-4" />
-                        {t('backToEditor')}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="border-destructive/50 text-destructive hover:bg-secondary"
-                        onClick={() => handleOpenDelete(item)}
-                      >
-                        <Trash2 className="mr-2 size-4" />
-                        {t('delete')}
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button type="button" className={`${buttonVariants({ variant: 'outline' })} min-h-11`} aria-label={`${t('galleryMoreActions')}: ${item.title}`}>
+                            <MoreHorizontal className="size-4" aria-hidden="true" />{t('galleryMoreActions')}
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" onCloseAutoFocus={event => {
+                          if (editingGalleryId === item.id) {
+                            event.preventDefault();
+                            document.getElementById(`gallery-title-${item.id}`)?.focus();
+                          } else if (publishOpen || deleteOpen) event.preventDefault();
+                        }}>
+                          {editingGalleryId !== item.id && <DropdownMenuItem className="min-h-11" onSelect={() => handleStartInlineEdit(item)}>
+                            <Pencil aria-hidden="true" />{t('editInfo')}
+                          </DropdownMenuItem>}
+                          {item.quickDraftId && !item.isPublished && <DropdownMenuItem className="min-h-11" asChild>
+                            <Link to={`/virtual-gallery/edit-artworks?exhibitionId=${encodeURIComponent(item.id)}`}>
+                              <ImagePlus aria-hidden="true" />{t('artworkEditTitle')}
+                            </Link>
+                          </DropdownMenuItem>}
+                          <DropdownMenuItem className="min-h-11" asChild>
+                            <Link to={`/virtual-gallery/create?exhibitionId=${encodeURIComponent(item.id)}${isMobile ? '&share=view' : ''}`}>
+                              <ArrowRight aria-hidden="true" />{t(isMobile ? 'mobileEditorViewOnly' : 'galleryAdvancedEditor')}
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="min-h-11" disabled={publishingId === item.id} onSelect={() => void handleTogglePublish(item)}>
+                            <Globe aria-hidden="true" />{t(publishingId === item.id ? 'processing' : item.isPublished ? 'unpublish' : 'publishEvent')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="min-h-11" variant="destructive" onSelect={() => handleOpenDelete(item)}>
+                            <Trash2 aria-hidden="true" />{t('delete')}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
+            )}</ExhibitionFolders>
           )}
         </motion.div>
 
-        <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t('shareExhibition')}</DialogTitle>
-              <DialogDescription>{t('shareExhibitionDesc')}</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <Button
-                className="w-full justify-start"
-                variant="outline"
-                onClick={() => void handleCopyEditShare()}
-              >
-                {t('copyEditShareLink')}
-              </Button>
-              <Button
-                className="w-full justify-start"
-                variant="outline"
-                onClick={() => void handleCopyViewShare()}
-              >
-                {t('copyViewShareLink')}
-              </Button>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShareOpen(false)}>
-                {t('close')}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ExhibitionShareDialog
+          gallery={items.find(item => item.id === shareGalleryId) ?? null}
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+        />
 
         <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
           <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-md border border-border bg-card p-0 shadow-[0_24px_70px_-36px_rgba(28,28,26,0.5)] sm:max-w-3xl">
@@ -760,98 +631,6 @@ export default function MyExhibitions() {
                   {t('publishInfo')}
                 </p>
               </div>
-              <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-card p-4 transition hover:border-curator-brass/70 hover:shadow-sm">
-                <input
-                  type="checkbox"
-                  className="mt-1 size-4 rounded border-border text-curator-brass focus:ring-curator-brass"
-                  checked={hostCompetitionEnabled}
-                  onChange={(e) => setHostCompetitionEnabled(e.target.checked)}
-                />
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {t('publishAsCompetition')}
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    {t('publishAsCompetitionDesc')}
-                  </p>
-                </div>
-              </label>
-              {hostCompetitionEnabled ? (
-                <div className="space-y-5 rounded-md border border-curator-brass/40 bg-secondary p-5">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      {t('competitionName')}
-                    </label>
-                    <Input
-                      value={competitionTitle}
-                      onChange={(e) => setCompetitionTitle(e.target.value)}
-                      placeholder={t('competitionNamePlaceholder')}
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      {t('competitionDescription')}
-                    </label>
-                    <textarea
-                      value={competitionDescription}
-                      onChange={(e) =>
-                        setCompetitionDescription(e.target.value)
-                      }
-                      className="min-h-[110px] w-full rounded-md border border-border bg-input-background px-3 py-3 text-sm text-foreground outline-none transition focus:border-curator-brass focus:ring-2 focus:ring-curator-brass/30"
-                      placeholder={t('competitionDescriptionPlaceholder')}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      {t('competitionRules')}
-                    </label>
-                    <textarea
-                      value={competitionRules}
-                      onChange={(e) => setCompetitionRules(e.target.value)}
-                      className="min-h-[130px] w-full rounded-md border border-border bg-input-background px-3 py-3 text-sm text-foreground outline-none transition focus:border-curator-brass focus:ring-2 focus:ring-curator-brass/30"
-                      placeholder={t('competitionRulesPlaceholder')}
-                    />
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {t('registrationDeadline')}
-                      </span>
-                      <input
-                        type="datetime-local"
-                        value={competitionRegistrationDeadline}
-                        onChange={(e) =>
-                          setCompetitionRegistrationDeadline(e.target.value)
-                        }
-                        className="h-11 w-full rounded-md border border-border bg-input-background px-3 text-sm text-foreground outline-none transition focus:border-curator-brass focus:ring-2 focus:ring-curator-brass/30"
-                      />
-                    </label>
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {t('votingDeadlineOptional')}
-                      </span>
-                      <input
-                        type="datetime-local"
-                        value={competitionVotingDeadline}
-                        onChange={(e) =>
-                          setCompetitionVotingDeadline(e.target.value)
-                        }
-                        className="h-11 w-full rounded-md border border-border bg-input-background px-3 text-sm text-foreground outline-none transition focus:border-curator-brass focus:ring-2 focus:ring-curator-brass/30"
-                      />
-                    </label>
-                  </div>
-                  <label className="inline-flex items-center gap-3 text-sm text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={competitionIsPublic}
-                      onChange={(e) => setCompetitionIsPublic(e.target.checked)}
-                      className="size-4 rounded border-border text-curator-brass focus:ring-curator-brass"
-                    />
-                    <span>{t('publicCompetition')}</span>
-                  </label>
-                </div>
-              ) : null}
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-border bg-secondary px-6 py-4">
               <p className="text-xs text-muted-foreground">
@@ -868,14 +647,7 @@ export default function MyExhibitions() {
                 </Button>
                 <Button
                   onClick={() => void handleConfirmPublish()}
-                  disabled={
-                    publishingId === publishGallery?.id ||
-                    (hostCompetitionEnabled &&
-                      (!competitionTitle.trim() ||
-                        !competitionDescription.trim() ||
-                        !competitionRules.trim() ||
-                        !competitionRegistrationDeadline.trim()))
-                  }
+                  disabled={publishingId === publishGallery?.id}
                   className="bg-primary px-4 text-primary-foreground hover:bg-curator-brass"
                 >
                   {publishingId === publishGallery?.id
@@ -916,7 +688,7 @@ export default function MyExhibitions() {
         </Dialog>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>{t('createNewExhibition')}</DialogTitle>
               <DialogDescription>
@@ -942,6 +714,7 @@ export default function MyExhibitions() {
                   }}
                 />
               </div>
+              <GalleryAtmosphereSelector value={selectedAtmosphere} onChange={setSelectedAtmosphere} disabled={isCreating} />
               <div className="space-y-2">
                 <label className="text-sm text-muted-foreground">
                   {t('selectTemplate')}
@@ -953,8 +726,9 @@ export default function MyExhibitions() {
                       <button
                         key={template.title}
                         type="button"
-                        className={`overflow-hidden rounded-md border bg-card text-left transition-all ${isSelected ? 'border-curator-brass ring-2 ring-curator-brass/30 shadow-sm' : 'border-border hover:border-curator-brass/70'}`}
-                        onClick={() => setSelectedTemplateTitle(template.title)}
+                        className={`overflow-hidden rounded-md border bg-card text-left transition-all ${isSelected ? 'border-curator-brass ring-2 ring-curator-brass/30' : 'border-border hover:border-curator-brass/70'}`}
+                        onClick={() => { if (template.title !== selectedTemplateTitle) setSelectedAtmosphere(getDefaultGalleryAtmosphere(template.title)); setSelectedTemplateTitle(template.title); }}
+                        aria-pressed={isSelected}
                         disabled={isCreating}
                       >
                         <div className="h-28 bg-secondary">
@@ -986,7 +760,7 @@ export default function MyExhibitions() {
               >
                 {t('cancel')}
               </Button>
-              <Button onClick={handleConfirmCreate} disabled={isCreating}>
+              <Button onClick={handleConfirmCreate} disabled={isMobile || isCreating}>
                 {isCreating ? t('creating') : t('createAndEdit')}
               </Button>
             </DialogFooter>

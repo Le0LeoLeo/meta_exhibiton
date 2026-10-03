@@ -3,13 +3,22 @@ import { createStore } from "zustand/vanilla";
 
 import { createAgentSlice } from "./agentSlice";
 import { defaultAgentTourSession } from "./metaverseStoreUtils";
+import { useMetaverseStudioStore } from "./useMetaverseStudioStore";
 
 type AgentSliceState = ReturnType<typeof createAgentSlice>;
 
 const createAgentStore = () =>
   createStore<AgentSliceState>()((set, get, store) => createAgentSlice(set as never, get as never, store as never));
 
-describe("createAgentSlice guided tour actions", () => {
+const createLiveAgentStore = () => {
+  useMetaverseStudioStore.setState(useMetaverseStudioStore.getInitialState(), true);
+  return useMetaverseStudioStore;
+};
+
+describe.each([
+  { name: "createAgentSlice", createAgentStore },
+  { name: "useMetaverseStudioStore", createAgentStore: createLiveAgentStore },
+])("$name guided tour actions", ({ createAgentStore }) => {
   it("starts a tour with first route exhibit active", () => {
     const store = createAgentStore();
 
@@ -211,7 +220,7 @@ describe("createAgentSlice guided tour actions", () => {
     const store = createAgentStore();
 
     store.getState().startAgentTour(["exhibit-a"]);
-    store.getState().setAgent({ followUser: true, isAnswering: true, pendingQuestion: "Where next?" });
+    store.getState().setAgent({ followUser: true, isAnswering: true, answerSource: "remote", pendingQuestion: "Where next?" });
     store.getState().endAgentTour();
 
     const tourSession = store.getState().agent.tourSession;
@@ -219,11 +228,31 @@ describe("createAgentSlice guided tour actions", () => {
       mode: "idle",
       followUser: false,
       isAnswering: false,
+      answerSource: null,
       pendingQuestion: "",
     });
     expect(tourSession).toEqual(defaultAgentTourSession);
     expect(tourSession.tourRunId).toBeNull();
     expect(tourSession).not.toBe(defaultAgentTourSession);
     expect(tourSession.routeExhibitIds).not.toBe(defaultAgentTourSession.routeExhibitIds);
+  });
+
+  it("clears an in-flight answer when participation mode changes", () => {
+    const store = createAgentStore();
+    store.getState().setAgent({
+      participationMode: "ai",
+      isAnswering: true,
+      answerSource: "remote",
+      pendingQuestion: "What is this?",
+    });
+
+    store.getState().setAgent({ participationMode: "solo" });
+
+    expect(store.getState().agent).toMatchObject({
+      participationMode: "solo",
+      isAnswering: false,
+      answerSource: null,
+      pendingQuestion: "",
+    });
   });
 });

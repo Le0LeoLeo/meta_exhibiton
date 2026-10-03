@@ -7,40 +7,70 @@ import {
   type AvatarHairColorId,
   type AvatarHairId,
   type AvatarHeadId,
+  type AvatarEyesId,
+  type AvatarEyebrowsId,
+  type AvatarMouthId,
   type AvatarShoesColorId,
   type AvatarShoesId,
   type AvatarSkinColorId,
   type AvatarTopColorId,
   type AvatarTopId,
 } from "./avatarManifest";
+import {
+  DEFAULT_AVATAR_FACIAL_PLACEMENT,
+  normalizeAvatarFacialPlacement,
+  type AvatarFacialPlacement,
+} from "./avatarFacialPlacement";
 
 export type AvatarAppearanceV1 = {
   version: 1;
   body: AvatarBodyId;
   head: AvatarHeadId;
+  eyes: AvatarEyesId;
+  eyebrows: AvatarEyebrowsId;
+  mouth: AvatarMouthId;
   hair: AvatarHairId;
   top: AvatarTopId;
   bottom: AvatarBottomId;
   shoes: AvatarShoesId;
   accessory: AvatarAccessoryId;
+  topPhotoUrl?: string;
+  facialPlacement: AvatarFacialPlacement;
   colors: {
     skin: AvatarSkinColorId;
     hair: AvatarHairColorId;
     top: AvatarTopColorId;
+    topCustom?: string;
     bottom: AvatarBottomColorId;
     shoes: AvatarShoesColorId;
   };
 };
 
+const AVATAR_MEDIA_URL_PATTERN =
+  /^\/api\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const AVATAR_HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+
+export function normalizeAvatarHexColor(value: unknown): string | undefined {
+  return typeof value === "string" && AVATAR_HEX_COLOR_PATTERN.test(value)
+    ? value.toUpperCase()
+    : undefined;
+}
+
 export const DEFAULT_AVATAR_APPEARANCE: AvatarAppearanceV1 = {
   version: 1,
   body: "body01",
   head: "head01",
+  eyes: "eyes01",
+  eyebrows: "eyebrows01",
+  mouth: "mouth02",
   hair: "hair01",
   top: "top01",
   bottom: "bottom01",
   shoes: "shoes01",
   accessory: "none",
+  facialPlacement: normalizeAvatarFacialPlacement(
+    DEFAULT_AVATAR_FACIAL_PLACEMENT,
+  ),
   colors: {
     skin: "skin02",
     hair: "hairBlack",
@@ -68,6 +98,9 @@ function normalizeId<T extends string>(
 function createDefaultAppearance(): AvatarAppearanceV1 {
   return {
     ...DEFAULT_AVATAR_APPEARANCE,
+    facialPlacement: normalizeAvatarFacialPlacement(
+      DEFAULT_AVATAR_APPEARANCE.facialPlacement,
+    ),
     colors: { ...DEFAULT_AVATAR_APPEARANCE.colors },
   };
 }
@@ -78,6 +111,12 @@ export function normalizeAvatarAppearance(value: unknown): AvatarAppearanceV1 {
   }
 
   const colors = isRecord(value.colors) ? value.colors : {};
+  const topCustom = normalizeAvatarHexColor(colors.topCustom);
+  const topPhotoUrl =
+    typeof value.topPhotoUrl === "string" &&
+      AVATAR_MEDIA_URL_PATTERN.test(value.topPhotoUrl)
+      ? value.topPhotoUrl
+      : undefined;
 
   return {
     version: 1,
@@ -90,6 +129,21 @@ export function normalizeAvatarAppearance(value: unknown): AvatarAppearanceV1 {
       value.head,
       AVATAR_MANIFEST.nodes.head,
       DEFAULT_AVATAR_APPEARANCE.head,
+    ),
+    eyes: normalizeId(
+      value.eyes,
+      AVATAR_MANIFEST.features.eyes,
+      DEFAULT_AVATAR_APPEARANCE.eyes,
+    ),
+    eyebrows: normalizeId(
+      value.eyebrows,
+      AVATAR_MANIFEST.features.eyebrows,
+      DEFAULT_AVATAR_APPEARANCE.eyebrows,
+    ),
+    mouth: normalizeId(
+      value.mouth,
+      AVATAR_MANIFEST.features.mouth,
+      DEFAULT_AVATAR_APPEARANCE.mouth,
     ),
     hair: normalizeId(
       value.hair,
@@ -116,6 +170,8 @@ export function normalizeAvatarAppearance(value: unknown): AvatarAppearanceV1 {
       AVATAR_MANIFEST.nodes.accessory,
       DEFAULT_AVATAR_APPEARANCE.accessory,
     ),
+    ...(topPhotoUrl ? { topPhotoUrl } : {}),
+    facialPlacement: normalizeAvatarFacialPlacement(value.facialPlacement),
     colors: {
       skin: normalizeId(
         colors.skin,
@@ -132,6 +188,7 @@ export function normalizeAvatarAppearance(value: unknown): AvatarAppearanceV1 {
         AVATAR_MANIFEST.colors.top,
         DEFAULT_AVATAR_APPEARANCE.colors.top,
       ),
+      ...(topCustom ? { topCustom } : {}),
       bottom: normalizeId(
         colors.bottom,
         AVATAR_MANIFEST.colors.bottom,
@@ -144,4 +201,11 @@ export function normalizeAvatarAppearance(value: unknown): AvatarAppearanceV1 {
       ),
     },
   };
+}
+
+export function resolveAvatarTopColor(
+  appearance: Pick<AvatarAppearanceV1, "colors">,
+): string {
+  return normalizeAvatarHexColor(appearance.colors.topCustom) ??
+    AVATAR_MANIFEST.colors.top[appearance.colors.top];
 }

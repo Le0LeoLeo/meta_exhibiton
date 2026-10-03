@@ -8,8 +8,9 @@ import {
   type MutableRefObject,
 } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Environment } from "@react-three/drei";
+import { GalleryEnvironment } from "./GalleryEnvironment";
 import * as THREE from "three";
+import { configureTextBuilder } from 'troika-three-text';
 
 import type { RoomSize, ExhibitItem as ExhibitItemType } from "../types";
 import { useRenderPerformanceProfile } from "../performanceProfile";
@@ -27,12 +28,22 @@ import { WebGLCanvasBoundary } from "./WebGLCanvasBoundary";
 import { canCreateWebGLContext } from "./webglSupport";
 import { GalleryLighting } from "./GalleryLighting";
 import { GalleryArtworkLighting } from "./GalleryArtworkLighting";
+import { GalleryAtmosphereContext } from './GalleryAtmosphereContext';
+import { getGalleryAtmosphere } from '../galleryAtmosphere';
 import {
   DEFAULT_CAMERA_FAR,
   DEFAULT_CAMERA_FOV,
   DEFAULT_CAMERA_NEAR,
-  DEFAULT_EYE_HEIGHT,
 } from "../sceneScale";
+import { getAvatarEyeHeight } from "../avatar/avatarEyeHeight";
+import { useAvatarPreferenceStore } from "../avatar/avatarPreferenceStore";
+import type { ItemInteractionDescriptor } from "../interaction/itemInteraction";
+import type { SceneSnapshot } from "../store/metaverseStoreTypes";
+
+// CSP blocks Troika's dynamically generated blob workers. Its worker feature
+// probe only catches synchronous errors, leaving text (and the scene) suspended
+// when the browser rejects the worker asynchronously. Use its supported fallback.
+configureTextBuilder({ useWorker: false });
 
 const ViewCanvas = lazy(() => import("./ViewCanvas").then((mod) => ({ default: mod.ViewCanvas })));
 const EditCanvas = lazy(() => import("./EditCanvas").then((mod) => ({ default: mod.EditCanvas })));
@@ -42,12 +53,15 @@ interface CanvasSceneProps {
   mode: string;
   roomSize: RoomSize;
   items: ExhibitItemType[];
+  sceneOverride?: SceneSnapshot | null;
   isFloorPlan: boolean;
   floorPlanIsTransforming: boolean;
   selectedFloorPlanElementId: string | null;
   onPointerMissed: () => void;
   playerInput?: MutableRefObject<PlayerInputState>;
-  onNearbyItemChange?: (title: string | null) => void;
+  onNearbyInteractionChange?: (
+    descriptor: ItemInteractionDescriptor | null,
+  ) => void;
   onUse2D?: () => void;
 }
 
@@ -59,12 +73,13 @@ export function CanvasScene({
   mode,
   roomSize,
   items,
+  sceneOverride,
   isFloorPlan,
   floorPlanIsTransforming,
   selectedFloorPlanElementId,
   onPointerMissed,
   playerInput,
-  onNearbyItemChange,
+  onNearbyInteractionChange,
   onUse2D,
 }: CanvasSceneProps) {
   const requestedMode = useStore((state) => state.performanceMode);
@@ -72,6 +87,13 @@ export function CanvasScene({
     (state) => state.setEffectivePerformanceMode,
   );
   const viewingItem = useStore((state) => state.viewingItem);
+  const avatarAppearance = useAvatarPreferenceStore(
+    (state) => state.savedAppearance,
+  );
+  const avatarEyeHeight = useMemo(
+    () => getAvatarEyeHeight(avatarAppearance),
+    [avatarAppearance],
+  );
   const signals = useMemo(() => getBrowserPerformanceSignals(), []);
   const adaptivePerformance = useAdaptivePerformance({
     requestedMode,
@@ -135,12 +157,12 @@ export function CanvasScene({
   const canvasKey = isFloorPlan ? "floor-plan-canvas" : `main-3d-canvas-${mode}`;
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative isolate h-full w-full">
       {webglSupported ? (
         <WebGLCanvasBoundary onReload={reloadCanvas} onUse2D={onUse2D}>
         <Canvas
           key={`${canvasKey}-${canvasVersion}`}
-          shadows={enableShadows ? THREE.PCFShadowMap : false}
+          shadows={enableShadows ? "percentage" : false}
           dpr={isFloorPlan ? [1, 1.2] : performanceProfile.dpr}
           frameloop={frameloop}
           gl={{
@@ -156,7 +178,6 @@ export function CanvasScene({
           }}
           onCreated={({ gl, scene }) => {
             setCanvasElement(gl.domElement);
-            gl.physicallyCorrectLights = true;
             gl.shadowMap.enabled = enableShadows;
             gl.shadowMap.type = THREE.PCFShadowMap;
             scene.fog = isFloorPlan ? null : new THREE.FogExp2("#34383b", 0.014);
@@ -164,25 +185,27 @@ export function CanvasScene({
           }}
           orthographic={isFloorPlan}
           camera={isFloorPlan ? { position: [0, 40, 0], zoom: 28, near: 0.1, far: 500 } : {
-            position: [0, DEFAULT_EYE_HEIGHT, 5],
+            position: [0, avatarEyeHeight, 5],
             fov: DEFAULT_CAMERA_FOV,
             near: DEFAULT_CAMERA_NEAR,
             far: DEFAULT_CAMERA_FAR,
           }}
-          onPointerMissed={onPointerMissed}
+          onPointerMissed={sceneOverride ? undefined : onPointerMissed}
         >
           <Suspense fallback={null}>
+            <GalleryAtmosphereContext.Provider value={getGalleryAtmosphere(roomSize.wallTextureUrl)}>
             <FramePerformanceMonitor
               eligible={sampleEligible}
               onSample={adaptivePerformance.reportSample}
             />
-            {!isFloorPlan && performanceProfile.enableEnvironment && <Environment preset="warehouse" background={false} blur={0.1} />}
+            {!isFloorPlan && performanceProfile.enableEnvironment && <GalleryEnvironment brightness={envBrightness} />}
             {isFloorPlan ? (
               <ambientLight intensity={0.42} color="#ffffff" />
             ) : (
               <GalleryLighting
                 profile={performanceProfile}
                 environmentBrightness={envBrightness}
+                atmosphere={getGalleryAtmosphere(roomSize.wallTextureUrl)}
               />
             )}
             {!isFloorPlan && (
@@ -190,22 +213,24 @@ export function CanvasScene({
                 items={items}
                 mode={performanceProfile.effectiveMode}
                 environmentBrightness={envBrightness}
+                atmosphere={getGalleryAtmosphere(roomSize.wallTextureUrl)}
               />
             )}
-            {!isFloorPlan && <BuilderInspectionCaptureBridge enabled />}
+            {!isFloorPlan && <BuilderInspectionCaptureBridge enabled roomSize={roomSize} />}
 
             {isFloorPlan ? (
               <FloorPlanCanvas floorPlanIsTransforming={floorPlanIsTransforming} selectedFloorPlanElementId={selectedFloorPlanElementId} />
             ) : mode === "edit" ? (
-              <EditCanvas roomSize={roomSize} items={items} />
+              <EditCanvas roomSize={roomSize} items={items} sceneOverride={sceneOverride} />
             ) : (
               <ViewCanvas
                 items={items}
                 allowMotion={lifecycle.allowMotion}
                 playerInput={playerInput}
-                onNearbyItemChange={onNearbyItemChange}
+                onNearbyInteractionChange={onNearbyInteractionChange}
               />
             )}
+            </GalleryAtmosphereContext.Provider>
           </Suspense>
         </Canvas>
         </WebGLCanvasBoundary>

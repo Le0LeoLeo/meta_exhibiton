@@ -1,0 +1,162 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - generic [ref=e6]:
+        - link "MetaRealm Expo Intelligence MREI 元境智展" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e8]: MetaRealm Expo Intelligence
+          - generic [ref=e9]: MREI 元境智展
+        - generic [ref=e10]:
+          - link "首頁" [ref=e11] [cursor=pointer]:
+            - /url: /
+          - link "虛擬展廳" [ref=e12] [cursor=pointer]:
+            - /url: /virtual-gallery
+          - link "展覽列表" [ref=e13] [cursor=pointer]:
+            - /url: /exhibitions
+          - link "解決方案" [ref=e14] [cursor=pointer]:
+            - /url: /solutions
+          - link "支援" [ref=e15] [cursor=pointer]:
+            - /url: /support
+          - link "資源" [ref=e16] [cursor=pointer]:
+            - /url: /resources
+        - generic [ref=e17]:
+          - button "切換語言" [ref=e18]: 繁中
+          - button "切換淺色模式" [ref=e22]
+          - generic [ref=e30]:
+            - link "登入" [ref=e31] [cursor=pointer]:
+              - /url: /login
+            - link [ref=e32] [cursor=pointer]:
+              - /url: /register
+              - button "註冊" [ref=e33]
+    - main [ref=e34]:
+      - main [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]:
+              - paragraph [ref=e40]: Avatar Studio
+              - heading "自訂角色" [level=1] [ref=e41]
+              - paragraph [ref=e42]: 設計你在多人展館中的角色外觀。
+            - button "返回" [ref=e43]
+          - generic [ref=e44]:
+            - generic [ref=e45]:
+              - button "比較原本造型" [ref=e46]
+              - img "3D 預覽暫時無法使用，你仍可選擇外觀。" [ref=e47]
+            - generic [ref=e51]:
+              - generic [ref=e52]:
+                - tablist [ref=e53]:
+                  - tab "快速造型" [ref=e54]
+                  - tab "身體" [ref=e55]
+                  - tab "臉型" [ref=e56]
+                  - tab "眼睛" [ref=e57]
+                  - tab "眉毛" [ref=e58]
+                  - tab "嘴型" [ref=e59]
+                  - tab "髮型" [selected] [ref=e60]
+                  - tab "上衣" [ref=e61]
+                  - tab "下身" [ref=e62]
+                  - tab "鞋履" [ref=e63]
+                  - tab "配件" [ref=e64]
+                  - tab "五官位置" [ref=e65]
+                  - tab "顏色" [ref=e66]
+                - tabpanel "髮型" [ref=e182]:
+                  - group "髮型" [ref=e183]:
+                    - button "髮型 1" [ref=e184]
+                    - button "髮型 2" [ref=e186]
+                    - button "髮型 3" [active] [pressed] [ref=e188]
+              - generic [ref=e109]:
+                - button "復原外觀" [ref=e190]
+                - button "重做外觀" [disabled]
+                - button "隨機產生" [ref=e110]
+                - button "重設" [ref=e111]
+                - button "取消" [ref=e191]
+                - button "儲存角色" [ref=e192]
+    - contentinfo [ref=e113]:
+      - generic [ref=e114]:
+        - generic [ref=e115]:
+          - generic [ref=e116]:
+            - link "MetaRealm Expo Intelligence MREI 元境智展" [ref=e117] [cursor=pointer]:
+              - /url: /
+              - generic [ref=e118]: MetaRealm Expo Intelligence
+              - generic [ref=e119]: MREI 元境智展
+            - paragraph [ref=e120]: 全稱 MetaRealm Expo Intelligence，簡稱 MREI 元境智展
+          - generic [ref=e121]:
+            - heading "產品" [level=4] [ref=e122]
+            - list [ref=e123]:
+              - listitem [ref=e124]:
+                - link "虛擬展廳" [ref=e125] [cursor=pointer]:
+                  - /url: /virtual-gallery
+              - listitem [ref=e126]:
+                - link "展覽列表" [ref=e127] [cursor=pointer]:
+                  - /url: /exhibitions
+              - listitem [ref=e128]:
+                - link "VR 體驗" [ref=e129] [cursor=pointer]:
+                  - /url: /virtual-gallery
+              - listitem [ref=e130]:
+                - link "數據分析" [ref=e131] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e132]:
+                - link "開發者 API" [ref=e133] [cursor=pointer]:
+                  - /url: /resources
+          - generic [ref=e134]:
+            - heading "解決方案" [level=4] [ref=e135]
+            - list [ref=e136]:
+              - listitem [ref=e137]:
+                - link "藝術展覽" [ref=e138] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e139]:
+                - link "企業方案" [ref=e140] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e141]:
+                - link "教育方案" [ref=e142] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e143]:
+                - link "博物館方案" [ref=e144] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e145]:
+                - link "活動策展" [ref=e146] [cursor=pointer]:
+                  - /url: /solutions
+          - generic [ref=e147]:
+            - heading "資源" [level=4] [ref=e148]
+            - list [ref=e149]:
+              - listitem [ref=e150]:
+                - link "教學指南" [ref=e151] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e152]:
+                - link "案例研究" [ref=e153] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e154]:
+                - link "技術文檔" [ref=e155] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e156]:
+                - link "部落格" [ref=e157] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e158]:
+                - link "說明中心" [ref=e159] [cursor=pointer]:
+                  - /url: /support
+          - generic [ref=e160]:
+            - heading "公司" [level=4] [ref=e161]
+            - list [ref=e162]:
+              - listitem [ref=e163]:
+                - link "關於我們" [ref=e164] [cursor=pointer]:
+                  - /url: /support
+              - listitem [ref=e165]:
+                - link "加入我們" [ref=e166] [cursor=pointer]:
+                  - /url: /support
+              - listitem [ref=e167]:
+                - link "最新消息" [ref=e168] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e169]:
+                - link "合作夥伴" [ref=e170] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e171]:
+                - link "聯絡我們" [ref=e172] [cursor=pointer]:
+                  - /url: /support
+        - generic [ref=e173]:
+          - paragraph [ref=e174]: © 2026 MetaRealm Expo Intelligence / MREI 元境智展. 保留所有權利。
+          - generic [ref=e175]:
+            - link "隱私權政策" [ref=e177] [cursor=pointer]:
+              - /url: /support
+            - link "服務條款" [ref=e179] [cursor=pointer]:
+              - /url: /support
+            - link "Cookie 設定" [ref=e181] [cursor=pointer]:
+              - /url: /resources
+  - region "Notifications alt+T"

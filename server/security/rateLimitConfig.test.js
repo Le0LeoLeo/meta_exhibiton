@@ -3,8 +3,28 @@ import { describe, expect, it } from 'vitest';
 import { createFixedWindowLimiter } from './rateLimit.js';
 import {
   createRateLimitKey,
+  DEFAULT_UPLOAD_RATE_LIMIT,
   readBoundedEnvInteger,
 } from './rateLimitConfig.js';
+
+describe('batch upload rate limit', () => {
+  it('permits two 30-artwork batches and still rejects further uploads in the window', async () => {
+    const limiter = createFixedWindowLimiter({ limit: DEFAULT_UPLOAD_RATE_LIMIT, windowMs: 600_000, now: () => 0, key: () => 'owner' });
+    let allowed = 0;
+    const response = {
+      statusCode: null, retryAfter: null,
+      set(_name, value) { this.retryAfter = value; return this; },
+      status(code) { this.statusCode = code; return this; },
+      json() { return this; },
+    };
+    for (let index = 0; index < 60; index++) await limiter({}, response, () => allowed++);
+    expect(allowed).toBe(60);
+    await limiter({}, response, () => allowed++);
+    expect(allowed).toBe(60);
+    expect(response.statusCode).toBe(429);
+    expect(response.retryAfter).toBe('600');
+  });
+});
 
 describe('readBoundedEnvInteger', () => {
   it('uses the default only when the variable is absent', () => {

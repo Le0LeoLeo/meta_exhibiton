@@ -189,7 +189,15 @@ describe("multiplayer credentials and server roles", () => {
     store.getState().setRoomId("gallery-1");
     store.getState().setRole("viewer");
     connectMultiplayer();
-    const appearance = { ...DEFAULT_AVATAR_APPEARANCE, hair: "hair03" as const };
+    const appearance = {
+      ...DEFAULT_AVATAR_APPEARANCE,
+      hair: "hair03" as const,
+      facialPlacement: {
+        eyes: { offsetY: 0.04, spacing: 0.03, scale: 1.2 },
+        eyebrows: { offsetY: -0.02, spacing: 0.01, rotation: 0.18 },
+        mouth: { offsetX: -0.03, offsetY: 0.02, scaleX: 1.25, scaleY: 0.85 },
+      },
+    };
 
     expect(emitPlayerAppearance(appearance)).toBe(true);
     expect(latestSocket().emit).toHaveBeenCalledWith("player:appearance", {
@@ -214,18 +222,26 @@ describe("multiplayer credentials and server roles", () => {
       }],
     });
 
+    const facialPlacement = {
+      eyes: { offsetY: 0.04, spacing: 0.03, scale: 1.2 },
+      eyebrows: { offsetY: -0.02, spacing: 0.01, rotation: 0.18 },
+      mouth: { offsetX: -0.03, offsetY: 0.02, scaleX: 1.25, scaleY: 0.85 },
+    };
     latestSocket().trigger("player:appearance:changed", {
       roomId: "gallery-1",
       id: "remote-1",
-      appearance: { ...DEFAULT_AVATAR_APPEARANCE, top: "top03" },
+      appearance: { ...DEFAULT_AVATAR_APPEARANCE, top: "top03", facialPlacement },
       updatedAt: 2,
     });
 
     expect(store.getState().remotePlayers["remote-1"].appearance.top).toBe("top03");
+    expect(store.getState().remotePlayers["remote-1"].appearance.facialPlacement)
+      .toEqual(facialPlacement);
   });
 
   it("stores the server role and clears an old room error on join", async () => {
     const { connectMultiplayer, store } = await loadNetwork();
+    store.getState().setRoomId("gallery-1");
     store.getState().setRoomError({ code: "FORBIDDEN", message: "denied" });
     connectMultiplayer();
 
@@ -480,4 +496,13 @@ describe("multiplayer credentials and server roles", () => {
     const matchingCalls = socket.emit.mock.calls.filter(([event]: [string]) => event === "chat:send");
     expect(matchingCalls.length > 0).toBe(allowed);
   });
+});
+
+it("ignores an old join response after selecting another room", async () => {
+  const { connectMultiplayer, store } = await loadNetwork();
+  store.getState().setRoomId("gallery-2");
+  connectMultiplayer();
+  latestSocket().trigger("room:joined", roomJoined("owner"));
+  expect(store.getState().roomId).toBe("gallery-2");
+  expect(store.getState().role).toBeNull();
 });

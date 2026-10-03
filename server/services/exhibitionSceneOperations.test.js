@@ -78,4 +78,18 @@ describe('applySceneOperationPlan', () => {
     expect(added.scene.items.some((item) => item.id === 'ai-bench-2' && item.type === 'bench')).toBe(true);
     expect(added.scene.items.some((item) => item.id === 'ai-title')).toBe(false);
   });
+
+  it('allows generated interactive decorations', () => {
+    const itemTypes = ['chair', 'sofa', 'floorlamp', 'cabinet', 'turntable', 'fountain'];
+    const result = applySceneOperationPlan(createScene(), plan(itemTypes.map((itemType, index) => ({
+      type: 'add-furniture',
+      id: `ai-${itemType}-${index}`,
+      itemType,
+      position: [index * 2, 0, 2],
+      content: '#64748b',
+    }))));
+
+    expect(result.scene.items.filter((item) => item.id.startsWith('ai-')).map((item) => item.type))
+      .toEqual(expect.arrayContaining(itemTypes));
+  });
 });

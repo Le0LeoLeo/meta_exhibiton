@@ -24,19 +24,10 @@
   },
   "include": [
     "config/**/*.ts",
-    "src/app/api/agent.ts",
-    "src/app/api/aiCurator.ts",
-    "src/app/api/aiWriting.ts",
-    "src/app/api/auth.ts",
-    "src/app/api/base.ts",
-    "src/app/api/client.ts",
-    "src/app/api/competition.ts",
-    "src/app/api/exhibitions.ts",
-    "src/app/api/gallery.ts",
-    "src/app/api/growth.ts",
-    "src/app/api/tts.ts",
-    "src/app/api/visitorMemory.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     "vite.config.ts",
     "vite.config.test.ts"
-  ]
+  ],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

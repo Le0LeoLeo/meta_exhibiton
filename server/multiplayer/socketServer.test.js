@@ -71,6 +71,9 @@ const CUSTOM_AVATAR_APPEARANCE = {
   version: 1,
   body: 'body02',
   head: 'head02',
+  eyes: 'eyes03',
+  eyebrows: 'eyebrows03',
+  mouth: 'mouth03',
   hair: 'hair03',
   top: 'top03',
   bottom: 'bottom03',
@@ -82,6 +85,11 @@ const CUSTOM_AVATAR_APPEARANCE = {
     top: 'violet',
     bottom: 'brown',
     shoes: 'white',
+  },
+  facialPlacement: {
+    eyes: { offsetY: 0.04, spacing: 0.03, scale: 1.2 },
+    eyebrows: { offsetY: -0.02, spacing: 0.01, rotation: 0.18 },
+    mouth: { offsetX: -0.03, offsetY: 0.02, scaleX: 1.25, scaleY: 0.85 },
   },
 };
 
@@ -256,6 +264,7 @@ async function startServer(options = {}) {
     },
     getGalleryByShareToken: normalizedOptions.getGalleryByShareToken
       || (async (token) => shares.get(token) || null),
+    verifySessionToken: normalizedOptions.verifySessionToken,
     sceneLimits: normalizedOptions.sceneLimits,
     connectionLimits: normalizedOptions.connectionLimits,
     joinLimits: normalizedOptions.joinLimits,
@@ -346,6 +355,32 @@ afterEach(async () => {
 });
 
 describe('multiplayer room authorization', () => {
+  it('immediately disconnects only the requested account sessions', async () => {
+    const server = await startServer();
+    const owner = await connect(server, 'owner-token');
+    const other = await connect(server, 'participant-token');
+    await join(owner);
+    await join(other);
+    const disconnected = waitForEvent(owner, 'disconnect');
+    await server.revokeUserSessions('owner-1');
+    await disconnected;
+    expect(other.connected).toBe(true);
+  });
+  it('disconnects an established connection when its persisted session is revoked', async () => {
+    let active = true;
+    const server = await startServer({
+      verifySessionToken: async token => active && token === 'owner-token' ? { sub: 'owner-1' } : null,
+      authorizationSweepMs: 20,
+    });
+    const owner = await connect(server, 'owner-token');
+    await join(owner, { roomId: PRIVATE_GALLERY.id });
+    const disconnected = waitForEvent(owner, 'disconnect');
+    active = false;
+    await disconnected;
+    expect(owner.connected).toBe(false);
+    const stale = await connect(server, 'owner-token');
+    await expect(joinError(stale, { roomId: PRIVATE_GALLERY.id, nickname: 'Owner' })).resolves.toMatchObject({ code: 'AUTH_REQUIRED' });
+  });
   it('builds presence snapshots from all adapter-returned sockets', async () => {
     const remotePlayer = {
       id: 'remote-socket',
@@ -612,11 +647,35 @@ describe('multiplayer room authorization', () => {
       roomId: PUBLIC_GALLERY.id,
       appearance: {
         ...CUSTOM_AVATAR_APPEARANCE,
-        unknown: true,
+        facialPlacement: {
+          ...CUSTOM_AVATAR_APPEARANCE.facialPlacement,
+          eyes: {
+            ...CUSTOM_AVATAR_APPEARANCE.facialPlacement.eyes,
+            offsetY: 0.101,
+          },
+        },
       },
     });
     await expect(invalid).resolves.toMatchObject({ code: 'INVALID_PAYLOAD' });
     await noInvalidBroadcast;
+
+    const nonFinite = waitForEvent(player, 'room:error');
+    const noNonFiniteBroadcast = expectNoEvent(observer, 'player:appearance:changed');
+    player.emit('player:appearance', {
+      roomId: PUBLIC_GALLERY.id,
+      appearance: {
+        ...CUSTOM_AVATAR_APPEARANCE,
+        facialPlacement: {
+          ...CUSTOM_AVATAR_APPEARANCE.facialPlacement,
+          mouth: {
+            ...CUSTOM_AVATAR_APPEARANCE.facialPlacement.mouth,
+            scaleX: Number.POSITIVE_INFINITY,
+          },
+        },
+      },
+    });
+    await expect(nonFinite).resolves.toMatchObject({ code: 'INVALID_PAYLOAD' });
+    await noNonFiniteBroadcast;
 
     const oversized = waitForEvent(player, 'room:error');
     const noOversizedBroadcast = expectNoEvent(observer, 'player:appearance:changed');
@@ -624,7 +683,13 @@ describe('multiplayer room authorization', () => {
       roomId: PUBLIC_GALLERY.id,
       appearance: {
         ...CUSTOM_AVATAR_APPEARANCE,
-        padding: 'x'.repeat(1024),
+        facialPlacement: {
+          ...CUSTOM_AVATAR_APPEARANCE.facialPlacement,
+          eyes: {
+            ...CUSTOM_AVATAR_APPEARANCE.facialPlacement.eyes,
+            padding: 'x'.repeat(1024),
+          },
+        },
       },
     });
     await expect(oversized).resolves.toMatchObject({ code: 'INVALID_PAYLOAD' });
@@ -894,12 +959,16 @@ describe('multiplayer room authorization', () => {
     await join(observer, { roomId: PRIVATE_GALLERY.id });
 
     tokenValid = false;
+    const ownerId = owner.id;
     const left = waitForEvent(observer, 'player:left');
+    const disconnected = waitForEvent(owner, 'disconnect');
     await expect(joinError(owner, {
       roomId: PRIVATE_GALLERY.id,
       nickname: 'Owner',
     })).resolves.toMatchObject({ code: 'AUTH_REQUIRED' });
-    await expect(left).resolves.toMatchObject({ id: owner.id });
+    await expect(left).resolves.toMatchObject({ id: ownerId });
+    await expect(disconnected).resolves.toBe('io server disconnect');
+    expect(owner.connected).toBe(false);
   });
 
   it('rejects an event whose authorization completes after the socket joins another room', async () => {
@@ -1072,9 +1141,17 @@ describe('multiplayer room authorization', () => {
       seq: 2,
       t: Date.now(),
       yaw: 0.25,
+      pose: 'sitting',
+      emote: 'clap',
+      emoteNonce: 3,
       position: { x: 2, y: 2.6, z: 2 },
     });
-    await expect(moved).resolves.toMatchObject({ seq: 2 });
+    await expect(moved).resolves.toMatchObject({
+      seq: 2,
+      pose: 'sitting',
+      emote: 'clap',
+      emoteNonce: 3,
+    });
 
     const noStaleMove = expectNoEvent(observer, 'player:moved');
     mover.emit('player:move', {
@@ -1092,6 +1169,9 @@ describe('multiplayer room authorization', () => {
       id: mover.id,
       lastSeq: 2,
       yaw: 0.25,
+      pose: 'sitting',
+      emote: 'clap',
+      emoteNonce: 3,
       position: { x: 2, y: 2.6, z: 2 },
     }));
   });
@@ -1858,6 +1938,53 @@ describe('multiplayer room authorization', () => {
     await expectNoEvent(owner, 'scene:op:ack');
   });
 
+  it('accepts and broadcasts workContext update-item operations while rejecting invalid nested updates', async () => {
+    const server = await startServer();
+    const owner = await connect(server, 'owner-token');
+    const observer = await connect(server, 'participant-token');
+    await join(owner);
+    await join(observer);
+
+    const addAck = waitForEvent(owner, 'scene:op:ack');
+    const addBroadcast = waitForEvent(observer, 'scene:oped');
+    owner.emit('scene:op', {
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'add-work-context-item',
+      op: { kind: 'add-item', item: makeValidItem('work-context-target') },
+    });
+    // Drain the add event before waiting for the update broadcast below. The
+    // owner's ack can arrive before the observer processes its room broadcast.
+    await Promise.all([addAck, addBroadcast]);
+
+    const workContext = {
+      contribution: 'I made the display.',
+      sources: [{ label: 'Project note', url: 'https://example.com/note', excerpt: 'A supplied excerpt.' }],
+    };
+    const updateAck = waitForEvent(owner, 'scene:op:ack');
+    const updateBroadcast = waitForEvent(observer, 'scene:oped');
+    owner.emit('scene:op', {
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'update-work-context',
+      op: { kind: 'update-item', id: 'work-context-target', updates: { workContext } },
+    });
+    const [ack, broadcast] = await Promise.all([updateAck, updateBroadcast]);
+    expect(ack).toMatchObject({ clientOpId: 'update-work-context' });
+    expect(broadcast.op).toMatchObject({ kind: 'update-item', id: 'work-context-target', updates: { workContext } });
+
+    const invalid = waitForEvent(owner, 'room:error');
+    const noBroadcast = expectNoEvent(observer, 'scene:oped');
+    owner.emit('scene:op', {
+      roomId: PUBLIC_GALLERY.id,
+      clientOpId: 'invalid-work-context-update',
+      op: {
+        kind: 'update-item', id: 'work-context-target',
+        updates: { workContext: { sources: [{ label: 'Bad URL', url: 'javascript:alert(1)' }] } },
+      },
+    });
+    await expect(invalid).resolves.toMatchObject({ code: 'INVALID_PAYLOAD' });
+    await noBroadcast;
+  });
+
   it('validates optional ExhibitItem and FloorPlanElement fields when present', async () => {
     const server = await startServer();
     const owner = await connect(server, 'owner-token');
@@ -1957,6 +2084,42 @@ describe('multiplayer room authorization', () => {
     });
   });
 
+  it('preserves valid public work context and rejects invalid nested context over sockets', async () => {
+    const server = await startServer();
+    const owner = await connect(server, 'owner-token');
+    const observer = await connect(server, 'participant-token');
+    await join(owner);
+    await join(observer);
+
+    const workContext = {
+      contribution: 'I designed the public installation.',
+      process: 'I built a paper prototype.',
+      outcome: 'The final piece uses recycled paper.',
+      reflection: 'I would test the lighting earlier.',
+      sources: [{ label: 'Project note', url: 'https://example.com/note', excerpt: 'A short supplied excerpt.' }],
+    };
+    const synced = waitForEvent(observer, 'scene:synced');
+    owner.emit('scene:sync', {
+      roomId: PUBLIC_GALLERY.id,
+      expectedVersion: 1,
+      scene: makeValidScene({ items: [makeValidItem('with-work-context', { workContext })] }),
+    });
+    await expect(synced).resolves.toMatchObject({
+      scene: { items: [expect.objectContaining({ workContext })] },
+    });
+
+    const invalidScenes = [
+      makeValidScene({ items: [makeValidItem('bad-source-url', { workContext: { sources: [{ label: 'No', url: 'javascript:alert(1)' }] } })] }),
+      makeValidScene({ items: [makeValidItem('too-many-sources', { workContext: { sources: Array.from({ length: 6 }, (_, index) => ({ label: `Source ${index}` })) } })] }),
+      makeValidScene({ items: [makeValidItem('oversized-reflection', { workContext: { reflection: 'x'.repeat(2001) } })] }),
+    ];
+    for (const scene of invalidScenes) {
+      const invalid = waitForEvent(owner, 'room:error');
+      owner.emit('scene:sync', { roomId: PUBLIC_GALLERY.id, scene });
+      await expect(invalid).resolves.toMatchObject({ code: 'INVALID_PAYLOAD' });
+    }
+  });
+
   it('cleans up sockets and rooms when close is called', async () => {
     const server = await startServer();
     const client = await connect(server);
@@ -2022,6 +2185,7 @@ describe('multiplayer room authorization', () => {
       items: [makeValidItem('winning-initializer')],
     });
     const winnerSynced = waitForEvent(winner, 'scene:synced');
+    const winnerBroadcast = waitForEvent(loser, 'scene:synced');
     winner.emit('scene:sync', {
       roomId: PUBLIC_GALLERY.id,
       clientSyncId: 'winner-sync',
@@ -2029,6 +2193,12 @@ describe('multiplayer room authorization', () => {
     });
     await expect(winnerSynced).resolves.toMatchObject({
       clientSyncId: 'winner-sync',
+      version: 1,
+      scene: { items: [{ id: 'winning-initializer' }] },
+    });
+    // Drain the initial broadcast before waiting for the conflict response.
+    await expect(winnerBroadcast).resolves.toMatchObject({
+      by: winner.id,
       version: 1,
       scene: { items: [{ id: 'winning-initializer' }] },
     });

@@ -1,17 +1,19 @@
-import { ClipboardCopy, RefreshCw, Home, Minus, Move, Maximize2, ArrowRight } from "lucide-react";
+import type { RefObject } from "react";
+import { ClipboardCopy, RefreshCw, Home, Minus, ArrowRight, Undo2, Redo2, SlidersHorizontal, Ruler } from "lucide-react";
 import { useI18n } from "../../../../components/I18nProvider";
 
 interface FloorPlanTopBarProps {
+  topBarRef: RefObject<HTMLDivElement>;
   floorPlanElementCount: number;
   modeTitle: string;
   modeHint: string;
   targetCount: number;
-  accentClass: string;
   floorPlanEditTarget: "room" | "wall";
   undoCount: number;
   redoCount: number;
   selectedElementExists: boolean;
-  resizeMode: "stretch" | "shrink";
+  activePanel: "space" | "inspector" | null;
+  onTogglePanel: (panel: "space" | "inspector") => void;
   onSetEditTarget: (target: "room" | "wall") => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -22,161 +24,32 @@ interface FloorPlanTopBarProps {
   onAddWall: () => void;
 }
 
-export function FloorPlanTopBar({
-  floorPlanElementCount,
-  modeTitle,
-  modeHint,
-  targetCount,
-  accentClass,
-  floorPlanEditTarget,
-  undoCount,
-  redoCount,
-  selectedElementExists,
-  resizeMode,
-  onSetEditTarget,
-  onUndo,
-  onRedo,
-  onSyncFrom3D,
-  onDuplicateSelected,
-  onApplyAndReturn,
-  onAddRoom,
-  onAddWall,
-}: FloorPlanTopBarProps) {
+export function FloorPlanTopBar({ topBarRef, floorPlanElementCount, modeTitle, modeHint, targetCount, floorPlanEditTarget, undoCount, redoCount, selectedElementExists, activePanel, onTogglePanel, onSetEditTarget, onUndo, onRedo, onSyncFrom3D, onDuplicateSelected, onApplyAndReturn, onAddRoom, onAddWall }: FloorPlanTopBarProps) {
   const { t } = useI18n();
-
   return (
-    <div className="rounded-[1.35rem] border border-white/18 bg-white/10 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/65">Floor plan studio</p>
-          <h2 className="text-xl font-semibold text-white">{t("floorPlanMode")}</h2>
-          <p className="mt-1 w-[154px] text-sm text-white/72">{t("floorPlanModeDesc")}</p>
+    <div ref={topBarRef} className="floorplan-topbar editor-panel absolute inset-x-0 top-0 pointer-events-auto z-30 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-200"><Ruler className="size-5" /></span>
+          <div><h2 className="text-sm font-semibold">{t('floorPlanMode')}</h2><p className="text-xs text-slate-300" title={modeHint}>{modeTitle} · {t('floorPlanEditableCount', { count: targetCount })}</p></div>
+          <span className="floorplan-count rounded-full border border-slate-700 px-2 py-1 text-xs text-slate-300">{t('floorPlanItemCount', { count: floorPlanElementCount })}</span>
         </div>
-        <div className="rounded-full border border-white/18 bg-white/12 px-3 py-1 text-[11px] font-medium text-white shadow-sm backdrop-blur-md w-[126px]">
-          {t("floorPlanItemCount", { count: floorPlanElementCount })}
+        <button onClick={onApplyAndReturn} className="floorplan-apply inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500">{t('floorPlanApplyReturn')}<ArrowRight className="size-4" /></button>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-700 pt-2">
+        <div className="inline-flex gap-1 rounded-xl border border-slate-700 p-1">
+          <button className="floorplan-button" aria-pressed={floorPlanEditTarget === 'room'} onClick={() => onSetEditTarget('room')}><Home className="size-4" />{t('floorPlanEditRooms')}</button>
+          <button className="floorplan-button" aria-pressed={floorPlanEditTarget === 'wall'} onClick={() => onSetEditTarget('wall')}><Minus className="size-4" />{t('floorPlanEditWalls')}</button>
         </div>
-      </div>
-
-      <div className={`mt-4 rounded-2xl border px-3 py-2 text-xs leading-relaxed shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${accentClass}`}>
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-semibold">{t("floorPlanCurrentFocus", { mode: modeTitle })}</span>
-          <span className="rounded-full border border-white/14 bg-white/12 px-2 py-0.5 text-[11px] text-white/80">{t("floorPlanEditableCount", { count: targetCount })}</span>
-        </div>
-        <p className="mt-1 text-white/78">{modeHint}</p>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          onClick={() => onSetEditTarget("room")}
-          aria-pressed={floorPlanEditTarget === "room"}
-          title={t("floorPlanEditRooms")}
-          className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium transition-all duration-200 ${
-            floorPlanEditTarget === "room"
-              ? "border-white/18 bg-white/22 text-white shadow-[0_8px_20px_rgba(15,23,42,0.16)]"
-              : "border-white/10 bg-white/8 text-white/72 hover:bg-white/12"
-          }`}
-        >
-          {t("floorPlanEditRooms")}
-          <ArrowRight className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => onSetEditTarget("wall")}
-          aria-pressed={floorPlanEditTarget === "wall"}
-          title={t("floorPlanEditWalls")}
-          className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2 text-sm font-medium transition-all duration-200 ${
-            floorPlanEditTarget === "wall"
-              ? "border-white/18 bg-white/22 text-white shadow-[0_8px_20px_rgba(15,23,42,0.16)]"
-              : "border-white/10 bg-white/8 text-white/72 hover:bg-white/12"
-          }`}
-        >
-          {t("floorPlanEditWalls")}
-          <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div className="mt-3 rounded-2xl border border-white/14 bg-white/8 px-3 py-2 text-[11px] leading-relaxed text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-        <div className="flex items-center gap-2 font-semibold text-white">
-          <Move className="h-3.5 w-3.5" />
-          {t("floorPlanKeyboardTitle")}
-        </div>
-        <p className="mt-1 text-white/72">{t("floorPlanKeyboardHint")}</p>
-      </div>
-
-      <div className="mt-2 grid grid-cols-2 gap-2 rounded-2xl border border-white/14 bg-white/8 p-3 text-[11px] text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-        <div className="flex items-center gap-2">
-          <Maximize2 className="h-3.5 w-3.5" />
-          {t("floorPlanCurrentMode")}
-        </div>
-        <div className="text-right font-semibold text-white">{resizeMode === "stretch" ? t("floorPlanStretch") : t("floorPlanShrink")}</div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <button
-          onClick={onUndo}
-          disabled={undoCount === 0}
-          className={`inline-flex items-center justify-center rounded-2xl px-3 py-2 text-sm font-medium transition-all duration-200 ${
-            undoCount === 0
-              ? "cursor-not-allowed border border-white/8 bg-white/5 text-white/30"
-              : "border border-white/12 bg-white/8 text-white hover:bg-white/12"
-          }`}
-        >
-          {t("floorPlanUndo")}
-        </button>
-        <button
-          onClick={onRedo}
-          disabled={redoCount === 0}
-          className={`inline-flex items-center justify-center rounded-2xl px-3 py-2 text-sm font-medium transition-all duration-200 ${
-            redoCount === 0
-              ? "cursor-not-allowed border border-white/8 bg-white/5 text-white/30"
-              : "border border-white/12 bg-white/8 text-white hover:bg-white/12"
-          }`}
-        >
-          {t("floorPlanRedo")}
-        </button>
-      </div>
-
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <button
-          onClick={onSyncFrom3D}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/8 py-2 text-sm font-medium text-white/85 transition-all duration-200 hover:bg-white/12"
-        >
-          <RefreshCw className="h-4 w-4" />
-          {t("floorPlanSyncFrom3D")}
-        </button>
-        <button
-          onClick={onDuplicateSelected}
-          disabled={!selectedElementExists}
-          className={`inline-flex items-center justify-center gap-2 rounded-2xl py-2 text-sm font-medium transition-all duration-200 ${
-            selectedElementExists
-              ? "border border-white/12 bg-white/8 text-white/85 hover:bg-white/12"
-              : "cursor-not-allowed border border-white/8 bg-white/5 text-white/30"
-          }`}
-        >
-          <ClipboardCopy className="h-4 w-4" />
-          {t("floorPlanDuplicate")}
-        </button>
-      </div>
-
-      <button
-        onClick={onApplyAndReturn}
-        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-indigo-300/40 bg-indigo-500/80 px-3 py-2 font-medium text-white shadow-[0_10px_24px_rgba(79,70,229,0.22)] transition-all duration-200 hover:brightness-105"
-      >
-        {t("floorPlanApplyReturn")}
-      </button>
-
-      <div className="mt-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/60">{t("floorPlanNewElement")}</h3>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={onAddRoom} title={t("floorPlanAddRoom")} className="flex flex-col items-center justify-center rounded-2xl border border-white/12 bg-white/8 p-3 transition-all duration-200 hover:bg-white/12">
-            <Home className="mb-1 h-6 w-6 text-white" />
-            <span className="text-xs font-medium text-white/85">{t("floorPlanAddRoom")}</span>
-          </button>
-          <button onClick={onAddWall} title={t("floorPlanAddWall")} className="flex flex-col items-center justify-center rounded-2xl border border-white/12 bg-white/8 p-3 transition-all duration-200 hover:bg-white/12">
-            <Minus className="mb-1 h-6 w-6 text-white" />
-            <span className="text-xs font-medium text-white/85">{t("floorPlanAddWall")}</span>
-          </button>
+        <button className="floorplan-button" onClick={onUndo} disabled={undoCount === 0} title="Ctrl/⌘ Z"><Undo2 className="size-4" />{t('floorPlanUndo')}</button>
+        <button className="floorplan-button" onClick={onRedo} disabled={redoCount === 0} title="Ctrl/⌘ Shift Z"><Redo2 className="size-4" />{t('floorPlanRedo')}</button>
+        <button className="floorplan-button" onClick={onDuplicateSelected} disabled={!selectedElementExists}><ClipboardCopy className="size-4" />{t('floorPlanDuplicate')}</button>
+        <button className="floorplan-button" onClick={onAddRoom}><Home className="size-4" />{t('floorPlanAddRoom')}</button>
+        <button className="floorplan-button" onClick={onAddWall}><Minus className="size-4" />{t('floorPlanAddWall')}</button>
+        <button className="floorplan-button" onClick={onSyncFrom3D}><RefreshCw className="size-4" />{t('floorPlanSyncFrom3D')}</button>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <button className="floorplan-button" aria-expanded={activePanel === 'space'} aria-controls="floorplan-space" onClick={() => onTogglePanel('space')}><SlidersHorizontal className="size-4" />{t('fpspSummary')}</button>
+          <button className="floorplan-button" aria-expanded={activePanel === 'inspector'} aria-controls="floorplan-inspector" disabled={!selectedElementExists} onClick={() => onTogglePanel('inspector')}><Ruler className="size-4" />{t('fpiTitle')}</button>
         </div>
       </div>
     </div>

@@ -6,7 +6,7 @@ export const DEFAULT_UNBOUND_RETENTION_DAYS = 30;
 export const MIN_UNBOUND_RETENTION_DAYS = 1;
 export const MAX_UNBOUND_RETENTION_DAYS = 3650;
 
-const STORED_MEDIA_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpe?g|png|webp)$/i;
+const STORED_MEDIA_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpe?g|png|webp|mp4|webm|ogg|glb|gltf|stl)$/i;
 
 export function parseMediaRetentionDays(value) {
   if (value === undefined || value === null || value === '') {
@@ -80,6 +80,7 @@ export async function inspectMediaRetention(options = {}) {
     }));
   const staleUnboundRows = mediaAssets
     .filter((row) => {
+      if (rowValue(row, 'library_retained', 'libraryRetained')) return false;
       const galleryId = rowValue(row, 'gallery_id', 'galleryId');
       if (galleryId !== null && galleryId !== undefined && galleryId !== '') return false;
       const timestamp = new Date(

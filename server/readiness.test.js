@@ -79,18 +79,7 @@ describe('database readiness', () => {
     await exec(database, `
       CREATE TABLE users (id TEXT, avatar_appearance_json TEXT);
       CREATE TABLE galleries (scene_json TEXT);
-      CREATE TABLE competitions (submission_fields_json TEXT);
-      CREATE TABLE competition_entries (submission_json TEXT);
-      CREATE TABLE competition_votes (voter_email TEXT, voter_user_id TEXT);
       CREATE TABLE file_cleanup_jobs (id TEXT);
-      CREATE UNIQUE INDEX idx_competition_votes_unique_voter_user
-        ON competition_votes(voter_user_id);
-      CREATE TRIGGER trg_competition_votes_require_voter_user
-        BEFORE INSERT ON competition_votes
-        WHEN NEW.voter_user_id IS NULL
-        BEGIN
-          SELECT RAISE(ABORT, 'voter_user_id is required');
-        END;
     `);
 
     await expect(checkDatabaseReadiness(database)).resolves.toBeUndefined();

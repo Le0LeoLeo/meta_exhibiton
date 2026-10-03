@@ -1,0 +1,11 @@
+{
+	admin off
+	auto_https disable_redirects
+	skip_install_trust
+	https_port 8443
+}
+
+https://metaexb.com {
+	tls internal
+	import /etc/caddy/routes.caddy
+}

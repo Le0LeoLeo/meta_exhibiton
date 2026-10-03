@@ -19,7 +19,7 @@ export function StudioCanvas() {
     <div className="absolute inset-0">
       <Canvas
         key={isFloorPlan ? "studio-floor" : "studio-main"}
-        shadows={!isFloorPlan ? PCFShadowMap : false}
+        shadows={!isFloorPlan ? "basic" : false}
         orthographic={isFloorPlan}
         camera={isFloorPlan ? { position: [0, 40, 0], zoom: 28, near: 0.1, far: 500 } : { position: [0, 6, 14], fov: 55 }}
         onCreated={({ gl }) => {

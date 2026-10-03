@@ -2,12 +2,7 @@ import { useCallback, useEffect } from "react";
 
 import { useStore } from "../store";
 import type { AppMode } from "../types";
-
-function isTypingTarget(target: EventTarget | null) {
-  const element = target as HTMLElement | null;
-  const tagName = element?.tagName?.toLowerCase();
-  return tagName === "input" || tagName === "textarea" || Boolean(element?.isContentEditable);
-}
+import { isTypingTarget } from '@/app/modules/metaverse3d/input/isTypingTarget';
 
 export function useGlobalStudioShortcuts({
   mode,
@@ -33,7 +28,7 @@ export function useGlobalStudioShortcuts({
     }
 
     if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
-    if (isTyping) return;
+    if (isTyping || mode === "view") return;
     event.preventDefault();
     event.stopPropagation();
     if (event.shiftKey) redo();

@@ -36,6 +36,12 @@ export async function apiFetch(
   const controller = new AbortController();
   const callerSignal = init.signal;
   let abortCause: 'caller' | 'timeout' | undefined;
+  let rejectAborted: (reason: unknown) => void;
+  const aborted = new Promise<never>((_resolve, reject) => { rejectAborted = reject; });
+  const onAbort = () => rejectAborted(controller.signal.reason);
+  controller.signal.addEventListener('abort', onAbort, { once: true });
+  let response: Response | undefined;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
   const abortFromCaller = () => {
     if (abortCause) return;
@@ -61,12 +67,22 @@ export async function apiFetch(
       const csrfToken = readCookie('mrei_csrf');
       if (csrfToken) headers.set('X-CSRF-Token', csrfToken);
     }
-    return await fetch(path, {
+    response = await Promise.race([fetch(path, {
       ...init,
       credentials: init.credentials ?? 'include',
       headers,
       signal: controller.signal,
-    });
+    }), aborted]);
+    // All API callers consume complete JSON/blob responses. Drain a clone so
+    // stalled bodies stay within the deadline while preserving the original
+    // Response (including URL, headers and its still-readable body).
+    reader = response.clone().body?.getReader();
+    if (reader) {
+      while (!(await Promise.race([reader.read(), aborted])).done) { /* receive body */ }
+      reader.releaseLock();
+      reader = undefined;
+    }
+    return response;
   } catch (error) {
     if (abortCause === 'timeout') {
       throw new ApiTransportError('REQUEST_TIMEOUT', 'The request timed out.', { cause: error });
@@ -76,7 +92,12 @@ export async function apiFetch(
     }
     throw new ApiTransportError('NETWORK_ERROR', 'The network request failed.', { cause: error });
   } finally {
+    if (reader) {
+      void reader.cancel().catch(() => undefined);
+      void response?.body?.cancel().catch(() => undefined);
+    }
     clearTimeout(timeoutId);
     callerSignal?.removeEventListener('abort', abortFromCaller);
+    controller.signal.removeEventListener('abort', onAbort);
   }
 }

@@ -3,14 +3,23 @@ import {
   createGalleryShareLink,
   getSharedGallery,
   updateSharedGallery,
+  getPublishedGalleryById,
+  getGalleryById,
 } from "./gallery";
 
 describe("gallery capability API", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ gallery: {}, access: {} }),
-    }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ gallery: {}, access: {} })));
+  });
+
+  it('preserves the public exhibition response status for visitor recovery', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ message: 'Gallery unavailable' }, { status: 404 }));
+    await expect(getPublishedGalleryById('missing')).rejects.toMatchObject({ status: 404, message: 'Gallery unavailable' });
+  });
+
+  it.each([401, 403, 404])('preserves status %s when a private review is no longer accessible', async status => {
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ message: 'Review unavailable' }, { status }));
+    await expect(getGalleryById('teacher-session', 'private-gallery')).rejects.toMatchObject({ status, message: 'Review unavailable' });
   });
 
   it("sends capability tokens in a header for GET", async () => {
@@ -28,7 +37,7 @@ describe("gallery capability API", () => {
   });
 
   it("sends capability tokens in a header for PATCH", async () => {
-    await updateSharedGallery("secret-token", { title: "Changed" });
+    await updateSharedGallery("secret-token", { title: "Changed", expectedRevision: 0 });
 
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     const headers = new Headers(init?.headers);
@@ -44,17 +53,14 @@ describe("gallery capability API", () => {
   });
 
   it("creates a server capability link with the selected role and expiry", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({
         share: {
           url: "https://example.test/virtual-gallery/share/token",
           token: "token",
           role: "editor",
           expiresAt: null,
         },
-      }),
-    } as Response);
+    }));
 
     const result = await createGalleryShareLink(
       "jwt",

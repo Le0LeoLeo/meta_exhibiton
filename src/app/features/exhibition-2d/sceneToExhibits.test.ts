@@ -54,6 +54,16 @@ describe('sceneToExhibits', () => {
     });
   });
 
+  it('uses localized fallback labels and accessible text when supplied', () => {
+    const [artwork] = sceneToExhibits({ items: [{ type: 'painting', artist: 'Student', description: 'Process note' }] }, {
+      textTitle: 'Exhibition text',
+      artworkTitle: (number) => `Artwork ${number}`,
+      author: (artist) => `Artist: ${artist}`,
+      separator: '. ',
+    });
+    expect(artwork).toMatchObject({ title: 'Artwork 1', accessibleText: 'Artwork 1. Artist: Student. Process note' });
+  });
+
   it('includes pedestal-hosted 3D models in the accessible exhibit list', () => {
     const [model] = sceneToExhibits({
       items: [{

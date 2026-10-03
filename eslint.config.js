@@ -24,6 +24,8 @@ export default [
     ...eslint.configs.recommended,
     rules: {
       ...eslint.configs.recommended.rules,
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
       'no-control-regex': 'off',
       'no-unused-vars': ['error', {
         argsIgnorePattern: '^_',

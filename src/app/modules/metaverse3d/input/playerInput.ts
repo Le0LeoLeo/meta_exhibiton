@@ -31,6 +31,11 @@ export function setKeyboardKey(
   code: string,
   pressed: boolean,
 ) {
+  const wasPressed = state.pressedKeys.has(code);
+  if (code === "KeyE" && pressed && !wasPressed) {
+    state.interactRequested = true;
+  }
+
   if (pressed) state.pressedKeys.add(code);
   else state.pressedKeys.delete(code);
 

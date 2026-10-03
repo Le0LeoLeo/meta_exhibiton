@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { requestAgentReply } from "../../../../api/client";
@@ -6,6 +6,7 @@ import { defaultAgentState } from "../../store/metaverseStoreUtils";
 import { useStore } from "../../store/useStore";
 import { AgentChatPanel } from "./AgentChatPanel";
 import type { ExhibitItem } from "../../types";
+import { useLocalPlayerStore } from '../../network/localPlayerStore';
 
 vi.mock("../../../../components/I18nProvider", () => ({
   useI18n: () => ({
@@ -22,6 +23,10 @@ vi.mock("../../../../components/I18nProvider", () => ({
         "acp.restartTour": "Restart tour",
         "acp.noTourExhibits": "No tour exhibits",
         "acp.stopProgress": "Stop {current} / {total}",
+        "acp.depthBrief": "Brief",
+        "acp.reply": "Reply",
+        "agentUi.guideStyleWarm": "Warm conversation",
+        "agentUi.tourStatusIdle": "Ready to begin",
       };
       const template = dictionary[key] ?? key;
       return template.replace(/\{(\w+)\}/g, (match, token) => String(values?.[token] ?? match));
@@ -53,6 +58,8 @@ const makeItem = (overrides: Partial<ExhibitItem> & Pick<ExhibitItem, "id">): Ex
 function resetPanelState(items: ExhibitItem[] = []) {
   useStore.setState({
     items,
+    viewingItem: null,
+    oneTimeExhibitFocus: null,
     agent: {
       ...defaultAgentState,
       isChatOpen: true,
@@ -81,6 +88,174 @@ describe("AgentChatPanel guided tour", () => {
     });
   });
 
+  it('uses localized persona copy from the shared catalogs', () => {
+    renderPanel([makeItem({ id: 'work' })]);
+    expect(screen.getByText('agentPersonalityXiaobaiLabel')).toBeVisible();
+    expect(screen.getByText('agentPersonalityXiaobaiTone')).toBeVisible();
+    expect(screen.getByRole('button', { name: /agentPersonalityXiaobaiLabel/ })).toHaveAttribute('title', 'agentPersonalityXiaobaiDesc');
+  });
+
+  it('shows readable reply style and tour status instead of internal values', () => {
+    renderPanel();
+    expect(screen.getByText('Brief Reply')).toBeVisible();
+    expect(screen.getByText('Warm conversation')).toBeVisible();
+    expect(screen.getByText('Ready to begin')).toBeVisible();
+    expect(screen.queryByText('idle', { exact: true })).not.toBeInTheDocument();
+  });
+
+  it('scopes a shortcut to the inspected work, not stale agent focus', async () => {
+    const selected = makeItem({ id: 'selected', title: 'Selected work', position: [20, 1, 0] });
+    resetPanelState([selected, makeItem({ id: 'old-focus' })]);
+    useStore.setState({ viewingItem: selected });
+    useStore.getState().setAgent({ activeExhibit: makeItem({ id: 'old-focus' }) });
+    render(<AgentChatPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'guideHighlight' }));
+    await waitFor(() => expect(requestAgentReply).toHaveBeenCalledOnce());
+    expect(vi.mocked(requestAgentReply).mock.calls[0][1]).toMatchObject({ question: 'guideHighlight', exhibit: { id: 'selected' } });
+  });
+
+  it('disables artwork shortcuts without a focused work even if the agent remembers one', () => {
+    resetPanelState([makeItem({ id: 'far', position: [90, 1, 90] })]);
+    useLocalPlayerStore.setState({ position: { x: 0, y: 1.6, z: 0 } });
+    useStore.getState().setAgent({ activeExhibit: makeItem({ id: 'old-focus' }) });
+    render(<AgentChatPanel />);
+    expect(screen.getByRole('button', { name: 'guideHighlight' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'guideIntroduce' })).toBeDisabled();
+  });
+
+  it('suggests another real work locally and waits for explicit navigation', () => {
+    const current = makeItem({ id: 'current' });
+    resetPanelState([current, makeItem({ id: 'next', title: 'Next work' })]);
+    useStore.setState({ viewingItem: current });
+    render(<AgentChatPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'guideRecommend' }));
+    expect(requestAgentReply).not.toHaveBeenCalled();
+    expect(useStore.getState().agent.recommendedExhibit?.id).toBe('next');
+    expect(useStore.getState().agent.tourSession.status).toBe('idle');
+    fireEvent.click(screen.getByRole('button', { name: 'companion.takeMe' }));
+    expect(useStore.getState().agent.tourSession.currentExhibitId).toBe('next');
+    expect(useStore.getState().agent.isChatOpen).toBe(false);
+  });
+
+  it('does not suggest the sole focused work or invent an empty-gallery recommendation', () => {
+    const only = makeItem({ id: 'only' });
+    resetPanelState([only]); useStore.setState({ viewingItem: only });
+    render(<AgentChatPanel />);
+    expect(screen.getByRole('button', { name: 'guideRecommend' })).toBeDisabled();
+    act(() => useStore.setState({ items: [], viewingItem: null }));
+    expect(screen.getByRole('button', { name: 'guideRecommend' })).toBeDisabled();
+  });
+
+  it('disables shortcuts while an answer is pending', () => {
+    resetPanelState([makeItem({ id: 'a' }), makeItem({ id: 'b' })]);
+    useStore.getState().setAgent({ isAnswering: true });
+    render(<AgentChatPanel />);
+    expect(screen.getByRole('button', { name: 'guideRecommend' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'guideHighlight' })).toBeDisabled();
+  });
+
+  it('answers the inspected work at the visitor position and records the assistant reply', async () => {
+    const selected = makeItem({ id: 'selected', position: [12, 1, 0] });
+    resetPanelState([makeItem({ id: 'near-npc' }), selected]);
+    useStore.setState({ viewingItem: selected });
+    useStore.getState().setAgent({ nearbyExhibitId: 'near-npc', position: [0, 0, 0] });
+    useLocalPlayerStore.setState({ position: { x: 11, y: 1.6, z: 0 } });
+    render(<AgentChatPanel />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Tell me about this.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
+    await waitFor(() => expect(useStore.getState().agentChat.at(-1)?.role).toBe('assistant'));
+    expect(vi.mocked(requestAgentReply).mock.calls[0][1]).toMatchObject({ exhibit: { id: 'selected' }, visitorState: { currentPosition: [11, 1.6, 0] } });
+    expect(useStore.getState().agent.memory.engagedExhibitIds).toContain('selected');
+  });
+
+  it('uses an explicit work focus once, then returns to normal visitor focus', async () => {
+    const selected = makeItem({ id: 'selected-work', title: 'Selected work', position: [20, 1.5, 0] });
+    const nearby = makeItem({ id: 'nearby-work', title: 'Nearby work', position: [0, 1.5, 0] });
+    resetPanelState([nearby, selected]);
+    useLocalPlayerStore.setState({ position: { x: 0, y: 1.6, z: 0 } });
+    useStore.setState({ oneTimeExhibitFocus: { sessionId: 'session-1', itemId: selected.id } });
+    render(<AgentChatPanel />);
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'First question' } });
+    fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
+    await waitFor(() => expect(requestAgentReply).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(requestAgentReply).mock.calls[0][1].exhibit?.id).toBe(selected.id);
+    expect(useStore.getState().oneTimeExhibitFocus).toBeNull();
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Next question' } });
+    fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
+    await waitFor(() => expect(requestAgentReply).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(requestAgentReply).mock.calls[1][1].exhibit?.id).toBe(nearby.id);
+  });
+
+  it('starts a full route with more than eight works', () => {
+    renderPanel(Array.from({ length: 12 }, (_, i) => makeItem({ id: `art-${i}`, position: [i, 1.5, 0] })));
+    fireEvent.click(screen.getByRole('button', { name: 'Start tour' }));
+    expect(useStore.getState().agent.tourSession.routeExhibitIds).toHaveLength(12);
+  });
+
+  it('acts on an explicit quiet request locally without asking the model', async () => {
+    renderPanel([makeItem({ id: 'a' })]);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Please be quiet' } });
+    fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
+    expect(useStore.getState().agent.companion.proactiveEnabled).toBe(false);
+    expect(useStore.getState().agentChat.at(-1)?.content).toBe('companion.commandQuiet');
+    expect(requestAgentReply).not.toHaveBeenCalled();
+  });
+
+  it('dismisses invitations without a model call and accepts help for the invited work', async () => {
+    const art = makeItem({ id: 'invited', title: 'Invited work' });
+    resetPanelState([art]);
+    useStore.getState().setAgent({ companion: { ...defaultAgentState.companion, invitation: { exhibitId: art.id, kind: 'notice' } } });
+    render(<AgentChatPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'companion.dismiss' }));
+    expect(useStore.getState().agent.companion.invitation).toBeNull();
+    expect(useStore.getState().agent.companion.nextPromptAt).toBeGreaterThan(Date.now());
+    expect(requestAgentReply).not.toHaveBeenCalled();
+    act(() => useStore.getState().setAgent({ companion: { ...useStore.getState().agent.companion, invitation: { exhibitId: art.id, kind: 'revisit' } } }));
+    fireEvent.click(screen.getByRole('button', { name: 'companion.accept' }));
+    await waitFor(() => expect(requestAgentReply).toHaveBeenCalledOnce());
+    expect(vi.mocked(requestAgentReply).mock.calls[0][1].exhibit?.id).toBe(art.id);
+  });
+
+  it('turns a recommendation into a real navigation target', () => {
+    renderPanel([makeItem({ id: 'next' })]);
+    act(() => useStore.getState().setAgent({ recommendedExhibit: { id: 'next', title: 'Next', reason: 'Not visited' } }));
+    fireEvent.click(screen.getByRole('button', { name: 'companion.takeMe' }));
+    expect(useStore.getState().agent.tourSession.currentExhibitId).toBe('next');
+    expect(useStore.getState().agent.tourSession.status).toBe('running');
+  });
+
+  it('does not restore a stopped tour after a slow manual answer', async () => {
+    let resolve!: (value: Awaited<ReturnType<typeof requestAgentReply>>) => void;
+    vi.mocked(requestAgentReply).mockReturnValue(new Promise((r) => { resolve = r; }));
+    resetPanelState([makeItem({ id: 'a' })]);
+    useStore.getState().startAgentTour(['a']);
+    render(<AgentChatPanel />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Explain?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
+    act(() => useStore.getState().endAgentTour());
+    await act(async () => resolve({ answer: 'Late', source: 'qwen', recommendedExhibit: null }));
+    expect(useStore.getState().agent.mode).toBe('idle');
+    expect(useStore.getState().agent.currentDialogue).not.toBe('Late');
+  });
+
+  it('ignores a reply belonging to a previous exhibition session', async () => {
+    let resolveReply!: (value: Awaited<ReturnType<typeof requestAgentReply>>) => void;
+    vi.mocked(requestAgentReply).mockReturnValue(new Promise((resolve) => { resolveReply = resolve; }));
+    renderPanel([makeItem({ id: 'exhibit-a' })]);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Old exhibition question' } });
+    fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
+    act(() => useStore.getState().setAgent({
+      currentDialogue: 'New exhibition', mode: 'idle',
+      memory: { ...defaultAgentState.memory, sessionId: 'new-exhibition' },
+    }));
+    await act(async () => resolveReply({ answer: 'Old answer', recommendedExhibit: { id: 'exhibit-a', title: 'Old art', reason: 'old' }, source: 'qwen' }));
+    expect(useStore.getState().agent.currentDialogue).toBe('New exhibition');
+    expect(useStore.getState().agent.memory.sessionId).toBe('new-exhibition');
+    expect(useStore.getState().agent.memory.lastRecommendedExhibitId).toBeNull();
+  });
+
   it("keeps tour mode after manual chat during an active tour", async () => {
     resetPanelState([
       makeItem({ id: "exhibit-a", title: "Gallery A" }),
@@ -94,6 +269,42 @@ describe("AgentChatPanel guided tour", () => {
 
     await waitFor(() => expect(requestAgentReply).toHaveBeenCalled());
     await waitFor(() => expect(useStore.getState().agent.mode).toBe("tour"));
+  });
+
+  it("marks an in-flight manual chat as remote and clears the source after success", async () => {
+    let resolveReply: (value: Awaited<ReturnType<typeof requestAgentReply>>) => void = () => {};
+    vi.mocked(requestAgentReply).mockReturnValue(new Promise((resolve) => {
+      resolveReply = resolve;
+    }));
+    renderPanel([makeItem({ id: "exhibit-a", title: "Gallery A" })]);
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "What is this?" } });
+    fireEvent.click(screen.getByRole("button", { name: "acp.send" }));
+
+    await waitFor(() => expect(useStore.getState().agent.answerSource).toBe("remote"));
+    resolveReply({
+      answer: "It is a light study.",
+      recommendedExhibit: null,
+      source: "qwen",
+    });
+    await waitFor(() => expect(useStore.getState().agent.answerSource).toBeNull());
+    expect(useStore.getState().agent.isAnswering).toBe(false);
+  });
+
+  it("clears the remote answer source after failure", async () => {
+    let rejectReply: (reason: Error) => void = () => {};
+    vi.mocked(requestAgentReply).mockReturnValue(new Promise((_, reject) => {
+      rejectReply = reject;
+    }));
+    renderPanel([makeItem({ id: "exhibit-a", title: "Gallery A" })]);
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "What is this?" } });
+    fireEvent.click(screen.getByRole("button", { name: "acp.send" }));
+
+    await waitFor(() => expect(useStore.getState().agent.answerSource).toBe("remote"));
+    rejectReply(new Error("offline"));
+    await waitFor(() => expect(useStore.getState().agent.answerSource).toBeNull());
+    expect(useStore.getState().agent.isAnswering).toBe(false);
   });
 
   it("sends all route exhibits as completed after tour completion", async () => {

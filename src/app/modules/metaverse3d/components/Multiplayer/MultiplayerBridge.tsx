@@ -15,11 +15,18 @@ import {
 import { useRenderPerformanceProfile } from "../../performanceProfile";
 import type { ExhibitItem } from "../../types";
 import type { SceneOpEnvelope, SceneSnapshot } from "../../network/protocol";
+import { rebaseLocalScene } from "../../network/rebaseLocalScene";
+import { startSceneDeliveryMonitor, useSceneDeliveryStore } from "../../network/sceneDeliveryMonitor";
+import { clearReconnectDraft, isReconnectReviewPending, useReconnectDraftStore } from "../../network/reconnectDraftStore";
+import { loadAuth, subscribeAuth } from "@/app/api/auth";
+import { isEditorTabDraftPending, useEditorTabDraftStore } from '@/app/utils/editorTabDraft';
 
 export function MultiplayerBridge({
   targetRoomId,
+  initialScene,
 }: {
   targetRoomId?: string;
+  initialScene?: SceneSnapshot;
 }) {
   const mode = useStore((state) => state.mode);
   const exportScene = useStore((state) => state.exportScene);
@@ -64,10 +71,51 @@ export function MultiplayerBridge({
   const performanceProfile = useRenderPerformanceProfile();
 
   const lastSceneRef = useRef<SceneSnapshot | null>(null);
+  const initialSceneRef = useRef(initialScene);
   const applyingRemoteRef = useRef(false);
   const pendingOpsRef = useRef<Set<string>>(new Set());
   const requestedResyncEpochRef = useRef<number | null>(null);
   const recoverySequenceRef = useRef(0);
+  const unconfirmedBaseRef = useRef<SceneSnapshot | null>(null);
+  const reconnectDecision = useReconnectDraftStore(state => state.decision);
+  const reconnectPending = useReconnectDraftStore(state => Boolean(state.draft));
+  const tabDraftPending = useEditorTabDraftStore(state => Boolean(state.pending));
+
+  useEffect(() => startSceneDeliveryMonitor(), []);
+
+  useEffect(() => {
+    let account = loadAuth().user?.id ?? null;
+    const unsubscribeAuth = subscribeAuth(() => {
+      const next = loadAuth().user?.id ?? null;
+      if (next !== account) {
+        account = next; clearReconnectDraft(); lastSceneRef.current = null; initialSceneRef.current = undefined; unconfirmedBaseRef.current = null;
+      }
+    });
+    const unsubscribe = useMultiplayerStore.subscribe((state, previous) => {
+      if (state.roomId !== previous.roomId || state.shareToken !== previous.shareToken) initialSceneRef.current = undefined;
+      if (state.roomId !== previous.roomId || state.shareToken !== previous.shareToken || !state.enabled) {
+        clearReconnectDraft(); lastSceneRef.current = null; unconfirmedBaseRef.current = null; return;
+      }
+      if (!previous.connected || state.connected || !previous.enabled || isEditorTabDraftPending()) return;
+      const existing = useReconnectDraftStore.getState().draft;
+      if (existing) {
+        useReconnectDraftStore.setState({ draft: { ...existing, remote: null }, decision: null }); return;
+      }
+      const studio = useStore.getState();
+      if (!['edit', 'floor-plan'].includes(studio.mode) || !['editor', 'owner'].includes(previous.role || '')) return;
+      const uncertain = previous.pendingSceneOpIds.length > 0 || Boolean(previous.sceneRecoveryInFlightId);
+      const base = uncertain ? unconfirmedBaseRef.current || lastSceneRef.current : lastSceneRef.current;
+      if (base) useReconnectDraftStore.setState({ draft: {
+        roomId: previous.roomId, base: structuredClone(base), remote: null, uncertain,
+      }, decision: null });
+    });
+    return () => { unsubscribe(); unsubscribeAuth(); clearReconnectDraft(); };
+  }, []);
+
+  useEffect(() => {
+    // Saving before the first snapshot must not move this handshake's baseline.
+    initialSceneRef.current ??= initialScene;
+  }, [initialScene, roomId, shareToken]);
 
   useEffect(() => {
     const publicRoomId = targetRoomId?.trim();
@@ -86,6 +134,7 @@ export function MultiplayerBridge({
 
   useEffect(() => {
     lastSceneRef.current = null;
+    unconfirmedBaseRef.current = null;
     pendingOpsRef.current.clear();
     requestedResyncEpochRef.current = null;
   }, [roomId, connected]);
@@ -120,6 +169,9 @@ export function MultiplayerBridge({
         t: Date.now(),
         position: local.position,
         yaw: local.yaw,
+        pose: local.pose,
+        emote: local.emote,
+        emoteNonce: local.emoteNonce,
       });
     }, performanceProfile.multiplayerMoveIntervalMs);
 
@@ -133,12 +185,36 @@ export function MultiplayerBridge({
     const interval = window.setInterval(() => {
       if (
         applyingRemoteRef.current
+        || useSceneDeliveryStore.getState().delayed
+        || isReconnectReviewPending()
+        || isEditorTabDraftPending()
         || useMultiplayerStore.getState().sceneResyncRequested
         || useMultiplayerStore.getState().sceneRecoveryRequested
+        || (initialScene && useMultiplayerStore.getState().lastSceneVersion === null)
       ) return;
 
       const scene = exportScene();
       const previous = lastSceneRef.current;
+      if (previous) {
+        const previousItems = new Map(previous.items.map(item => [item.id, JSON.stringify(item)]));
+        const nextIds = new Set(scene.items.map(item => item.id));
+        const changedItems = scene.items.filter(item => previousItems.get(item.id) !== JSON.stringify(item)).length
+          + previous.items.filter(item => !nextIds.has(item.id)).length;
+        if (changedItems > 20) {
+          const state = useMultiplayerStore.getState();
+          // A complete generated layout is one version-checked replacement, never
+          // dozens of partially accepted events competing with the rate limiter.
+          if (state.pendingSceneOpIds.length || state.lastSceneVersion === null) return;
+          const clientSyncId = `bulk-${Date.now()}-${++recoverySequenceRef.current}`;
+          unconfirmedBaseRef.current = previous;
+          useMultiplayerStore.setState({sceneRecoveryRequested:true,sceneRecoveryInFlightId:clientSyncId,sceneRecoveryAttempts:1});
+          if (!emitSceneSync({roomId,scene,clientSyncId,expectedVersion:state.lastSceneVersion})) {
+            useMultiplayerStore.getState().setRoomError({code:'COLLABORATION_UNAVAILABLE',message:'collaboration service is unavailable',roomId,clientSyncId});
+          }
+          return;
+        }
+      }
+      if (useMultiplayerStore.getState().pendingSceneOpIds.length === 0) unconfirmedBaseRef.current = previous;
       lastSceneRef.current = scene;
       const emitTrackedSceneOp = (payload: SceneOpEnvelope) => {
         if (!emitSceneOp(payload)) return;
@@ -204,7 +280,7 @@ export function MultiplayerBridge({
           const updates: Partial<ExhibitItem> = {};
           const keys = new Set([...Object.keys(prevItem || {}), ...Object.keys(nextItem || {})]);
           for (const key of keys) {
-            if (JSON.stringify(prevItem?.[key]) !== JSON.stringify(nextItem?.[key])) {
+            if (JSON.stringify(prevItem[key as keyof ExhibitItem]) !== JSON.stringify(nextItem[key as keyof ExhibitItem])) {
               Object.assign(updates, { [key]: nextItem[key as keyof ExhibitItem] });
             }
           }
@@ -225,7 +301,7 @@ export function MultiplayerBridge({
     }, 120);
 
     return () => window.clearInterval(interval);
-  }, [enabled, connected, mode, roomId, exportScene, canEditMultiplayer]);
+  }, [enabled, connected, mode, roomId, exportScene, canEditMultiplayer, initialScene]);
 
   useEffect(() => {
     if (!sceneResyncRequested) {
@@ -260,13 +336,18 @@ export function MultiplayerBridge({
       || pendingSceneOpCount > 0
       || !canEditMultiplayer
       || sceneRecoveryAttempts >= 5
+      || reconnectPending
+      || tabDraftPending
     ) return;
 
     const delay = sceneRecoveryAttempts === 0
       ? 0
       : Math.min(4_000, 250 * (2 ** (sceneRecoveryAttempts - 1)));
     const timer = window.setTimeout(() => {
+      if (isReconnectReviewPending() || isEditorTabDraftPending()) return;
       const scene = exportScene();
+      const recoveryState = useMultiplayerStore.getState();
+      const expectedVersion = recoveryState.roomError?.code === 'SCENE_MISSING' ? null : recoveryState.lastSceneVersion;
       const clientSyncId =
         `recovery-${Date.now()}-${++recoverySequenceRef.current}`;
       beginSceneRecoverySync(clientSyncId);
@@ -275,7 +356,7 @@ export function MultiplayerBridge({
       if (!started) return;
       pendingOpsRef.current.clear();
       lastSceneRef.current = scene;
-      if (!emitSceneSync({ roomId, scene, clientSyncId })) {
+      if (!emitSceneSync({ roomId, scene, clientSyncId, ...(expectedVersion !== null ? {expectedVersion} : {}) })) {
         setRoomError({
           code: "COLLABORATION_UNAVAILABLE",
           message: "collaboration service is unavailable",
@@ -297,6 +378,8 @@ export function MultiplayerBridge({
     beginSceneRecoverySync,
     setRoomError,
     canEditMultiplayer,
+    reconnectPending,
+    tabDraftPending,
   ]);
 
   useEffect(() => {
@@ -316,22 +399,41 @@ export function MultiplayerBridge({
     if (!sceneSyncPayload) return;
     if (sceneSyncPayload.roomId !== roomId) return;
     const isCollaborativeEditMode = mode === "edit" || mode === "floor-plan";
-    if (!isCollaborativeEditMode) return;
+    if (!isCollaborativeEditMode && !isReconnectReviewPending()) return;
+
+    const review = useReconnectDraftStore.getState().draft;
+    if (review && review.roomId === roomId) {
+      const unchanged = !review.uncertain && JSON.stringify(exportScene()) === JSON.stringify(review.base);
+      lastSceneRef.current = sceneSyncPayload.scene;
+      initialSceneRef.current = sceneSyncPayload.scene;
+      if (!unchanged) {
+        useReconnectDraftStore.setState({ draft: { ...review, remote: sceneSyncPayload.scene } });
+        setSceneSyncPayload(null); return;
+      }
+      importScene(sceneSyncPayload.scene);
+      clearReconnectDraft(); setSceneSyncPayload(null); return;
+    }
 
     applyingRemoteRef.current = true;
-    importScene(sceneSyncPayload.scene);
+    // The first room snapshot may arrive after a generated layout was imported.
+    // Reapply edits against the saved scene, even if the route rejoined the room.
+    const base = lastSceneRef.current || initialSceneRef.current;
+    importScene(base && canEditMultiplayer
+      ? rebaseLocalScene(base, exportScene(), sceneSyncPayload.scene)
+      : sceneSyncPayload.scene);
     lastSceneRef.current = sceneSyncPayload.scene;
+    initialSceneRef.current = sceneSyncPayload.scene;
     pendingOpsRef.current.clear();
     applyingRemoteRef.current = false;
     setSceneSyncPayload(null);
-  }, [sceneSyncPayload, roomId, mode, importScene, setSceneSyncPayload]);
+  }, [sceneSyncPayload, roomId, mode, importScene, setSceneSyncPayload, canEditMultiplayer, exportScene, initialScene]);
 
   useEffect(() => {
     const sceneOpPayload = sceneOpPayloads[0];
     if (!sceneOpPayload) return;
     if (sceneOpPayload.roomId !== roomId) return;
     const isCollaborativeEditMode = mode === "edit" || mode === "floor-plan";
-    if (!isCollaborativeEditMode) return;
+    if (!isCollaborativeEditMode && !isReconnectReviewPending()) return;
 
     if (pendingOpsRef.current.has(sceneOpPayload.clientOpId)) {
       dequeueSceneOpPayload(sceneOpPayload.clientOpId);
@@ -366,23 +468,68 @@ export function MultiplayerBridge({
       next.items = next.items.filter((item) => item.id !== op.id);
     }
 
+    const delivery = useMultiplayerStore.getState();
+    if (!delivery.pendingSceneOpIds.length && !delivery.sceneResyncRequested && !delivery.sceneRecoveryRequested) {
+      initialSceneRef.current = next;
+    }
+
+    const review = useReconnectDraftStore.getState().draft;
+    if (review) {
+      lastSceneRef.current = next;
+      useReconnectDraftStore.setState({ draft: { ...review, remote: next } });
+      dequeueSceneOpPayload(sceneOpPayload.clientOpId); return;
+    }
     applyingRemoteRef.current = true;
-    importScene(next);
+    importScene(canEditMultiplayer ? rebaseLocalScene(base, exportScene(), next) : next);
     lastSceneRef.current = next;
     applyingRemoteRef.current = false;
     dequeueSceneOpPayload(sceneOpPayload.clientOpId);
-  }, [sceneOpPayloads, roomId, mode, importScene, dequeueSceneOpPayload, exportScene]);
+  }, [sceneOpPayloads, roomId, mode, importScene, dequeueSceneOpPayload, exportScene, canEditMultiplayer]);
+
+  useEffect(() => {
+    if (!reconnectDecision || !connected) return;
+    const review = useReconnectDraftStore.getState().draft;
+    if (!review || review.roomId !== roomId) {
+      useReconnectDraftStore.setState({ decision: null }); return;
+    }
+    const missing = useMultiplayerStore.getState().roomError?.code === 'SCENE_MISSING' && sceneRecoveryRequested;
+    if (missing && reconnectDecision === 'merge' && canEditMultiplayer) {
+      clearReconnectDraft(); return;
+    }
+    if (sceneOpPayloads.length || sceneSyncPayload || sceneResyncRequested) return;
+    if (!review?.remote || review.roomId !== roomId || (reconnectDecision === 'merge' && !canEditMultiplayer)) {
+      useReconnectDraftStore.setState({ decision: null }); return;
+    }
+    applyingRemoteRef.current = true;
+    importScene(reconnectDecision === 'merge'
+      ? rebaseLocalScene(review.base, exportScene(), review.remote) : review.remote);
+    lastSceneRef.current = review.remote;
+    unconfirmedBaseRef.current = null;
+    pendingOpsRef.current.clear();
+    applyingRemoteRef.current = false;
+    clearReconnectDraft();
+  }, [reconnectDecision, connected, roomId, canEditMultiplayer, exportScene, importScene, sceneOpPayloads, sceneSyncPayload, sceneResyncRequested, sceneRecoveryRequested]);
 
   useEffect(() => {
     if (!sceneOpAckPayload) return;
     if (sceneOpAckPayload.roomId !== roomId) return;
     pendingOpsRef.current.delete(sceneOpAckPayload.clientOpId);
+    const delivery = useMultiplayerStore.getState();
+    if (delivery.connected && !delivery.pendingSceneOpIds.length && !delivery.sceneResyncRequested && !delivery.sceneRecoveryRequested && lastSceneRef.current) {
+      initialSceneRef.current = lastSceneRef.current;
+    }
     setSceneOpAckPayload(null);
   }, [sceneOpAckPayload, roomId, setSceneOpAckPayload]);
 
   useEffect(() => {
     if (!enabled || !connected || mode !== "edit" || !canEditMultiplayer) return;
-    emitSceneFocus({ roomId, itemId: selectedItemId ?? null, nickname });
+    const refreshFocus = () => emitSceneFocus({ roomId, itemId: selectedItemId ?? null, nickname });
+    refreshFocus();
+    const timer = selectedItemId ? window.setInterval(refreshFocus, 3000) : null;
+    return () => {
+      if (timer !== null) window.clearInterval(timer);
+      emitSceneFocus({ roomId, itemId: null, nickname });
+    };
   }, [enabled, connected, mode, roomId, selectedItemId, nickname, canEditMultiplayer]);
 
   useEffect(() => {

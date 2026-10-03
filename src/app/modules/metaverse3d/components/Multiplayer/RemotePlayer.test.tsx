@@ -51,12 +51,14 @@ vi.mock("../../avatar/AvatarModel", () => ({
     appearance,
     castShadow,
     emote,
+    emoteNonce,
     playerSeed,
     speed,
   }: {
     appearance: typeof DEFAULT_AVATAR_APPEARANCE;
     castShadow?: boolean;
     emote?: string;
+    emoteNonce?: number;
     playerSeed: string;
     speed: number;
   }) => (
@@ -65,6 +67,7 @@ vi.mock("../../avatar/AvatarModel", () => ({
       data-appearance={JSON.stringify(appearance)}
       data-cast-shadow={String(castShadow)}
       data-emote={emote}
+      data-emote-nonce={emoteNonce}
       data-player-seed={playerSeed}
       data-speed={String(speed)}
     />
@@ -119,6 +122,9 @@ function createPlayer(
     renderPosition: { x: 4, y: 1.7, z: -3 },
     targetYaw: Math.PI / 4,
     renderYaw: Math.PI / 4,
+    pose: "standing",
+    emote: "none",
+    emoteNonce: 0,
     seq: 3,
     updatedAt: 100,
     ...overrides,
@@ -171,6 +177,18 @@ describe("RemotePlayer", () => {
     expect(screen.getByTestId("avatar-boundary").dataset.resetKey).toContain(
       player.appearance.hair,
     );
+  });
+
+  it("passes synchronized emotes to the rigged avatar", () => {
+    render(
+      <RemotePlayer
+        player={createPlayer({ emote: "cheer", emoteNonce: 8 })}
+      />,
+    );
+
+    const avatar = screen.getByTestId("avatar-model");
+    expect(avatar).toHaveAttribute("data-emote", "cheer");
+    expect(avatar).toHaveAttribute("data-emote-nonce", "8");
   });
 
   it("retains the multiplayer nameplate and registers frame speed sampling", () => {

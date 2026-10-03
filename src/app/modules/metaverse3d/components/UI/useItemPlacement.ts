@@ -1,18 +1,11 @@
-import { useEffect } from "react";
-import { ExhibitItem, RoomSize, WallFace } from "../../types";
+import { useCallback, useEffect } from "react";
+import { ExhibitItem, RoomSize, WallFace, PendingPlacement } from "../../types";
+import { getItemBehavior, resolveItemPlacementY } from "../../items/itemBehaviorRegistry";
+import { getWallMountOffset, isWallMountedItem } from "../../items/wallPlacement";
+import { VEHICLE_PLATFORM_URL } from "../../items/templateDisplay";
+import { useI18n } from "../../../../components/I18nProvider";
 
 type SpawnLocation = "center" | "north" | "south" | "east" | "west";
-type PendingPlacement = {
-  type: ExhibitItem["type"];
-  position: [number, number, number];
-  rotation: [number, number, number];
-  wallSide: "front" | "back";
-  surfaceKind?: "room-wall" | "partition";
-  surfaceId?: string | null;
-  batchPositions?: Array<[number, number, number]>;
-  batchRotation?: [number, number, number];
-  autoTopLightstrip?: boolean;
-};
 
 interface UseItemPlacementParams {
   roomSize: RoomSize;
@@ -35,101 +28,21 @@ const AUTO_LIGHT_ELIGIBLE_TYPES: ExhibitItem["type"][] = ["painting", "text"];
 const WALL_MOUNTED_TYPES: ExhibitItem["type"][] = ["painting", "text", "lightstrip"];
 
 function getItemOffset(type: ExhibitItem["type"]) {
-  if (type === "painting" || type === "partition") return 0.1;
-  if (type === "lightstrip") return 0.06;
+  if (isWallMountedItem(type)) return getWallMountOffset(type);
+  if (type === "partition") return 0.1;
   return 0.5;
 }
 
 function getItemYPosition(type: ExhibitItem["type"], roomSize: RoomSize) {
-  switch (type) {
-    case "partition":
-      return roomSize.height / 2;
-    case "pedestal":
-    case "flower":
-    case "vase":
-    case "sculpture":
-    case "plant":
-    case "column":
-    case "bench":
-      return 0;
-    case "spotlight":
-      return 0.2;
-    case "neon":
-      return 1.4;
-    case "lightstrip":
-      return 2.2;
-    case "chandelier":
-      return Math.max(2.6, roomSize.height - 0.8);
-    case "rug":
-      return 0.01;
-    default:
-      return 1.5;
-  }
+  return resolveItemPlacementY(type, roomSize);
 }
 
 function getItemHeight(type: ExhibitItem["type"]) {
-  switch (type) {
-    case "painting":
-      return 1.5;
-    case "text":
-      return 1.2;
-    case "pedestal":
-      return 1;
-    case "flower":
-      return 0.8;
-    case "vase":
-      return 1.1;
-    case "sculpture":
-      return 1.8;
-    case "bench":
-      return 1.1;
-    case "rug":
-      return 0.05;
-    case "spotlight":
-      return 1.2;
-    case "plant":
-      return 1.4;
-    case "column":
-      return 3;
-    case "neon":
-      return 0.8;
-    case "lightstrip":
-      return 0.12;
-    case "chandelier":
-      return 1;
-    default:
-      return 1;
-  }
+  return getItemBehavior(type).height;
 }
 
 function getItemFootprint(type: ExhibitItem["type"]) {
-  switch (type) {
-    case "painting":
-      return 2;
-    case "text":
-      return 1.6;
-    case "pedestal":
-      return 1.2;
-    case "bench":
-    case "rug":
-      return 2.4;
-    case "sculpture":
-      return 1.3;
-    case "vase":
-      return 0.9;
-    case "flower":
-      return 0.8;
-    case "plant":
-      return 1.1;
-    case "column":
-      return 1;
-    case "neon":
-      return 1.8;
-    case "lightstrip":
-      return 2;
-    default:
-      return 1;
-  }
+  return getItemBehavior(type).footprint;
 }
 
 function getBatchCount(baseLength: number, wallBatchSpacing: number, wallBatchCount: number) {
@@ -221,11 +134,12 @@ export function useItemPlacement({
   setWallBatchCount,
   clearSelection,
 }: UseItemPlacementParams) {
-  const safeSetPendingPlacement = (placement: PendingPlacement | null) => {
+  const { t } = useI18n();
+  const safeSetPendingPlacement = useCallback((placement: PendingPlacement | null) => {
     if (typeof setPendingPlacement === "function") {
       setPendingPlacement(placement);
     }
-  };
+  }, [setPendingPlacement]);
 
   const sourcePartition = selectedWallSegmentId
     ? items.find((item) => item.id === selectedWallSegmentId && item.type === "partition")
@@ -299,7 +213,7 @@ export function useItemPlacement({
     const { wallRotationY, batchPositions, fallbackPosition } = buildWallBatchPositions({
       targetFace,
       roomSize,
-      offset,
+      offset: Math.max(0.12, roomSize.wallThickness) / 2 + offset,
       yPos,
       itemFootprint,
       wallBatchSpacing,
@@ -324,9 +238,9 @@ export function useItemPlacement({
       batchPositions,
       batchRotation: nextRotation,
     });
-  }, [pendingPlacement, selectedItem, selectedWallFace, selectedWallSegmentId, items, spawnLocation, roomSize, wallBatchSpacing, wallBatchCount, setPendingPlacement]);
+  }, [pendingPlacement, selectedItem, selectedWallFace, selectedWallSegmentId, items, spawnLocation, roomSize, wallBatchSpacing, wallBatchCount, setPendingPlacement, safeSetPendingPlacement]);
 
-  const handleAddItem = (type: ExhibitItem["type"]) => {
+  const handleAddItem = (type: ExhibitItem["type"], preset?: 'vehicle-platform') => {
     const sourceSelectedItem = selectedItem ?? sourcePartition;
     clearSelection();
     let position: [number, number, number];
@@ -347,6 +261,12 @@ export function useItemPlacement({
       batchPositions: extras?.batchPositions,
       batchRotation: extras?.batchRotation,
       autoTopLightstrip: shouldAutoLight,
+      ...(type === 'pedestal' && preset === 'vehicle-platform' ? { itemDefaults: {
+        content: VEHICLE_PLATFORM_URL,
+        modelOffset: [0, 0, 0] as [number, number, number],
+        title: t('editorRectangularPlatform'),
+        scale: [1, 1, 1] as [number, number, number],
+      } } : {}),
     });
 
     const hw = roomSize.width / 2;
@@ -355,8 +275,9 @@ export function useItemPlacement({
     const yPos = getItemYPosition(type, roomSize);
     const isWallMounted = WALL_MOUNTED_TYPES.includes(type);
     const shouldFollowWallAnchorHeight = type === "painting";
-    const itemHeight = getItemHeight(type);
-    const itemFootprint = getItemFootprint(type);
+    const isVehiclePlatform = type === 'pedestal' && preset === 'vehicle-platform';
+    const itemHeight = isVehiclePlatform ? 0.14 : getItemHeight(type);
+    const itemFootprint = isVehiclePlatform ? 5.4 : getItemFootprint(type);
     const isPartitionAttachMode = isWallMounted && sourceSelectedItem?.type === "partition";
 
     if (isWallMounted && !isPartitionAttachMode) {
@@ -364,7 +285,7 @@ export function useItemPlacement({
       const { count, wallRotationY, batchPositions, fallbackPosition } = buildWallBatchPositions({
         targetFace,
         roomSize,
-        offset,
+        offset: Math.max(0.12, roomSize.wallThickness) / 2 + offset,
         yPos,
         itemFootprint,
         wallBatchSpacing,
@@ -379,6 +300,7 @@ export function useItemPlacement({
         batchPositions,
         batchRotation: [0, wallRotationY, 0],
       });
+      placement.surfaceId = targetFace;
       safeSetPendingPlacement(placement);
       return;
     }

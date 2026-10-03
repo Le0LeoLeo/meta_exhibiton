@@ -2,13 +2,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_AVATAR_APPEARANCE } from '../modules/metaverse3d/avatar/avatarAppearance';
 import {
   clearAuth,
+  changePassword,
   loadAuth,
   loginUser,
+  loginWithGoogle,
   saveAuth,
   updateMyAvatar,
 } from './auth';
 
 describe('browser auth storage migration', () => {
+  it('replaces the in-memory credential after changing a password', async () => {
+    const user = { id: 'user-1', email: 'user@example.com', name: 'User', avatarAppearance: DEFAULT_AVATAR_APPEARANCE };
+    saveAuth({ token: 'old', user });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ok: true, token: 'new', user })));
+    await changePassword('old', { currentPassword: 'old-password', newPassword: 'new-password' });
+    expect(loadAuth().token).toBe('new');
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
     localStorage.clear();
@@ -57,7 +66,15 @@ describe('browser auth storage migration', () => {
   });
 
   it('updates the authenticated avatar through the dedicated endpoint', async () => {
-    const appearance = { ...DEFAULT_AVATAR_APPEARANCE, hair: 'hair02' as const };
+    const appearance = {
+      ...DEFAULT_AVATAR_APPEARANCE,
+      hair: 'hair02' as const,
+      facialPlacement: {
+        eyes: { offsetY: 0.04, spacing: 0.03, scale: 1.2 },
+        eyebrows: { offsetY: -0.02, spacing: 0.01, rotation: 0.18 },
+        mouth: { offsetX: -0.03, offsetY: 0.02, scaleX: 1.25, scaleY: 0.85 },
+      },
+    };
     const fetchMock = vi.fn().mockResolvedValue(new Response(
       JSON.stringify({ avatarAppearance: appearance }),
       { status: 200, headers: { 'content-type': 'application/json' } },
@@ -89,5 +106,28 @@ describe('browser auth storage migration', () => {
     })).resolves.toMatchObject({
       user: { avatarAppearance: DEFAULT_AVATAR_APPEARANCE },
     });
+  });
+
+  it('exchanges a Google credential for the existing app session format', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({
+        token: 'server-token',
+        user: { id: 'user-1', email: 'user@example.com', name: 'Google User' },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(loginWithGoogle('google-id-token')).resolves.toMatchObject({
+      token: 'server-token',
+      user: { email: 'user@example.com', name: 'Google User' },
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/auth/google'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ credential: 'google-id-token' }),
+      }),
+    );
   });
 });

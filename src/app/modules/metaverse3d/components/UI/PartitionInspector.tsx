@@ -19,7 +19,8 @@ export function PartitionInspector({ selectedItem, updateItem }: Props) {
     <div className="space-y-3">
       <button
         onClick={() => updateItem(selectedItem.id, { isLocked: !selectedItem.isLocked })}
-        className={`w-full inline-flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${selectedItem.isLocked ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100" : "border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
+        aria-pressed={Boolean(selectedItem.isLocked)}
+        className={`w-full inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${selectedItem.isLocked ? "border-amber-300/50 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20" : "border-slate-500 bg-slate-800 text-slate-100 hover:bg-slate-700"}`}
       >
         {selectedItem.isLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
         {selectedItem.isLocked ? t('editorPartitionLocked') : t('editorPartitionUnlocked')}
@@ -32,7 +33,7 @@ export function PartitionInspector({ selectedItem, updateItem }: Props) {
 
       <div className="grid grid-cols-3 gap-2">
         {scaleFields.map((field) => (
-          <div key={field.label}>
+          <div key={field.labelKey}>
             <label className="mb-1 block text-xs font-medium text-gray-700">{t(field.labelKey)}</label>
             <input
               type="number"

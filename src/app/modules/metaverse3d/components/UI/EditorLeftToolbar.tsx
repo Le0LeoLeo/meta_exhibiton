@@ -1,4 +1,4 @@
-import { Package } from "lucide-react";
+import { Package, X } from "lucide-react";
 import { ExhibitItem } from "../../types";
 import { itemToolButtons, modelLibraryButtons } from "./editorConstants";
 import { useI18n } from "../../../../components/I18nProvider";
@@ -7,7 +7,7 @@ type Props = {
   glassPanelClass: string;
   isModelLibraryOpen: boolean;
   setIsModelLibraryOpen: (value: boolean | ((prev: boolean) => boolean)) => void;
-  handleAddItem: (type: ExhibitItem["type"]) => void;
+  handleAddItem: (type: ExhibitItem["type"], preset?: 'vehicle-platform') => void;
 };
 
 export function EditorLeftToolbar({
@@ -18,22 +18,25 @@ export function EditorLeftToolbar({
 }: Props) {
   const { t } = useI18n();
   return (
-    <div className={`absolute left-3 top-[calc(var(--top-bar-height,6rem)+0.75rem)] z-30 w-[4.2rem] rounded-[1.9rem] border border-white/25 bg-slate-950/45 p-2.5 pointer-events-auto backdrop-blur-2xl shadow-[0_18px_48px_rgba(15,23,42,0.18)] sm:left-4 sm:w-[4.65rem] sm:rounded-[2rem] sm:p-3 ${glassPanelClass}`}>
+    <div className={`editor-toolrail absolute top-[calc(var(--top-bar-height,6rem)+0.75rem)] z-30 pointer-events-auto ${glassPanelClass}`}>
       <div className="mb-3 px-1 pt-0.5 text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-white/80">
         {t('editorAdd')}
       </div>
 
-      <div className="space-y-2">
+      <div className="editor-tools-scroll space-y-1.5">
         {itemToolButtons.map((tool) => {
           const Icon = tool.icon;
+          const label = t(tool.labelKey);
           return (
             <button
-              key={tool.type}
-              onClick={() => handleAddItem(tool.type)}
-              title={tool.label}
-              className={`group flex h-12 w-full items-center justify-center rounded-2xl border border-white/10 bg-white/6 text-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/12 hover:text-white active:scale-[0.98] ${tool.className}`}
+              key={tool.preset ?? tool.type}
+              onClick={() => tool.preset ? handleAddItem(tool.type, tool.preset) : handleAddItem(tool.type)}
+              title={label}
+              aria-label={label}
+              className={`group flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/6 text-slate-200 hover:bg-white/12 hover:text-white ${tool.className}`}
             >
               <Icon className="h-5 w-5 opacity-85 transition-transform duration-200 group-hover:scale-110" />
+              <span className="text-[10px] leading-tight">{label}</span>
             </button>
           );
         })}
@@ -44,6 +47,9 @@ export function EditorLeftToolbar({
       <button
         onClick={() => setIsModelLibraryOpen((prev) => !prev)}
         title={t('editorModelLibrary')}
+        aria-label={t('editorModelLibrary')}
+        aria-expanded={isModelLibraryOpen}
+        aria-controls="editor-model-library"
         className={`flex h-12 w-full items-center justify-center rounded-2xl border transition-all duration-200 ${
           isModelLibraryOpen
             ? "border-indigo-300/70 bg-indigo-500/18 text-white shadow-[0_0_0_1px_rgba(99,102,241,0.15),0_8px_24px_rgba(79,70,229,0.18)]"
@@ -54,20 +60,24 @@ export function EditorLeftToolbar({
       </button>
 
       {isModelLibraryOpen && (
-        <div className={`absolute left-[4.95rem] top-0 z-50 w-56 rounded-[1.35rem] border border-white/25 bg-slate-950/55 p-2.5 backdrop-blur-2xl shadow-[0_18px_48px_rgba(15,23,42,0.24)] sm:left-[5.35rem] ${glassPanelClass}`}>
-          <p className="px-2 py-1 text-xs font-semibold text-white">{t('editorModelLibrary')}</p>
+        <div id="editor-model-library" className={`editor-library absolute top-0 z-50 p-3 ${glassPanelClass}`}>
+          <div className="editor-panel-heading mb-3 flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-white">{t('editorModelLibrary')}</p>
+            <button type="button" aria-label={t('close')} onClick={() => setIsModelLibraryOpen(false)} className="flex w-9 items-center justify-center rounded-lg hover:bg-white/10"><X className="size-4" /></button>
+          </div>
           <div className="grid grid-cols-2 gap-1.5">
             {modelLibraryButtons.map((tool) => {
               const Icon = tool.icon;
+              const label = t(tool.labelKey);
               return (
                 <button
                   key={tool.type}
                   onClick={() => handleAddItem(tool.type)}
-                  title={tool.label}
+                  title={label}
                   className={`flex h-14 flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/6 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/12 ${tool.className}`}
                 >
                   <Icon className="h-5 w-5" />
-                  <span className="text-[11px] leading-none">{tool.label}</span>
+                  <span className="text-[11px] leading-none">{label}</span>
                 </button>
               );
             })}

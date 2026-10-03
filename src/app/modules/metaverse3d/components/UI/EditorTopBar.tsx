@@ -1,9 +1,8 @@
-import { ChevronLeft, Edit3, Grid2X2, Layers3, PanelRightOpen, Plane, Upload } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { ChevronLeft, Eye, Grid2X2, Users, SlidersHorizontal, Plane, Undo2, Redo2, Copy, Trash2, X, AlignHorizontalJustifyCenter } from 'lucide-react';
 import { useI18n } from '../../../../components/I18nProvider';
 
 export type EditorTopBarProps = {
-  topBarRef: React.RefObject<HTMLDivElement | null>;
+  topBarRef: React.RefObject<HTMLDivElement>;
   glassPanelClass: string;
   glassButtonClass: string;
   topBarButtonClass: string;
@@ -33,6 +32,8 @@ export type EditorTopBarProps = {
   onAlignSelectionZ: () => void;
   onDistributeSelectionX: () => void;
   onDistributeSelectionZ: () => void;
+  isMoreOpen?: boolean;
+  isNetworkOpen?: boolean;
 };
 
 export function EditorTopBar({
@@ -66,58 +67,63 @@ export function EditorTopBar({
   onAlignSelectionZ,
   onDistributeSelectionX,
   onDistributeSelectionZ,
+  isMoreOpen = false,
+  isNetworkOpen = false,
 }: EditorTopBarProps) {
-  const navigate = useNavigate();
   const { t } = useI18n();
 
   return (
-    <div ref={topBarRef} className={`absolute inset-x-0 top-0 z-30 ${glassPanelClass} border-b-0 px-3 py-2 pointer-events-auto`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div ref={topBarRef} className={`editor-topbar absolute inset-x-0 top-0 z-30 ${glassPanelClass} px-4 py-3 pointer-events-auto`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={onBack} className={topBarButtonClass + ' ' + glassButtonClass}>
             <ChevronLeft className="mr-1 size-4" /> {t('editorBack')}
           </button>
           <button onClick={onViewMode} className={topBarButtonPrimaryClass + ' bg-indigo-600'}>
-            <Edit3 className="mr-1 size-4" /> {t('editorViewMode')}
+            <Eye className="mr-1 size-4" /> {t('editorViewMode')}
           </button>
           <button onClick={onFloorPlanMode} className={topBarButtonClass + ' ' + glassButtonClass}>
             <Plane className="mr-1 size-4" /> {t('editorFloorPlanMode')}
           </button>
-          <button onClick={() => navigate(`/virtual-gallery/upload${window.location.search}`)} className={topBarButtonClass + ' ' + 'border border-cyan-200 bg-cyan-500/20 text-cyan-50 hover:bg-cyan-500/30'}>
-            <Upload className="mr-1 size-4" /> {t('editorQuickUpload')}
-          </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs text-white/80">
+        <div className="editor-status flex flex-wrap items-center gap-2 text-xs text-white/80">
+          <span className="rounded-full border border-indigo-300/30 bg-indigo-500/20 px-2 py-1 font-semibold">{t('uxEditingMode')}</span>
           <span className="rounded-full border border-white/15 bg-white/8 px-2 py-1">{t('editorItemsCount')} {itemsCount}</span>
-          <span className="rounded-full border border-white/15 bg-white/8 px-2 py-1">{t('editorUndoCount')} {undoCount}</span>
-          <span className="rounded-full border border-white/15 bg-white/8 px-2 py-1">{t('editorRedoCount')} {redoCount}</span>
-          <span className="rounded-full border border-white/15 bg-white/8 px-2 py-1">{t('editorMultiplayer')} {multiplayerEnabled ? (multiplayerConnected ? t('editorConnected') : t('editorConnecting')) : t('editorDisabled')}</span>
-          <span className="rounded-full border border-white/15 bg-white/8 px-2 py-1">{t('editorCollaborators')} {multiplayerRemoteCount}</span>
+          {multiplayerEnabled && <span className="inline-flex items-center gap-1.5 text-slate-300"><Users className="size-3.5" />{multiplayerConnected ? t('editorConnected') : t('editorConnecting')} · {t('editorCollaborators')} {multiplayerRemoteCount}</span>}
           {hasSelection && <span className="rounded-full border border-white/15 bg-white/8 px-2 py-1">{t('editorSelected')} {selectedItemsCount}</span>}
           {selectedItemLabel && <span className="rounded-full border border-white/15 bg-white/8 px-2 py-1">{selectedItemLabel}</span>}
           {sessionStatus}
         </div>
+        <p className="w-full text-xs leading-relaxed text-white/80">{t(hasSelection ? 'uxSelectionHint' : 'uxEditorStartHint')}</p>
 
-        <div className="flex items-center gap-2">
-          <button onClick={onUndo} className={topBarButtonClass + ' ' + glassButtonClass} disabled={undoCount === 0}>{t('editorUndo')}</button>
-          <button onClick={onRedo} className={topBarButtonClass + ' ' + glassButtonClass} disabled={redoCount === 0}>{t('editorRedo')}</button>
+        <div className="editor-commands flex w-full flex-wrap items-center gap-2 border-t border-white/10 pt-2">
+          <button onClick={onUndo} title={`${t('editorUndo')} (Ctrl/⌘ Z) · ${undoCount}`} className={topBarButtonClass + ' ' + glassButtonClass} disabled={undoCount === 0}><Undo2 className="mr-1 size-4" />{t('editorUndo')}</button>
+          <button onClick={onRedo} title={`${t('editorRedo')} (Ctrl/⌘ Shift Z) · ${redoCount}`} className={topBarButtonClass + ' ' + glassButtonClass} disabled={redoCount === 0}><Redo2 className="mr-1 size-4" />{t('editorRedo')}</button>
+          <span className="mx-1 h-5 w-px bg-white/15" aria-hidden="true" />
           <button onClick={onSnapSelectionToGrid} className={topBarButtonClass + ' ' + glassButtonClass} disabled={!hasSelection}>
             <Grid2X2 className="mr-1 size-4" /> {t('editorSnapToGrid')}
           </button>
-          <button onClick={onAlignSelectionX} className={topBarButtonClass + ' ' + glassButtonClass} disabled={selectedItemsCount < 2}>{t('editorAlignX')}</button>
-          <button onClick={onAlignSelectionZ} className={topBarButtonClass + ' ' + glassButtonClass} disabled={selectedItemsCount < 2}>{t('editorAlignZ')}</button>
-          <button onClick={onDistributeSelectionX} className={topBarButtonClass + ' ' + glassButtonClass} disabled={selectedItemsCount < 3}>{t('editorDistributeX')}</button>
-          <button onClick={onDistributeSelectionZ} className={topBarButtonClass + ' ' + glassButtonClass} disabled={selectedItemsCount < 3}>{t('editorDistributeZ')}</button>
-          <button onClick={onDuplicateSelection} className={topBarButtonClass + ' ' + glassButtonClass} disabled={!hasSelection}>{t('editorDuplicate')}</button>
-          <button onClick={onRemoveSelection} className={topBarButtonClass + ' ' + glassButtonClass} disabled={!hasSelection}>{t('editorDelete')}</button>
-          <button onClick={onClearSelection} className={topBarButtonClass + ' ' + glassButtonClass} disabled={!hasSelection}>{t('editorClearSelection')}</button>
-          <button onClick={onToggleNetwork} className={topBarButtonClass + ' ' + glassButtonClass}>
-            <Layers3 className="mr-1 size-4" /> {t('editorNetwork')}
+          <details className="editor-align-menu relative" onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }}>
+            <summary className={topBarButtonClass + ' cursor-pointer gap-1 ' + glassButtonClass}><AlignHorizontalJustifyCenter className="size-4" />{t('editorAlignX')} / {t('editorAlignZ')}</summary>
+            <div className={`absolute left-0 top-full z-50 mt-2 grid w-60 grid-cols-2 gap-2 rounded-xl p-3 ${glassPanelClass}`}>
+              <button onClick={onAlignSelectionX} className={topBarButtonClass + ' ' + glassButtonClass} disabled={selectedItemsCount < 2}>{t('editorAlignX')}</button>
+              <button onClick={onAlignSelectionZ} className={topBarButtonClass + ' ' + glassButtonClass} disabled={selectedItemsCount < 2}>{t('editorAlignZ')}</button>
+              <button onClick={onDistributeSelectionX} className={topBarButtonClass + ' ' + glassButtonClass} disabled={selectedItemsCount < 3}>{t('editorDistributeX')}</button>
+              <button onClick={onDistributeSelectionZ} className={topBarButtonClass + ' ' + glassButtonClass} disabled={selectedItemsCount < 3}>{t('editorDistributeZ')}</button>
+            </div>
+          </details>
+          <button onClick={onDuplicateSelection} className={topBarButtonClass + ' ' + glassButtonClass} disabled={!hasSelection}><Copy className="mr-1 size-4" />{t('editorDuplicate')}</button>
+          <button onClick={onRemoveSelection} className={topBarButtonClass + ' editor-delete ' + glassButtonClass} disabled={!hasSelection}><Trash2 className="mr-1 size-4" />{t('editorDelete')}</button>
+          <button onClick={onClearSelection} title={t('editorClearSelection')} aria-label={t('editorClearSelection')} className={topBarButtonClass + ' ' + glassButtonClass} disabled={!hasSelection}><X className="size-4" /></button>
+          <div className="ml-auto flex gap-2">
+          <button onClick={onToggleNetwork} aria-expanded={isNetworkOpen} aria-controls="editor-network-panel" className={topBarButtonClass + ' ' + glassButtonClass}>
+            <Users className="mr-1 size-4" /> {t('editorNetwork')}
           </button>
-          <button onClick={onToggleMore} className={topBarButtonClass + ' ' + glassButtonClass}>
-            <PanelRightOpen className="mr-1 size-4" /> {t('editorMore')}
+          <button onClick={onToggleMore} aria-expanded={isMoreOpen} aria-controls="editor-more-panel" className={topBarButtonClass + ' ' + glassButtonClass}>
+            <SlidersHorizontal className="mr-1 size-4" /> {t('editorMore')}
           </button>
+          </div>
         </div>
       </div>
     </div>

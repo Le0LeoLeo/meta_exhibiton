@@ -3,22 +3,26 @@ import express from 'express';
 import { logger as defaultLogger } from './logger.js';
 import { createRequestContextMiddleware } from './requestContext.js';
 import { readSessionCookie } from '../auth/sessionCookie.js';
+import { createSessionMiddleware } from '../auth/sessionValidation.js';
 
 export function applyAppMiddleware(app, {
   frontendOrigin,
   requestBodyLimit,
-  growthUploadBodyLimit,
+  mediaUploadBodyLimit,
   aiReviewBodyLimit,
   verifyToken,
+  verifySessionToken,
   csrfMiddleware = (_req, _res, next) => next(),
   logger = defaultLogger,
 }) {
   app.use(createRequestContextMiddleware({ logger }));
 
   app.use((_req, res, next) => {
+    // Published exhibition HTML also passes through Express. Three.js decoders
+    // and Rapier need WebAssembly, but JavaScript eval/inline scripts stay blocked.
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' ws: wss: https:",
+      "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' ws: wss: https:",
     );
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -36,6 +40,7 @@ export function applyAppMiddleware(app, {
     }),
   );
 
+  if (verifySessionToken) app.use(createSessionMiddleware({ verifySessionToken }));
   app.use(csrfMiddleware);
 
   const requireValidAuth = (req, res, next) => {
@@ -52,14 +57,9 @@ export function applyAppMiddleware(app, {
   };
 
   app.post(
-    '/api/growth/assets/upload',
-    requireValidAuth,
-    express.json({ limit: growthUploadBodyLimit }),
-  );
-  app.post(
     '/api/media/upload',
     requireValidAuth,
-    express.json({ limit: growthUploadBodyLimit }),
+    express.json({ limit: mediaUploadBodyLimit }),
   );
   app.post(
     '/api/ai/exhibition-builder/review',

@@ -18,13 +18,14 @@ function renderSection() {
 }
 
 describe('RecentSouvenirs', () => {
-  beforeEach(() => listRecent.mockReset());
+  beforeEach(() => { listRecent.mockReset(); localStorage.setItem('metaexpo-locale', 'zh-TW'); });
   afterEach(cleanup);
 
   it('renders an empty state', async () => {
     listRecent.mockResolvedValue([]);
     renderSection();
-    expect(await screen.findByText('暫時未有公開的展覽紀念卡。')).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: '立即參觀示範展' })).toHaveAttribute('href', '/demo');
+    expect(screen.queryByText('暫時未有公開的展覽紀念卡。')).not.toBeInTheDocument();
   });
 
   it('hides the section when the API fails', async () => {

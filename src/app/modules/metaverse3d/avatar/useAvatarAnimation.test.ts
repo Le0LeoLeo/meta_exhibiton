@@ -13,8 +13,11 @@ describe("selectAvatarAnimation", () => {
     expect(selectAvatarAnimation(0.05, "none", "Walk")).toBe("Idle");
   });
 
-  it("prioritizes a wave emote and handles invalid speeds", () => {
+  it("prioritizes emotes and handles invalid speeds", () => {
     expect(selectAvatarAnimation(1, "wave", "Walk")).toBe("Wave");
+    expect(selectAvatarAnimation(1, "cheer", "Walk")).toBe("Cheer");
+    expect(selectAvatarAnimation(1, "clap", "Walk")).toBe("Clap");
+    expect(selectAvatarAnimation(1, "bow", "Walk")).toBe("Bow");
     expect(selectAvatarAnimation(Number.NaN, "none", "Walk")).toBe("Idle");
     expect(selectAvatarAnimation(-2, "none", "Idle")).toBe("Idle");
   });

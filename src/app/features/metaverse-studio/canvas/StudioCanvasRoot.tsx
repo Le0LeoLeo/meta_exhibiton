@@ -2,14 +2,16 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 import { CanvasScene } from "../../../modules/metaverse3d/components/CanvasScene";
 import { MobileControls } from "../../../modules/metaverse3d/components/MobileControls";
-import { AgentChatPanel } from "../../../modules/metaverse3d/components/UI/AgentChatPanel";
-import { AgentModeSelector } from "../../../modules/metaverse3d/components/UI/AgentModeSelector";
 import { createPlayerInputState } from "../../../modules/metaverse3d/input/playerInput";
+import { useTouchControls } from "../../../modules/metaverse3d/input/useTouchControls";
 import { useStore } from "../store";
 import { PreloadOverlay } from "./PreloadOverlay";
 import { useGlobalStudioShortcuts } from "./useGlobalStudioShortcuts";
 import { usePointerLockExitOnEdit } from "./usePointerLockExitOnEdit";
 import { useScenePreloader } from "./useScenePreloader";
+import type { ItemInteractionDescriptor } from "../../../modules/metaverse3d/interaction/itemInteraction";
+import { useBuilderPreviewStore } from "../../../modules/metaverse3d/aiBuilder/builderPreviewStore";
+import { useI18n } from "../../../components/I18nProvider";
 
 const CenterReticle = memo(function CenterReticle() {
   return (
@@ -20,13 +22,17 @@ const CenterReticle = memo(function CenterReticle() {
 });
 
 export function StudioCanvasRoot({ onUse2D }: { onUse2D?: () => void }) {
+  const { t } = useI18n();
+  const touchControls = useTouchControls();
   const mode = useStore((state) => state.mode);
   const roomSize = useStore((state) => state.roomSize);
   const items = useStore((state) => state.items);
+  const builderPreviewScene = useBuilderPreviewStore((state) => state.scene);
   const pendingPlacement = useStore((state) => state.pendingPlacement);
   const agent = useStore((state) => state.agent);
   const allowPointerLock = useStore((state) => state.allowPointerLock);
   const hasSelectedParticipationMode = useStore((state) => state.hasSelectedParticipationMode);
+  const viewingItem = useStore((state) => state.viewingItem);
   const setSelectedItemId = useStore((state) => state.setSelectedItemId);
   const setSelectedWallFace = useStore((state) => state.setSelectedWallFace);
   const setSelectedWallAnchor = useStore((state) => state.setSelectedWallAnchor);
@@ -36,7 +42,8 @@ export function StudioCanvasRoot({ onUse2D }: { onUse2D?: () => void }) {
   const undo = useStore((state) => state.undo);
   const redo = useStore((state) => state.redo);
   const playerInputRef = useRef(createPlayerInputState());
-  const [nearbyItemTitle, setNearbyItemTitle] = useState<string | null>(null);
+  const [nearbyInteraction, setNearbyInteraction] =
+    useState<ItemInteractionDescriptor | null>(null);
 
   const participationMode = agent?.participationMode ?? "solo";
   const isAiParticipation = participationMode === "ai";
@@ -105,7 +112,7 @@ export function StudioCanvasRoot({ onUse2D }: { onUse2D?: () => void }) {
   return (
     <div
       id="view-canvas-container"
-      className="absolute inset-0 h-full w-full"
+      className="absolute inset-0 isolate h-full w-full"
       aria-busy={!effectiveBackgroundComplete}
     >
       {showOverlay && (
@@ -119,38 +126,45 @@ export function StudioCanvasRoot({ onUse2D }: { onUse2D?: () => void }) {
       )}
       <CanvasScene
         mode={mode}
-        roomSize={roomSize}
-        items={sceneItems}
+        roomSize={builderPreviewScene?.roomSize ?? roomSize}
+        items={builderPreviewScene?.items ?? sceneItems}
+        sceneOverride={builderPreviewScene}
         isFloorPlan={isFloorPlan}
         floorPlanIsTransforming={floorPlanIsTransforming}
         selectedFloorPlanElementId={selectedFloorPlanElementId}
         playerInput={playerInputRef}
-        onNearbyItemChange={setNearbyItemTitle}
+        onNearbyInteractionChange={setNearbyInteraction}
         onPointerMissed={handlePointerMissed}
         onUse2D={onUse2D}
       />
 
-      {mode === "view" && (
+      {mode === "view" && !showOverlay && hasSelectedParticipationMode && allowPointerLock && !agent.isChatOpen && !viewingItem && (
         <MobileControls
           input={playerInputRef}
-          nearbyItemTitle={nearbyItemTitle}
+          nearbyInteraction={nearbyInteraction}
         />
       )}
 
       {mode === "view" && <CenterReticle />}
+      {mode === "view" && !touchControls && nearbyInteraction && (
+        <div className="pointer-events-none absolute bottom-10 left-1/2 z-20 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-white/20 bg-slate-950/80 px-4 py-2 text-sm font-medium text-white shadow-xl backdrop-blur-md [@media(pointer:fine)]:flex">
+          <kbd className="rounded border border-white/25 bg-white/10 px-2 py-0.5 font-mono text-xs">
+            E
+          </kbd>
+          <span>{nearbyInteraction.prompt}</span>
+        </div>
+      )}
 
       {mode === "edit" && pendingPlacement && (
         <div className="absolute left-1/2 top-20 z-30 -translate-x-1/2 rounded-full border border-indigo-300/40 bg-slate-950/80 px-4 py-2 text-xs text-indigo-100 shadow-lg backdrop-blur-md">
-          正在放置物件，點擊牆面或地板完成，Esc 取消。
+          {t('studioPlacementHint')}
         </div>
       )}
-      {mode === "view" && !isFloorPlan && !hasSelectedParticipationMode && <AgentModeSelector />}
       {mode === "view" && !isFloorPlan && isAiParticipation && !allowPointerLock && !agent?.isChatOpen && (
         <div className="absolute bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full border border-cyan-300/30 bg-slate-950/80 px-4 py-2 text-xs text-cyan-100 shadow-lg backdrop-blur-md">
-          AI 導覽已開啟，選擇參與方式後即可進入展間。
+          {t('studioAiEntryHint')}
         </div>
       )}
-      {mode === "view" && !isFloorPlan && isAiParticipation && agent?.isChatOpen && <AgentChatPanel />}
     </div>
   );
 }

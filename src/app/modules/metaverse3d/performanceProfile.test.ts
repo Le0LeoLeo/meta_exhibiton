@@ -63,7 +63,7 @@ describe("render performance profiles", () => {
       enableAmbientOcclusion: false,
       ambientOcclusionQuality: "off",
       enableShadows: false,
-      enableRemotePlayers: false,
+      enableRemotePlayers: true,
       physicsUpdateLoop: "follow",
       physicsTimeStep: 1 / 30,
       multiplayerMoveIntervalMs: 160,

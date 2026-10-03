@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebGLRecoveryOverlay } from "./WebGLRecoveryOverlay";
 import { I18nProvider } from "../../../components/I18nProvider";
 
-afterEach(cleanup);
+beforeEach(() => localStorage.setItem("metaexpo-locale", "zh-TW"));
+afterEach(() => { cleanup(); localStorage.clear(); });
 
 describe("WebGLRecoveryOverlay", () => {
   it("offers a scene reload after context loss", () => {

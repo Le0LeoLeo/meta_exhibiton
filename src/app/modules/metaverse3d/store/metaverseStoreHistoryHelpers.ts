@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
+import { normalizeWorkContext } from '../workContext';
 import type { ExhibitItem, FloorPlanElement, FloorPlanElementType, RoomSize, WallMaterialSettings } from "../types";
 import { createSnapshot, normalizeImportedItemContent, parseRotationVec3, parseVec3 } from "./metaverseStoreUtils";
+import type { ImportedSceneSnapshot } from "./metaverseStoreTypes";
 
 const IMPORTED_ITEM_CANONICAL_Y: Partial<Record<ExhibitItem["type"], number>> = {
   pedestal: 0,
@@ -12,6 +14,12 @@ const IMPORTED_ITEM_CANONICAL_Y: Partial<Record<ExhibitItem["type"], number>> = 
   spotlight: 0.2,
   plant: 0,
   column: 0,
+  chair: 0,
+  sofa: 0,
+  floorlamp: 0,
+  cabinet: 0,
+  turntable: 0,
+  fountain: 0,
 };
 
 export function normalizeImportedItemPosition(
@@ -33,9 +41,15 @@ export interface SceneSnapshotLike {
   selectedFloorPlanElementId?: string | null;
 }
 
-export function createImportedSceneSnapshot(snapshot: Partial<SceneSnapshotLike>) {
+export function createImportedSceneSnapshot(
+  snapshot: ImportedSceneSnapshot,
+): SceneSnapshotLike {
   return {
     roomSize: {
+      width: 20,
+      length: 20,
+      height: 6,
+      wallThickness: 0.1,
       wallColor: "#dbe7ff",
       wallMaterialPreset: "paint" as const,
       wallTextureUrl: "/textures/wall-paint.svg",
@@ -66,6 +80,8 @@ export function createImportedSceneSnapshot(snapshot: Partial<SceneSnapshotLike>
           rotation: parseRotationVec3(item.rotation, [0, 0, 0]),
           scale: parseVec3(item.scale, [1, 1, 1]),
           content: normalizeImportedItemContent(((item.type as ExhibitItem["type"]) || "text"), item.content),
+          assetId: item.assetId,
+          assetUrl: item.assetUrl,
           fileName: item.fileName,
           fileMimeType: item.fileMimeType,
           videoThumbnailUrl: item.videoThumbnailUrl,
@@ -74,10 +90,21 @@ export function createImportedSceneSnapshot(snapshot: Partial<SceneSnapshotLike>
           videoMuted: item.videoMuted,
           frameWidth: item.frameWidth,
           frameHeight: item.frameHeight,
+          imageAspectRatio: item.imageAspectRatio,
+          frameStyle: item.frameStyle,
+          frameColor: item.frameColor,
+          frameInnerColor: item.frameInnerColor,
+          frameThickness: item.frameThickness,
+          frameDepth: item.frameDepth,
+          frameMatEnabled: item.frameMatEnabled,
+          frameMatColor: item.frameMatColor,
+          frameMatWidth: item.frameMatWidth,
+          frameGlassEnabled: item.frameGlassEnabled,
           modelOffset: item.modelOffset,
           title: item.title,
           artist: item.artist,
           description: item.description,
+          ...(item.workContext ? { workContext: normalizeWorkContext(item.workContext) } : {}),
           externalUrl: item.externalUrl,
           textFontFamily: item.textFontFamily,
           textColor: item.textColor,

@@ -70,6 +70,8 @@ export function NumericControlField({
       <div className="flex items-center gap-2">
         <input
           type="range"
+          aria-label={label}
+          aria-valuetext={`${displayValue}${suffix ?? unit ?? ""}`}
           min={min}
           max={max}
           step={step}
@@ -80,6 +82,7 @@ export function NumericControlField({
         />
         <input
           type="number"
+          aria-label={label}
           min={min}
           max={max}
           step={step}

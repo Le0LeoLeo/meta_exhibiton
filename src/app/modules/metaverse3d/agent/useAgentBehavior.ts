@@ -6,6 +6,7 @@ import { useLocalPlayerStore } from "../network/localPlayerStore";
 import { AGENT_GROUND_Y } from "./movementHelpers";
 import { buildDoorGraph, buildRoomBounds, toExhibitData } from "./behaviorHelpers";
 import { runAgentBehaviors } from "./agentBehaviors";
+import { resolveVisitorFocus } from './companion';
 
 export function useAgentBehavior({
   allowMotion = true,
@@ -65,19 +66,13 @@ export function useAgentBehavior({
   const agentPosition = agent.position ?? [0, AGENT_GROUND_Y, 2.5];
 
   useEffect(() => {
-    const current = new THREE.Vector3(agentPosition[0], AGENT_GROUND_Y, agentPosition[2]);
-    const nearest = nearbyExhibits.reduce<{ id: string | null; distance: number }>((best, exhibit) => {
-      const dx = exhibit.position[0] - current.x;
-      const dz = exhibit.position[2] - current.z;
-      const dist = Math.hypot(dx, dz);
-      return dist < best.distance ? { id: exhibit.id, distance: dist } : best;
-    }, { id: null, distance: Number.POSITIVE_INFINITY });
-    setAgentNearbyExhibit(nearest.distance < 4.8 ? nearest.id : null);
-  }, [agentPosition, nearbyExhibits, setAgentNearbyExhibit]);
+    const focus = resolveVisitorFocus(nearbyExhibits, [localPlayer.x, localPlayer.y, localPlayer.z], useStore.getState().viewingItem?.id ?? null);
+    if (useStore.getState().agent.nearbyExhibitId !== (focus?.id ?? null)) setAgentNearbyExhibit(focus?.id ?? null);
+  }, [localPlayer, nearbyExhibits, setAgentNearbyExhibit]);
 
   useEffect(() => {
     if (agent.participationMode === "solo") {
-      setAgent({ enabled: false, mode: "idle", isChatOpen: false, isAnswering: false, followUser: false, activeExhibit: null });
+      setAgent({ enabled: false, mode: "idle", isChatOpen: false, isAnswering: false, answerSource: null, pendingQuestion: "", followUser: false, activeExhibit: null });
     }
   }, [agent.participationMode, setAgent]);
 

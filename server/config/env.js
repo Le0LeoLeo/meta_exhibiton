@@ -19,6 +19,15 @@ const ADMIN_PLACEHOLDER_SECRETS = new Set([
   'replace-with-a-unique-random-admin-secret',
   'replace-with-a-unique-random-admin-secret-at-least-32-characters',
 ]);
+const GOOGLE_CLIENT_ID_PATTERN = /^\d+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i;
+
+export function normalizeGoogleClientId(value, variableName = 'GOOGLE_CLIENT_ID') {
+  const normalized = String(value || '').trim();
+  if (normalized && !GOOGLE_CLIENT_ID_PATTERN.test(normalized)) {
+    throw new Error(`${variableName} must be a Google OAuth web client ID`);
+  }
+  return normalized;
+}
 
 function warnDevelopmentFallback(variableName, value) {
   console.warn(
@@ -78,6 +87,19 @@ export function validateSecurityEnv(env) {
   let FRONTEND_ORIGIN = String(env.FRONTEND_ORIGIN || '').trim();
   let MULTIPLAYER_CORS_ORIGIN = String(env.MULTIPLAYER_CORS_ORIGIN || '').trim();
   const REDIS_URL = String(env.REDIS_URL || '').trim();
+  const backendGoogleClientId = normalizeGoogleClientId(env.GOOGLE_CLIENT_ID);
+  const frontendGoogleClientId = normalizeGoogleClientId(
+    env.VITE_GOOGLE_CLIENT_ID,
+    'VITE_GOOGLE_CLIENT_ID',
+  );
+  if (
+    backendGoogleClientId
+    && frontendGoogleClientId
+    && backendGoogleClientId !== frontendGoogleClientId
+  ) {
+    throw new Error('GOOGLE_CLIENT_ID and VITE_GOOGLE_CLIENT_ID must match');
+  }
+  const GOOGLE_CLIENT_ID = backendGoogleClientId || frontendGoogleClientId;
   const INSTANCE_COUNT = readInstanceCount(env.INSTANCE_COUNT);
   const MULTIPLAYER_SHARED_STATE = String(
     env.MULTIPLAYER_SHARED_STATE || 'memory',
@@ -152,6 +174,7 @@ export function validateSecurityEnv(env) {
     INSTANCE_COUNT,
     MULTIPLAYER_SHARED_STATE,
     MULTIPLAYER_SCENE_TTL_SECONDS,
+    GOOGLE_CLIENT_ID,
   };
 }
 
@@ -178,7 +201,7 @@ export function loadEnv() {
     ...securityEnv,
     DEFAULT_MULTIPLAYER_PORT: Number(process.env.MULTIPLAYER_PORT || 3001),
     REQUEST_BODY_LIMIT: process.env.REQUEST_BODY_LIMIT || '1mb',
-    GROWTH_UPLOAD_BODY_LIMIT: process.env.GROWTH_UPLOAD_BODY_LIMIT || '22mb',
+    MEDIA_UPLOAD_BODY_LIMIT: process.env.MEDIA_UPLOAD_BODY_LIMIT || '22mb',
     AI_REVIEW_BODY_LIMIT: process.env.AI_REVIEW_BODY_LIMIT || '50mb',
   };
 }

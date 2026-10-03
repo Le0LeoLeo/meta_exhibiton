@@ -26,7 +26,7 @@ export function Showcase() {
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.26em] text-curator-brass">{t('showcaseSectionLabel')}</p>
             <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{t('showcaseSectionTitle')}</h2>
           </div>
-          <Link to="/virtual-gallery" className="inline-flex items-center gap-2 text-sm font-semibold text-tool-blue transition-colors hover:text-curator-brass">
+          <Link to="/exhibitions" className="inline-flex items-center gap-2 text-sm font-semibold text-tool-blue transition-colors hover:text-curator-brass">
             {t('browseGallery')}
             <ArrowRight className="size-4" />
           </Link>

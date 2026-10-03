@@ -3,6 +3,8 @@ import { Home, RotateCcw } from 'lucide-react';
 import { useRouteError } from 'react-router';
 import { useI18n, type Locale } from './I18nProvider';
 import { Button } from './ui/button';
+import { RecoveryActions } from './ReleaseRecovery';
+import { isChunkLoadError } from '@/app/utils/releaseRecovery';
 
 type RouteErrorCopy = {
   heading: string;
@@ -60,13 +62,15 @@ export function RouteErrorPage({
   reportError = reportRouteError,
 }: RouteErrorPageProps = {}) {
   const error = useRouteError();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
+  const chunkFailure = isChunkLoadError(error);
   const [reference] = useState(() => errorReference ?? createErrorReference());
   const messages = copy[locale];
 
   useEffect(() => {
     reportError(error, reference);
-  }, [error, reference, reportError]);
+    if (chunkFailure) window.dispatchEvent(new Event('metaexb:recovery-handled'));
+  }, [error, reference, reportError, chunkFailure]);
 
   return (
     <main className="flex min-h-[60vh] items-center justify-center bg-white px-6 py-16 dark:bg-stone-950">
@@ -75,25 +79,25 @@ export function RouteErrorPage({
         className="w-full max-w-lg rounded-3xl border border-stone-200 bg-white p-8 text-center shadow-sm dark:border-stone-800 dark:bg-stone-900"
       >
         <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-rose-500">
-          500
+          {chunkFailure ? '↻' : '500'}
         </p>
         <h1
           id="route-error-heading"
           className="text-2xl font-semibold text-stone-900 dark:text-white"
         >
-          {messages.heading}
+          {chunkFailure ? t('updateTitle') : messages.heading}
         </h1>
         <p className="mt-3 text-sm leading-6 text-stone-600 dark:text-stone-300">
-          {messages.message}
+          {chunkFailure ? t('updateMessage') : messages.message}
         </p>
         <p className="mt-4 text-xs text-stone-500 dark:text-stone-400">
           {messages.reference}: <code>{reference}</code>
         </p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-          <Button type="button" onClick={reloadPage}>
+          {chunkFailure ? <RecoveryActions reload={reloadPage} /> : <Button type="button" onClick={reloadPage}>
             <RotateCcw aria-hidden="true" />
             {messages.reload}
-          </Button>
+          </Button>}
           <Button asChild variant="outline">
             <a href="/">
               <Home aria-hidden="true" />

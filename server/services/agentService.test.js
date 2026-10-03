@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { generateAgentReply } from './agentService.js';
+
+const qwenMocks = vi.hoisted(() => ({ create: vi.fn() }));
+vi.mock('openai', () => ({
+  default: class MockOpenAI {
+    constructor() {
+      this.chat = { completions: { create: qwenMocks.create } };
+    }
+  },
+}));
 
 const previousQwenApiKey = process.env.QWEN_API_KEY;
 const previousDashscopeApiKey = process.env.DASHSCOPE_API_KEY;
@@ -12,6 +21,8 @@ describe('generateAgentReply', () => {
   beforeEach(() => {
     delete process.env.QWEN_API_KEY;
     delete process.env.DASHSCOPE_API_KEY;
+    qwenMocks.create.mockReset();
+    qwenMocks.create.mockResolvedValue({ choices: [{ message: { content: 'Grounded answer' } }] });
   });
 
   afterEach(() => {
@@ -29,6 +40,25 @@ describe('generateAgentReply', () => {
   });
 
   describe('fallback replies', () => {
+    it('answers missing-artist questions honestly instead of reading a generic introduction', async () => {
+      const result = await generateAgentReply({ question: 'Who created this?', personality: 'xiaobai', exhibit: { id: 'a', title: 'Light' }, visitorState: { preferredLanguage: 'en' } });
+      expect(result.answer).toMatch(/not (provided|name)|not available|does not/i);
+    });
+
+    it('does not append recommendations and visitor statistics to every answer', async () => {
+      const result = await generateAgentReply({ question: '請介紹這件作品', personality: 'xiaobai', exhibit: { id: 'a', title: '晨光', description: '清晨的光影。' }, nearbyExhibits: [{ id: 'b', title: '下一件' }], visitorState: { dwellSecondsByExhibit: { internal_id: 99 } }, chatHistory: [{ role: 'user', content: '你好' }] });
+      expect(result.answer).not.toContain('internal_id');
+      expect(result.answer).not.toContain('接下來我建議');
+      expect(result.answer.length).toBeLessThan(160);
+      expect(result.recommendedExhibit?.id).toBe('b');
+    });
+
+    it('answers a route question with the recommendation rather than the current description', async () => {
+      const result = await generateAgentReply({ question: 'Where should I go next?', personality: 'xiaobai', exhibit: { id: 'a', title: 'Current', description: 'Current description' }, nearbyExhibits: [{ id: 'b', title: 'Next work' }], visitorState: { preferredLanguage: 'en' } });
+      expect(result.answer).toContain('Next work');
+      expect(result.answer).not.toContain('Current description');
+    });
+
     it('returns readable Traditional Chinese for an introduction question', async () => {
       const result = await generateAgentReply({
         question: '請介紹這件作品',
@@ -145,5 +175,40 @@ describe('generateAgentReply', () => {
       expect(result.recommendedExhibit?.id).toBe('e4');
       expectNoMojibake(result.recommendedExhibit?.reason || '');
     });
+  });
+
+  it('sends only public authored source fields and explicitly treats URL-only sources as unread metadata', async () => {
+    process.env.QWEN_API_KEY = 'test-key';
+    const result = await generateAgentReply({
+      question: 'What does the source say?',
+      personality: 'expert',
+      exhibit: {
+        id: 'work-1', title: 'Source study',
+        workContext: {
+          contribution: 'I designed the layout.',
+          sources: [{ label: 'Project site', url: 'https://example.org/project', privateMemo: 'not public', excerpt: '   ' }],
+          privateCv: 'private biography',
+        },
+        privateCv: 'private biography outside allowed fields',
+      },
+      nearbyExhibits: [{ id: 'work-2', title: 'Nearby', privateField: 'internal data' }],
+      visitorState: { preferredLanguage: 'en' },
+    });
+
+    expect(result.source).toBe('qwen');
+    expect(qwenMocks.create).toHaveBeenCalledOnce();
+    const [completionRequest] = qwenMocks.create.mock.calls[0];
+    expect(completionRequest.enable_search).toBe(false);
+    const systemPrompt = completionRequest.messages.find((message) => message.role === 'system').content;
+    expect(systemPrompt).toMatch(/Source URLs are metadata only: never claim to have opened or read them/);
+    expect(systemPrompt).toMatch(/never use a URL alone as evidence for its contents/);
+    const userPayload = JSON.parse(completionRequest.messages.find((message) => message.role === 'user').content);
+    expect(userPayload.exhibit.workContext).toEqual({
+      contribution: 'I designed the layout.',
+      sources: [{ label: 'Project site', url: 'https://example.org/project' }],
+    });
+    expect(JSON.stringify(userPayload)).not.toContain('private biography');
+    expect(JSON.stringify(userPayload)).not.toContain('internal data');
+    expect(userPayload.exhibit.workContext.sources[0]).not.toHaveProperty('excerpt');
   });
 });

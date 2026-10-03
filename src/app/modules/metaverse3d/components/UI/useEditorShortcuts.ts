@@ -8,7 +8,6 @@ type Params = {
   selectedIsLockedPartition: boolean;
   undo: () => void;
   redo: () => void;
-  setMode: (mode: "edit" | "view" | "floor-plan") => void;
   duplicateItem: (id: string) => void;
   removeItem: (id: string) => void;
   removeSelectedItems: () => void;
@@ -37,7 +36,6 @@ export function useEditorShortcuts({
   selectedIsLockedPartition,
   undo,
   redo,
-  setMode,
   duplicateItem,
   removeItem,
   removeSelectedItems,
@@ -65,12 +63,6 @@ export function useEditorShortcuts({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
         enterFloorPlanMode();
-        return;
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
-        e.preventDefault();
-        setMode("view");
         return;
       }
 
@@ -139,7 +131,6 @@ export function useEditorShortcuts({
     selectedIsLockedPartition,
     undo,
     redo,
-    setMode,
     duplicateItem,
     removeItem,
     removeSelectedItems,

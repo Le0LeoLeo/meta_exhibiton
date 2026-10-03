@@ -3,6 +3,7 @@ import {
   DEFAULT_AVATAR_APPEARANCE,
   type AvatarAppearanceV1,
 } from "./avatarAppearance";
+import { DEFAULT_AVATAR_FACIAL_PLACEMENT } from "./avatarFacialPlacement";
 import { useAvatarPreferenceStore } from "./avatarPreferenceStore";
 
 const STORAGE_KEY = "mrei.avatar.v1";
@@ -11,11 +12,19 @@ const CUSTOM_APPEARANCE: AvatarAppearanceV1 = {
   version: 1,
   body: "body02",
   head: "head02",
+  eyes: "eyes03",
+  eyebrows: "eyebrows03",
+  mouth: "mouth03",
   hair: "hair03",
   top: "top03",
   bottom: "bottom03",
   shoes: "shoes02",
   accessory: "glasses01",
+  facialPlacement: {
+    eyes: { ...DEFAULT_AVATAR_FACIAL_PLACEMENT.eyes },
+    eyebrows: { ...DEFAULT_AVATAR_FACIAL_PLACEMENT.eyebrows },
+    mouth: { ...DEFAULT_AVATAR_FACIAL_PLACEMENT.mouth },
+  },
   colors: {
     skin: "skin04",
     hair: "hairRed",
@@ -77,6 +86,22 @@ describe("useAvatarPreferenceStore", () => {
       },
     });
     expect(state.savedAppearance).toEqual(state.appearance);
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null")).toEqual(
+      state.appearance,
+    );
+  });
+
+  it("hydrates legacy guest preferences with neutral facial placement", () => {
+    const legacy = { ...CUSTOM_APPEARANCE };
+    delete (legacy as Partial<AvatarAppearanceV1>).facialPlacement;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+
+    useAvatarPreferenceStore.getState().hydrateGuest();
+
+    const state = useAvatarPreferenceStore.getState();
+    expect(state.appearance.facialPlacement).toEqual(
+      DEFAULT_AVATAR_FACIAL_PLACEMENT,
+    );
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null")).toEqual(
       state.appearance,
     );

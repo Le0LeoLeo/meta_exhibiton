@@ -2,8 +2,8 @@ export function insertMediaAsset(asset, database) {
   return new Promise((resolve, reject) => {
     database.run(
       `INSERT INTO media_assets
-       (id, owner_id, gallery_id, storage_file_name, original_file_name, mime_type, size_bytes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, owner_id, gallery_id, storage_file_name, original_file_name, mime_type, size_bytes, created_at, updated_at, usage, width, height)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         asset.id,
         asset.ownerId,
@@ -14,6 +14,9 @@ export function insertMediaAsset(asset, database) {
         asset.sizeBytes,
         asset.createdAt,
         asset.updatedAt,
+        asset.usage ?? 'gallery',
+        asset.width ?? null,
+        asset.height ?? null,
       ],
       (err) => {
         if (err) return reject(err);
@@ -29,6 +32,35 @@ export function getMediaAssetById(id, database) {
       if (err) return reject(err);
       resolve(row || null);
     });
+  });
+}
+
+export function listMediaAssetsByGalleryId(galleryId, database) {
+  return new Promise((resolve, reject) => {
+    database.all(
+      'SELECT * FROM media_assets WHERE gallery_id = ? ORDER BY created_at, id',
+      [galleryId],
+      (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      },
+    );
+  });
+}
+
+export function updateMediaAssetDimensions(id, width, height, database) {
+  if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+    return Promise.reject(new Error('media dimensions must be positive integers'));
+  }
+  return new Promise((resolve, reject) => {
+    database.run(
+      'UPDATE media_assets SET width = ?, height = ?, updated_at = ? WHERE id = ?',
+      [width, height, new Date().toISOString(), id],
+      function onUpdate(err) {
+        if (err) return reject(err);
+        resolve(this.changes || 0);
+      },
+    );
   });
 }
 
@@ -74,7 +106,7 @@ export function listStaleUnboundMediaAssets(cutoffIso, database) {
   return new Promise((resolve, reject) => {
     database.all(
       `SELECT * FROM media_assets
-       WHERE gallery_id IS NULL AND created_at < ?
+       WHERE gallery_id IS NULL AND library_retained=0 AND usage != 'avatar' AND created_at < ?
        ORDER BY created_at, id`,
       [cutoffIso],
       (err, rows) => {
@@ -92,7 +124,7 @@ export function deleteUnboundMediaAssetsByIds(ids, database) {
   return new Promise((resolve, reject) => {
     database.run(
       `DELETE FROM media_assets
-       WHERE gallery_id IS NULL AND id IN (${placeholders})`,
+       WHERE gallery_id IS NULL AND library_retained=0 AND id IN (${placeholders})`,
       ids,
       function onDelete(err) {
         if (err) return reject(err);

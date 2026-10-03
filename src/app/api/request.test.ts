@@ -42,6 +42,45 @@ describe('apiFetch', () => {
     await expect(apiFetch('/api/offline')).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
   });
 
+  it('keeps the deadline active when headers arrive but the body stalls', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream())));
+    const pending = apiFetch('/api/large', {}, { timeoutMs: 100 });
+    const expectation = expect(pending).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' });
+    await vi.advanceTimersByTimeAsync(100);
+    await expectation;
+  });
+
+  it('allows cancellation while receiving the response body', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream())));
+    const controller = new AbortController();
+    const pending = apiFetch('/api/large', { signal: controller.signal });
+    const expectation = expect(pending).rejects.toMatchObject({ code: 'REQUEST_ABORTED' });
+    await Promise.resolve();
+    controller.abort();
+    await expectation;
+  });
+
+  it('preserves status, headers and JSON after receiving a complete body', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"error":"denied"}', {
+      status: 403, headers: { 'Content-Type': 'application/json', 'X-Test': 'preserved' },
+    })));
+    const response = await apiFetch('/api/private');
+    expect(response.status).toBe(403);
+    expect(response.headers.get('X-Test')).toBe('preserved');
+    expect(await response.json()).toEqual({ error: 'denied' });
+  });
+
+  it('keeps binary responses readable as blobs', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new Uint8Array([0, 255, 20]), {
+      headers: { 'Content-Type': 'audio/mpeg' },
+    })));
+    const response = await apiFetch('/api/audio');
+    const blob = await response.blob();
+    expect(blob.type).toBe('audio/mpeg');
+    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array([0, 255, 20]));
+  });
+
   it('includes credentials and the CSRF cookie on cookie-authenticated mutations', async () => {
     document.cookie = 'mrei_csrf=signed-token';
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));

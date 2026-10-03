@@ -76,4 +76,18 @@ describe("exhibition wizard state machine", () => {
     expect(restoreExhibitionWizardDraft(JSON.stringify({ schemaVersion: 9 }))).toBeNull();
     expect(restoreExhibitionWizardDraft(JSON.stringify(draft))).toEqual(draft);
   });
+
+  it('requires a fresh preview after rerunning layout and preserves fallback notes when restored', () => {
+    const oldDraft = { ...createExhibitionWizardDraft(now), currentStep: 'layout' as const, furthestStep: 'publish' as const, previewReady: true };
+    const running = transitionExhibitionWizard(oldDraft, { type: 'patch', patch: { layoutStatus: 'running' } }, now);
+    expect(running.previewReady).toBe(false);
+    expect(running.furthestStep).toBe('layout');
+    const fallback = transitionExhibitionWizard(running, {
+      type: 'patch', patch: { layoutStatus: 'failed', layoutSource: 'fallback', layoutWarnings: ['Existing scene kept.'] },
+    }, now);
+    expect(() => transitionExhibitionWizard(fallback, { type: 'go-to', step: 'publish' }, now)).toThrowError('step_not_reached');
+    expect(restoreExhibitionWizardDraft(JSON.stringify(fallback))).toMatchObject({
+      layoutStatus: 'failed', layoutSource: 'fallback', layoutWarnings: ['Existing scene kept.'], previewReady: false,
+    });
+  });
 });

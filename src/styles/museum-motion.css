@@ -1,0 +1,49 @@
+:root { --museum-ease: cubic-bezier(.22,1,.36,1); }
+.museum-pages { position: relative; isolation: isolate; }
+.museum-pointer-backdrop { position: fixed; inset: 0; width: 100%; height: 100dvh; pointer-events: none; z-index: -1; }
+/* Open the page surfaces to the shared field; cards, controls and art keep their own surfaces. */
+.museum-pages .museum-route-content > *,
+.museum-pages .museum-route-content :is(div,section).bg-background,
+.museum-pages .home-footer { background-color: transparent; }
+.museum-pages .museum-route-content > * > :is(section,div).bg-secondary { background-color: color-mix(in srgb,var(--secondary) 55%,transparent); }
+.museum-pages .home-navigation {
+ background: linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.025)),color-mix(in srgb,var(--background) 68%,transparent)!important;
+ -webkit-backdrop-filter: blur(22px) saturate(145%);
+ backdrop-filter: blur(22px) saturate(145%);
+ border-bottom-color: color-mix(in srgb,var(--foreground) 12%,transparent);
+ box-shadow: inset 0 1px rgba(255,255,255,.18),0 6px 24px -18px rgba(0,0,0,.28);
+}
+.dark .museum-pages .home-navigation {
+ background: linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.015)),color-mix(in srgb,var(--background) 64%,transparent)!important;
+ box-shadow: inset 0 1px rgba(255,255,255,.1),0 6px 24px -18px rgba(0,0,0,.5);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+ .museum-pages .home-navigation,.dark .museum-pages .home-navigation { background: color-mix(in srgb,var(--background) 96%,transparent)!important; }
+}
+@keyframes museum-arrive { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes museum-art-change { from { opacity: .15; transform: translateY(10px) scale(1.012); } to { opacity: 1; transform: none; } }
+@media(prefers-reduced-motion:no-preference) {
+ .home-intro>.home-eyebrow { animation: museum-arrive .65s var(--museum-ease) both; }
+ .home-intro>h1 { animation: museum-arrive .85s var(--museum-ease) .08s both; }
+ .home-intro>.home-intro-copy { animation: museum-arrive .85s var(--museum-ease) .16s both; }
+ .home-intro>.home-actions { animation: museum-arrive .85s var(--museum-ease) .24s both; }
+ .home-featured-art { animation: museum-art-change .7s var(--museum-ease) both; }
+ .museum-revealed { animation: museum-arrive .8s var(--museum-ease) var(--reveal-delay,0s) backwards; }
+ .museum-page-heading h1 { animation: museum-arrive .7s var(--museum-ease) both; }
+ .home-button,.home-carousel button,.museum-pages [data-slot="button"] { transition: background-color .2s,color .2s,box-shadow .2s,translate .2s var(--museum-ease); }
+ .home-button:active,.home-carousel button:active,.museum-pages [data-slot="button"]:not(:disabled):active { translate: 0 1px; }
+ .home-button>svg,.home-text-link>svg,.home-paths a>svg { transition: transform .35s var(--museum-ease); }
+ .home-button:hover>svg,.home-text-link:hover>svg,.home-paths a:hover>svg { transform: translateX(3px); }
+ .home-paths a { transition: border-color .25s; }
+ .home-paths a:hover { border-color: var(--foreground); }
+}
+.home-featured-art { width: 100%; height: 100%; }
+.home-featured-art>img { width: 100%; height: 100%; object-fit: cover; transition: transform .7s var(--museum-ease); }
+.home-demo-art .home-featured-art>img { object-fit: contain; }
+@media(hover:hover) and (pointer:fine) {
+ .home-featured-image:hover .home-featured-art>img { transform: scale(1.025); }
+}
+@media(prefers-reduced-motion:reduce) {
+ .home-featured-art,.home-featured-art>img,.museum-revealed,.museum-page-heading h1 { animation: none!important; transition: none!important; transform: none!important; }
+ .museum-pages [data-slot="button"] { transition: none; }
+}

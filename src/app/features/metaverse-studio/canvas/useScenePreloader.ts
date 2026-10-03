@@ -121,28 +121,11 @@ export function useScenePreloader({
   loadAsset?: SceneAssetLoader;
 }) {
   const shouldPreloadScene = mode !== "floor-plan";
-  const itemAssetKey = items
-    .map((item) =>
-      [
-        item.id,
-        item.type,
-        item.content,
-        item.videoThumbnailUrl,
-        item.thumbnailUrl,
-      ].join(":"),
-    )
-    .join("|");
+  // Serialize only the resolved queues: moving an item must not restart loading.
+  const queueKey = JSON.stringify(getScenePreloadQueues(roomSize, items));
   const { coreAssets, backgroundAssets } = useMemo(
-    () => getScenePreloadQueues(roomSize, items),
-    [itemAssetKey, roomSize.floorTextureUrl, roomSize.wallTextureUrl],
-  );
-  const coreAssetKey = useMemo(
-    () => coreAssets.map((asset) => `${asset.kind}:${asset.url}`).join("|"),
-    [coreAssets],
-  );
-  const backgroundAssetKey = useMemo(
-    () => backgroundAssets.map((asset) => `${asset.kind}:${asset.url}`).join("|"),
-    [backgroundAssets],
+    () => JSON.parse(queueKey) as ReturnType<typeof getScenePreloadQueues>,
+    [queueKey],
   );
 
   const [stage, setStage] = useState<SceneLoadStage>("interface");
@@ -227,8 +210,8 @@ export function useScenePreloader({
       cancelled = true;
     };
   }, [
-    backgroundAssetKey,
-    coreAssetKey,
+    backgroundAssets,
+    coreAssets,
     currentPreloadCycle,
     loadAsset,
     shouldPreloadScene,

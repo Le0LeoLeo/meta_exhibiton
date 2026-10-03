@@ -1,5 +1,6 @@
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from './base';
 import { apiFetch } from './request';
+import { purgeEditorTabDrafts } from '../utils/editorTabDraft';
 import {
   normalizeAvatarAppearance,
   type AvatarAppearanceV1,
@@ -56,7 +57,40 @@ export function subscribeAuth(listener: () => void) {
   return () => authListeners.delete(listener);
 }
 
-export async function registerUser(payload: { name: string; email: string; password: string }): Promise<AuthResponse> {
+export type VerificationPending = { verificationRequired: true; email: string; deliveryStatus: 'sent' | 'unavailable' | 'accepted' };
+export type RegistrationResponse = AuthResponse | VerificationPending;
+
+export async function getAuthConfig(): Promise<{ emailVerificationEnabled: boolean }> {
+  const res = await apiFetch(apiUrl('/api/auth/config'));
+  const data = await parseJsonSafe(res);
+  if (!res.ok) throw errorFromResponse(data, 'Unable to load authentication settings');
+  return { emailVerificationEnabled: data?.emailVerificationEnabled === true };
+}
+
+export async function sendVerificationEmail(payload: { email: string; password: string; locale?: string; returnTo?: string }): Promise<VerificationPending> {
+  const res = await apiFetch(apiUrl('/api/auth/verification/send'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) throw errorFromResponse(data, 'Unable to send verification email');
+  if (data?.verificationRequired !== true || !['sent', 'unavailable', 'accepted'].includes(data.deliveryStatus)) throw new Error('Invalid verification response');
+  return data as VerificationPending;
+}
+
+export async function confirmVerificationEmail(token: string): Promise<void> {
+  const res = await apiFetch(apiUrl('/api/auth/verification/confirm'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+  });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) {
+    const error = errorFromResponse(data, 'Unable to verify email');
+    Object.assign(error, { status: res.status, code: typeof data?.code === 'string' ? data.code : undefined });
+    throw error;
+  }
+  if (data?.ok !== true) throw new Error('Invalid verification response');
+}
+
+export async function registerUser(payload: { name: string; email: string; password: string; locale?: string; returnTo?: string }): Promise<RegistrationResponse> {
   const res = await apiFetch(apiUrl('/api/auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -65,6 +99,7 @@ export async function registerUser(payload: { name: string; email: string; passw
 
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '註冊失敗');
+  if (data?.verificationRequired === true && typeof data.email === 'string' && ['sent', 'unavailable', 'accepted'].includes(data.deliveryStatus)) return data as VerificationPending;
   return normalizeAuthResponse(data);
 }
 
@@ -76,13 +111,32 @@ export async function loginUser(payload: { email: string; password: string }): P
   });
 
   const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, '登入失敗');
+  if (!res.ok) {
+    const error = errorFromResponse(data, '登入失敗');
+    if (res.status === 403 && data?.code === 'EMAIL_VERIFICATION_REQUIRED') {
+      Object.assign(error, { code: data.code, email: data.email });
+    }
+    throw error;
+  }
+  return normalizeAuthResponse(data);
+}
+
+export async function loginWithGoogle(credential: string): Promise<AuthResponse> {
+  const res = await apiFetch(apiUrl('/api/auth/google'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential }),
+  });
+
+  const data = await parseJsonSafe(res);
+  if (!res.ok) throw errorFromResponse(data, 'Google login failed');
   return normalizeAuthResponse(data);
 }
 
 export function saveAuth(auth: AuthResponse, opts?: { remember?: boolean }) {
   void opts;
   inMemoryAuth = auth;
+  purgeEditorTabDrafts(auth.user.id);
   clearLegacyAuthStorage();
   notifyAuthListeners();
 }
@@ -95,6 +149,7 @@ export function loadAuth(): { token: string | null; user: AuthUser | null; sourc
 
 export function clearAuth() {
   inMemoryAuth = null;
+  purgeEditorTabDrafts();
   notifyAuthListeners();
   void logoutUser().catch(() => undefined);
   clearLegacyAuthStorage();
@@ -143,6 +198,7 @@ export async function changePassword(token: string, payload: { currentPassword: 
   });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '修改密碼失敗');
+  saveAuth(normalizeAuthResponse(data));
   return data as { ok: true };
 }
 

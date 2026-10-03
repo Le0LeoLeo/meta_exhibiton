@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type MutableRefObject,
+} from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
@@ -7,26 +13,36 @@ import { loadAuth, requestAgentReply, requestQwenTts } from "../../../api/client
 import { getAgentSceneExhibits, buildAgentReplyRequest } from "../agent/requestContext";
 import {
   createPlayerInputState,
-  setKeyboardKey,
   type PlayerInputState,
 } from "../input/playerInput";
-import { DEFAULT_EYE_HEIGHT } from "../sceneScale";
+import { usePlayerKeyboardInput } from '../input/usePlayerKeyboardInput';
+import { useTouchControls } from '../input/useTouchControls';
+import { getAvatarEyeHeight } from "../avatar/avatarEyeHeight";
+import { useAvatarPreferenceStore } from "../avatar/avatarPreferenceStore";
+import {
+  getItemDisplayName,
+  getItemInteraction,
+  getSeatExitPosition,
+  getSeatPose,
+  type ItemInteractionDescriptor,
+} from "../interaction/itemInteraction";
+import {
+  isRuntimeItemActive,
+  useRuntimeInteractionStore,
+} from "../interaction/runtimeInteractionStore";
+import {
+  createWorldItemColliders,
+  resolvePlayerCircle,
+} from "../player/itemCollision";
+import { getItemBehavior } from "../items/itemBehaviorRegistry";
+import { buildWallTopology, getFloorPlanCenter, getFloorPlanRoomBounds } from "../store/floorPlanGeometry";
+import { getWallColliders } from "../player/wallCollision";
+import { getVisitorSpawn } from '../player/visitorSpawn';
 
 const LOOK_SENSITIVITY = 0.002;
 const MOVE_SPEED = 5;
 const AUTO_INTRO_DISTANCE = 2.4;
 const REMINDER_OUTSIDE_RANGE_MS = 60000;
-const SESSION_SPAWN_POSITION = new THREE.Vector3(
-  THREE.MathUtils.randFloatSpread(7),
-  DEFAULT_EYE_HEIGHT,
-  5 + THREE.MathUtils.randFloatSpread(4),
-);
-
-type Side = "north" | "south" | "east" | "west";
-
-function getItemDisplayName(item: { title?: string; fileName?: string; type?: string }) {
-  return item.title?.trim() || item.fileName?.trim() || `${item.type || "展品"}`;
-}
 
 function getItemFootprintRadius(item: { type?: string; scale: [number, number, number] }) {
   const [sx, , sz] = item.scale;
@@ -42,167 +58,69 @@ function getItemFootprintRadius(item: { type?: string; scale: [number, number, n
   }
 }
 
-function createSegments(start: number, end: number, cuts: Array<[number, number]>) {
-  const normalized = cuts
-    .map(([s, e]) => [Math.max(start, Math.min(s, e)), Math.min(end, Math.max(s, e))] as [number, number])
-    .filter(([s, e]) => e - s > 0.05)
-    .sort((a, b) => a[0] - b[0]);
-
-  const merged: Array<[number, number]> = [];
-  for (const [s, e] of normalized) {
-    const last = merged[merged.length - 1];
-    if (!last || s > last[1]) merged.push([s, e]);
-    else last[1] = Math.max(last[1], e);
-  }
-
-  const result: Array<[number, number]> = [];
-  let cursor = start;
-  for (const [s, e] of merged) {
-    if (s - cursor > 0.08) result.push([cursor, s]);
-    cursor = Math.max(cursor, e);
-  }
-  if (end - cursor > 0.08) result.push([cursor, end]);
-  return result;
-}
-
 export function Player({
-  allowMotion = true,
+  allowMotion: sceneAllowMotion = true,
   input,
-  onNearbyItemChange,
+  onNearbyInteractionChange,
 }: {
   allowMotion?: boolean;
   input?: MutableRefObject<PlayerInputState>;
-  onNearbyItemChange?: (title: string | null) => void;
+  onNearbyInteractionChange?: (
+    descriptor: ItemInteractionDescriptor | null,
+  ) => void;
 }) {
   const mode = useStore((state) => state.mode);
+  const touchControls = useTouchControls();
   const setIsPointerLocked = useStore((state) => state.setIsPointerLocked);
   const roomSize = useStore((state) => state.roomSize);
   const items = useStore((state) => state.items);
   const floorPlanElements = useStore((state) => state.floorPlanElements);
   const viewingItem = useStore((state) => state.viewingItem);
+  const isChatOpen = useStore((state) => state.agent.isChatOpen);
+  const hasSelectedParticipationMode = useStore((state) => state.hasSelectedParticipationMode);
+  const allowPointerLock = useStore((state) => state.allowPointerLock);
+  // Block player input, but let the guide keep moving while its panel is open.
+  const allowMotion = sceneAllowMotion && hasSelectedParticipationMode && allowPointerLock && !isChatOpen && !viewingItem;
   const setViewingItem = useStore((state) => state.setViewingItem);
   const personality = useStore((state) => state.agent.personality);
   const setLocalTransform = useLocalPlayerStore((state) => state.setTransform);
+  const entranceRevision = useLocalPlayerStore((state) => state.entranceRevision);
+  const avatarAppearance = useAvatarPreferenceStore(
+    (state) => state.savedAppearance,
+  );
+  const eyeHeight = useMemo(
+    () => getAvatarEyeHeight(avatarAppearance),
+    [avatarAppearance],
+  );
+  const seatedItemId = useRuntimeInteractionStore(
+    (state) => state.seatedItemId,
+  );
+  const activeByItemId = useRuntimeInteractionStore(
+    (state) => state.activeByItemId,
+  );
+  const setSeatedItemId = useRuntimeInteractionStore(
+    (state) => state.setSeatedItemId,
+  );
+  const toggleRuntimeItem = useRuntimeInteractionStore(
+    (state) => state.toggleItem,
+  );
   const wallThickness = Math.max(0.12, roomSize.wallThickness);
 
-  const roomBounds = useMemo(() => {
-    const roomElements = floorPlanElements.filter((el) => el.type === "room");
-    if (roomElements.length > 0) {
-      return roomElements.map((room) => {
-        const [x, , z] = room.position;
-        const [sx, , sz] = room.scale;
-        return {
-          minX: x - Math.abs(sx) / 2,
-          maxX: x + Math.abs(sx) / 2,
-          minZ: z - Math.abs(sz) / 2,
-          maxZ: z + Math.abs(sz) / 2,
-        };
-      });
-    }
-
-    return [{ minX: -roomSize.width / 2, maxX: roomSize.width / 2, minZ: -roomSize.length / 2, maxZ: roomSize.length / 2 }];
-  }, [floorPlanElements, roomSize.width, roomSize.length]);
-
-  const floorPlanWallColliders = useMemo(() => {
-    const triggerGap = 0.8;
-    const minOverlap = 1.2;
-    const doorMaxWidth = 1.8;
-
-    const cuts = new Map<string, Array<[number, number]>>();
-    const hiddenSides = new Set<string>();
-    const cutKey = (roomId: string, side: Side) => `${roomId}:${side}`;
-    const pushCut = (key: string, s: number, e: number) => {
-      if (!cuts.has(key)) cuts.set(key, []);
-      cuts.get(key)!.push([s, e]);
-    };
-
-    const rooms = roomBounds.map((room, index) => ({ ...room, id: `room-${index}` }));
-
-    for (let i = 0; i < rooms.length; i++) {
-      for (let j = i + 1; j < rooms.length; j++) {
-        const a = rooms[i];
-        const b = rooms[j];
-
-        const overlapZStart = Math.max(a.minZ, b.minZ);
-        const overlapZEnd = Math.min(a.maxZ, b.maxZ);
-        const overlapZ = overlapZEnd - overlapZStart;
-
-        const overlapXStart = Math.max(a.minX, b.minX);
-        const overlapXEnd = Math.min(a.maxX, b.maxX);
-        const overlapX = overlapXEnd - overlapXStart;
-
-        const gapAXtoB = b.minX - a.maxX;
-        if (gapAXtoB >= 0 && gapAXtoB <= triggerGap && overlapZ >= minOverlap) {
-          hiddenSides.add(cutKey(b.id, "west"));
-          const centerLine = (overlapZStart + overlapZEnd) / 2;
-          const width = Math.min(doorMaxWidth, overlapZ - 0.2);
-          if (width > 0.6) pushCut(cutKey(a.id, "east"), centerLine - width / 2, centerLine + width / 2);
-          continue;
-        }
-
-        const gapBXtoA = a.minX - b.maxX;
-        if (gapBXtoA >= 0 && gapBXtoA <= triggerGap && overlapZ >= minOverlap) {
-          hiddenSides.add(cutKey(a.id, "west"));
-          const centerLine = (overlapZStart + overlapZEnd) / 2;
-          const width = Math.min(doorMaxWidth, overlapZ - 0.2);
-          if (width > 0.6) pushCut(cutKey(b.id, "east"), centerLine - width / 2, centerLine + width / 2);
-          continue;
-        }
-
-        const gapAZtoB = b.minZ - a.maxZ;
-        if (gapAZtoB >= 0 && gapAZtoB <= triggerGap && overlapX >= minOverlap) {
-          hiddenSides.add(cutKey(b.id, "north"));
-          const centerLine = (overlapXStart + overlapXEnd) / 2;
-          const width = Math.min(doorMaxWidth, overlapX - 0.2);
-          if (width > 0.6) pushCut(cutKey(a.id, "south"), centerLine - width / 2, centerLine + width / 2);
-          continue;
-        }
-
-        const gapBZtoA = a.minZ - b.maxZ;
-        if (gapBZtoA >= 0 && gapBZtoA <= triggerGap && overlapX >= minOverlap) {
-          hiddenSides.add(cutKey(a.id, "north"));
-          const centerLine = (overlapXStart + overlapXEnd) / 2;
-          const width = Math.min(doorMaxWidth, overlapX - 0.2);
-          if (width > 0.6) pushCut(cutKey(b.id, "south"), centerLine - width / 2, centerLine + width / 2);
-        }
-      }
-    }
-
-    const colliders: Array<{ position: [number, number, number]; rotationY: number; halfX: number; halfZ: number }> = [];
-
-    for (const room of rooms) {
-      const northKey = cutKey(room.id, "north");
-      const southKey = cutKey(room.id, "south");
-      const eastKey = cutKey(room.id, "east");
-      const westKey = cutKey(room.id, "west");
-
-      if (!hiddenSides.has(northKey)) {
-        for (const [s, e] of createSegments(room.minX, room.maxX, cuts.get(northKey) || [])) {
-          colliders.push({ position: [(s + e) / 2, 0, room.minZ], rotationY: 0, halfX: Math.max(0.05, e - s) / 2, halfZ: wallThickness / 2 });
-        }
-      }
-      if (!hiddenSides.has(southKey)) {
-        for (const [s, e] of createSegments(room.minX, room.maxX, cuts.get(southKey) || [])) {
-          colliders.push({ position: [(s + e) / 2, 0, room.maxZ], rotationY: 0, halfX: Math.max(0.05, e - s) / 2, halfZ: wallThickness / 2 });
-        }
-      }
-      if (!hiddenSides.has(eastKey)) {
-        for (const [s, e] of createSegments(room.minZ, room.maxZ, cuts.get(eastKey) || [])) {
-          colliders.push({ position: [room.maxX, 0, (s + e) / 2], rotationY: Math.PI / 2, halfX: Math.max(0.05, e - s) / 2, halfZ: wallThickness / 2 });
-        }
-      }
-      if (!hiddenSides.has(westKey)) {
-        for (const [s, e] of createSegments(room.minZ, room.maxZ, cuts.get(westKey) || [])) {
-          colliders.push({ position: [room.minX, 0, (s + e) / 2], rotationY: Math.PI / 2, halfX: Math.max(0.05, e - s) / 2, halfZ: wallThickness / 2 });
-        }
-      }
-    }
-
-    return colliders;
-  }, [roomBounds, wallThickness]);
+  const roomBounds = useMemo(
+    () => getFloorPlanRoomBounds(floorPlanElements, roomSize.width, roomSize.length),
+    [floorPlanElements, roomSize.width, roomSize.length],
+  );
+  const floorPlanCenter = useMemo(() => getFloorPlanCenter(roomBounds), [roomBounds]);
+  const wallColliders = useMemo(
+    () => getWallColliders(
+      buildWallTopology(roomBounds, roomSize.height, wallThickness, floorPlanCenter),
+      eyeHeight + 0.15,
+    ),
+    [roomBounds, roomSize.height, wallThickness, floorPlanCenter, eyeHeight],
+  );
 
   const { camera, gl } = useThree();
-  const playerPosRef = useRef(SESSION_SPAWN_POSITION.clone());
+  const playerPosRef = useRef(new THREE.Vector3());
   const yawRef = useRef(0);
   const pitchRef = useRef(0);
   const isLockedRef = useRef(false);
@@ -212,6 +130,7 @@ export function Player({
   const moveLeft = useRef(false);
   const moveRight = useRef(false);
   const nearbyItemIdRef = useRef<string | null>(null);
+  const nearbyDescriptorRef = useRef<ItemInteractionDescriptor | null>(null);
   const nearbyItemEnteredAtRef = useRef<number | null>(null);
   const outsideRangeEnteredAtRef = useRef<number | null>(null);
   const lastReminderAtRef = useRef(0);
@@ -219,9 +138,25 @@ export function Player({
   const proximityRingRef = useRef<THREE.Mesh>(null);
   const fallbackInputRef = useRef(createPlayerInputState());
   const inputRef = input ?? fallbackInputRef;
+  const publishNearbyInteraction = useCallback(
+    (descriptor: ItemInteractionDescriptor | null) => {
+      const previous = nearbyDescriptorRef.current;
+      if (
+        previous?.id === descriptor?.id &&
+        previous?.kind === descriptor?.kind &&
+        previous?.prompt === descriptor?.prompt
+      ) {
+        return;
+      }
+      nearbyDescriptorRef.current = descriptor;
+      onNearbyInteractionChange?.(descriptor);
+    },
+    [onNearbyInteractionChange],
+  );
 
   useEffect(() => {
     if (allowMotion) return;
+    if (document.pointerLockElement === gl.domElement) document.exitPointerLock();
     moveForward.current = false;
     moveBackward.current = false;
     moveLeft.current = false;
@@ -236,17 +171,21 @@ export function Player({
     nearbyItemEnteredAtRef.current = null;
     outsideRangeEnteredAtRef.current = null;
     if (proximityRingRef.current) proximityRingRef.current.visible = false;
-    onNearbyItemChange?.(null);
-  }, [allowMotion, inputRef, onNearbyItemChange]);
+    publishNearbyInteraction(null);
+  }, [allowMotion, gl, inputRef, publishNearbyInteraction]);
 
   useEffect(() => {
     camera.rotation.order = "YXZ";
     if (mode === "view") {
-      playerPosRef.current.copy(SESSION_SPAWN_POSITION);
-      yawRef.current = 0;
+      const scene = useStore.getState();
+      const spawn = getVisitorSpawn(getFloorPlanRoomBounds(scene.floorPlanElements, scene.roomSize.width, scene.roomSize.length), scene.items, scene.roomSize.wallThickness, eyeHeight);
+      playerPosRef.current.set(spawn.position.x, spawn.position.y, spawn.position.z);
+      yawRef.current = spawn.yaw;
       pitchRef.current = 0;
       camera.position.copy(playerPosRef.current);
-      camera.rotation.set(0, 0, 0);
+      camera.rotation.set(0, spawn.yaw, 0);
+      setLocalTransform(spawn.position, spawn.yaw);
+      setSeatedItemId(null);
       isLockedRef.current = false;
       skipNextMouseMoveRef.current = false;
       setIsPointerLocked(false);
@@ -255,27 +194,20 @@ export function Player({
       if (document.pointerLockElement === gl.domElement) document.exitPointerLock();
       isLockedRef.current = false;
       setIsPointerLocked(false);
+      setSeatedItemId(null);
     }
-  }, [mode, camera, gl, setIsPointerLocked]);
+  }, [
+    mode,
+    entranceRevision,
+    camera,
+    eyeHeight,
+    gl,
+    setIsPointerLocked,
+    setSeatedItemId,
+    setLocalTransform,
+  ]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (mode !== "view" || !allowMotion) return;
-      setKeyboardKey(inputRef.current, event.code, true);
-    };
-
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (mode !== "view" || !allowMotion) return;
-      setKeyboardKey(inputRef.current, event.code, false);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-    };
-  }, [allowMotion, inputRef, mode]);
+  usePlayerKeyboardInput(inputRef, mode === 'view' && allowMotion);
 
   useEffect(() => {
     if (mode !== "view") {
@@ -285,9 +217,11 @@ export function Player({
       lastReminderAtRef.current = 0;
       introRequestIdRef.current = 0;
       if (proximityRingRef.current) proximityRingRef.current.visible = false;
+      publishNearbyInteraction(null);
     }
 
     const canvas = gl.domElement;
+    if (touchControls && document.pointerLockElement === canvas) document.exitPointerLock();
     const onPointerLockChange = () => {
       const locked = document.pointerLockElement === canvas;
       isLockedRef.current = locked;
@@ -296,7 +230,7 @@ export function Player({
     };
 
     const onCanvasClick = async () => {
-      if (mode !== "view" || !allowMotion) return;
+      if (mode !== "view" || !allowMotion || touchControls) return;
       if (document.pointerLockElement === canvas) return;
       try {
         if (document.pointerLockElement) document.exitPointerLock();
@@ -334,35 +268,29 @@ export function Player({
       canvas.removeEventListener("click", onCanvasClick);
       document.removeEventListener("mousemove", onMouseMove);
     };
-  }, [allowMotion, mode, gl, setIsPointerLocked]);
+  }, [
+    allowMotion,
+    touchControls,
+    mode,
+    gl,
+    publishNearbyInteraction,
+    setIsPointerLocked,
+  ]);
 
   const roomExtents = useMemo(() => ({
-    minX: Math.min(...roomBounds.map((b) => b.minX)),
-    maxX: Math.max(...roomBounds.map((b) => b.maxX)),
-    minZ: Math.min(...roomBounds.map((b) => b.minZ)),
-    maxZ: Math.max(...roomBounds.map((b) => b.maxZ)),
-  }), [roomBounds]);
+    minX: Math.min(...roomBounds.map((b) => b.minX)) - floorPlanCenter.x,
+    maxX: Math.max(...roomBounds.map((b) => b.maxX)) - floorPlanCenter.x,
+    minZ: Math.min(...roomBounds.map((b) => b.minZ)) - floorPlanCenter.z,
+    maxZ: Math.max(...roomBounds.map((b) => b.maxZ)) - floorPlanCenter.z,
+  }), [roomBounds, floorPlanCenter]);
 
-  const collidableItems = useMemo(() => items.filter((item) => item.type === "partition" || item.type === "pedestal"), [items]);
+  const itemColliders = useMemo(
+    () => createWorldItemColliders(items),
+    [items],
+  );
 
-  const allColliders = useMemo(() => [
-    ...floorPlanWallColliders.map((wall) => ({ position: wall.position, rotation: [0, wall.rotationY, 0] as [number, number, number], halfX: wall.halfX, halfZ: wall.halfZ })),
-    ...collidableItems.map((collidable) => {
-      const [sx, , sz] = collidable.scale;
-      const [rx = 0, , rz = 0] = collidable.rotation;
-
-      if (collidable.type === "partition") {
-        const thicknessBoost = Math.sin(Math.abs(rx)) * Math.abs(sx) * 0.5 + Math.sin(Math.abs(rz)) * Math.abs(sz) * 0.5;
-        return { position: collidable.position, rotation: collidable.rotation, halfX: (Math.abs(sx) || 1) * 0.5 + thicknessBoost, halfZ: (Math.abs(sz) || 1) * 0.5 + thicknessBoost };
-      }
-
-      const pedestalRadius = 0.6;
-      return { position: collidable.position, rotation: collidable.rotation, halfX: Math.max(0.25, Math.abs(sx) * pedestalRadius), halfZ: Math.max(0.25, Math.abs(sz) * pedestalRadius) };
-    }),
-  ], [floorPlanWallColliders, collidableItems]);
-
-  const exhibitItems = useMemo(
-    () => items.filter((item) => item.type === "painting" || item.type === "pedestal" || item.type === "text" || item.type === "sculpture"),
+  const interactiveItems = useMemo(
+    () => items.filter((item) => getItemInteraction(item) !== null),
     [items],
   );
 
@@ -378,6 +306,44 @@ export function Player({
     const minPitch = -Math.PI / 2 + 0.15;
     const maxPitch = Math.PI / 2 - 0.15;
     pitchRef.current = Math.max(minPitch, Math.min(maxPitch, pitchRef.current));
+
+    const seatedItem = seatedItemId
+      ? items.find((item) => item.id === seatedItemId) ?? null
+      : null;
+    if (seatedItem) {
+      const wantsToLeave =
+        inputState.interactRequested ||
+        inputState.moveX !== 0 ||
+        inputState.moveY !== 0;
+
+      if (wantsToLeave) {
+        inputState.interactRequested = false;
+        playerPosRef.current.fromArray(
+          getSeatExitPosition(seatedItem, eyeHeight),
+        );
+        setSeatedItemId(null);
+        publishNearbyInteraction(null);
+      } else {
+        const pose = getSeatPose(seatedItem);
+        playerPosRef.current.fromArray(pose.position);
+        yawRef.current = pose.yaw;
+        camera.position.copy(playerPosRef.current);
+        camera.rotation.set(pitchRef.current, yawRef.current, 0);
+        setLocalTransform(
+          {
+            x: playerPosRef.current.x,
+            y: playerPosRef.current.y,
+            z: playerPosRef.current.z,
+          },
+          yawRef.current,
+          "sitting",
+        );
+        publishNearbyInteraction(getItemInteraction(seatedItem, true));
+        return;
+      }
+    } else if (seatedItemId) {
+      setSeatedItemId(null);
+    }
 
     if (isLockedRef.current || inputState.moveX !== 0 || inputState.moveY !== 0) {
       const forwardAmount =
@@ -395,7 +361,8 @@ export function Player({
         move.addScaledVector(right, sideAmount);
 
         if (move.lengthSq() > 0) {
-          move.normalize().multiplyScalar(MOVE_SPEED * delta);
+          // Preserve analog joystick speed; only cap overlong diagonal input.
+          move.clampLength(0, 1).multiplyScalar(MOVE_SPEED * Math.min(delta, 0.05));
           playerPosRef.current.add(move);
         }
 
@@ -405,7 +372,7 @@ export function Player({
         let resolvedX = candidateX;
         let resolvedZ = candidateZ;
 
-        for (const collider of allColliders) {
+        for (const collider of wallColliders) {
           const [px, , pz] = collider.position;
           const [, ry = 0] = collider.rotation;
           const localX = resolvedX - px;
@@ -428,26 +395,44 @@ export function Player({
           }
         }
 
-        playerPosRef.current.x = resolvedX;
-        playerPosRef.current.z = resolvedZ;
+        const itemResolved = resolvePlayerCircle(
+          {
+            x: resolvedX,
+            z: resolvedZ,
+            radius: playerRadius,
+            minY: 0,
+            maxY: eyeHeight,
+          },
+          itemColliders,
+        );
+        playerPosRef.current.x = itemResolved.x;
+        playerPosRef.current.z = itemResolved.z;
       }
     }
 
-    playerPosRef.current.y = DEFAULT_EYE_HEIGHT;
+    playerPosRef.current.y = eyeHeight;
     camera.position.copy(playerPosRef.current);
     camera.rotation.set(pitchRef.current, yawRef.current, 0);
-    setLocalTransform({ x: playerPosRef.current.x, y: playerPosRef.current.y, z: playerPosRef.current.z }, yawRef.current);
+    setLocalTransform(
+      {
+        x: playerPosRef.current.x,
+        y: playerPosRef.current.y,
+        z: playerPosRef.current.z,
+      },
+      yawRef.current,
+      "standing",
+    );
 
     if (viewingItem) {
       nearbyItemIdRef.current = null;
       nearbyItemEnteredAtRef.current = null;
       outsideRangeEnteredAtRef.current = null;
-      onNearbyItemChange?.(null);
+      publishNearbyInteraction(null);
       return;
     }
 
     const playerPosition = playerPosRef.current;
-    const nearestItem = exhibitItems
+    const nearestItem = interactiveItems
       .map((item) => {
         const [x, , z] = item.position;
         const dx = playerPosition.x - x;
@@ -462,23 +447,49 @@ export function Player({
       nearbyItemIdRef.current = null;
       nearbyItemEnteredAtRef.current = null;
       outsideRangeEnteredAtRef.current = null;
-      onNearbyItemChange?.(null);
+      publishNearbyInteraction(null);
       if (proximityRingRef.current) proximityRingRef.current.visible = false;
       return;
     }
 
     const radius = getItemFootprintRadius(nearestItem.item);
     const effectiveDistance = Math.max(0, nearestItem.distance - radius);
-    const inIntroRange = effectiveDistance <= AUTO_INTRO_DISTANCE;
+    const interactionRange =
+      getItemBehavior(nearestItem.item.type).interaction?.range ??
+      AUTO_INTRO_DISTANCE;
+    const inIntroRange = effectiveDistance <= interactionRange;
 
     if (inIntroRange) {
       nearbyItemIdRef.current = nearestItem.item.id;
       nearbyItemEnteredAtRef.current = now;
       outsideRangeEnteredAtRef.current = null;
-      onNearbyItemChange?.(getItemDisplayName(nearestItem.item));
+      const defaultActive =
+        getItemInteraction(nearestItem.item)?.defaultActive ?? false;
+      const interaction = getItemInteraction(
+        nearestItem.item,
+        isRuntimeItemActive(
+          activeByItemId,
+          nearestItem.item.id,
+          defaultActive,
+        ),
+      );
+      publishNearbyInteraction(interaction);
       if (inputState.interactRequested) {
         inputState.interactRequested = false;
-        setViewingItem(nearestItem.item);
+        if (interaction?.kind === "sit") {
+          setSeatedItemId(nearestItem.item.id);
+        } else if (
+          interaction?.kind === "toggle-light" ||
+          interaction?.kind === "toggle-open" ||
+          interaction?.kind === "toggle-motion"
+        ) {
+          toggleRuntimeItem(
+            nearestItem.item.id,
+            interaction.defaultActive,
+          );
+        } else if (interaction?.kind === "view") {
+          setViewingItem(nearestItem.item);
+        }
       }
       if (proximityRingRef.current) proximityRingRef.current.visible = false;
       return;

@@ -2,40 +2,49 @@ import { Suspense } from "react";
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { AVATAR_MANIFEST } from "@/app/modules/metaverse3d/avatar/avatarManifest";
-import type { AvatarAppearanceV1 } from "@/app/modules/metaverse3d/avatar/avatarAppearance";
+import {
+  resolveAvatarTopColor,
+  type AvatarAppearanceV1,
+} from "@/app/modules/metaverse3d/avatar/avatarAppearance";
 import { AvatarModel } from "@/app/modules/metaverse3d/avatar/AvatarModel";
 import { AvatarModelBoundary } from "@/app/modules/metaverse3d/avatar/AvatarModelBoundary";
 import { ProceduralAvatarFallback } from "@/app/modules/metaverse3d/avatar/ProceduralAvatarFallback";
 
 type AvatarPreviewCanvasProps = {
   appearance: AvatarAppearanceV1;
+  previewLabel: string;
   unavailableLabel: string;
 };
 
-function PreviewFallback({ appearance }: { appearance: AvatarAppearanceV1 }) {
+export function resolveAvatarPreviewPalette(appearance: AvatarAppearanceV1) {
   const skin = AVATAR_MANIFEST.colors.skin[appearance.colors.skin];
   const hair = AVATAR_MANIFEST.colors.hair[appearance.colors.hair];
-  const top = AVATAR_MANIFEST.colors.top[appearance.colors.top];
+  const top = resolveAvatarTopColor(appearance);
   const bottom = AVATAR_MANIFEST.colors.bottom[appearance.colors.bottom];
   const shoes = AVATAR_MANIFEST.colors.shoes[appearance.colors.shoes];
 
+  return {
+    jacket: top,
+    shirt: "#f5f5f4",
+    trousers: bottom,
+    shoes,
+    accent: top,
+    hair,
+    skin,
+  };
+}
+
+function PreviewFallback({ appearance }: { appearance: AvatarAppearanceV1 }) {
   return (
     <ProceduralAvatarFallback
-      palette={{
-        jacket: top,
-        shirt: "#f5f5f4",
-        trousers: bottom,
-        shoes,
-        accent: top,
-        hair,
-        skin,
-      }}
+      palette={resolveAvatarPreviewPalette(appearance)}
     />
   );
 }
 
 export function AvatarPreviewCanvas({
   appearance,
+  previewLabel,
   unavailableLabel,
 }: AvatarPreviewCanvasProps) {
   const resetKey = JSON.stringify(appearance);
@@ -45,10 +54,10 @@ export function AvatarPreviewCanvas({
     <div
       className="h-full min-h-80 overflow-hidden rounded-2xl border border-border bg-secondary"
       role="img"
-      aria-label={unavailableLabel}
+      aria-label={previewLabel}
     >
       <Canvas
-        shadows
+        shadows="basic"
         dpr={[1, 1.5]}
         camera={{ position: [0, 1.3, 3.35], fov: 35, near: 0.1, far: 20 }}
         fallback={
@@ -74,6 +83,8 @@ export function AvatarPreviewCanvas({
                 speed={0}
                 playerSeed="avatar-preview"
                 castShadow
+                lockHeadFacing
+                staticPose
               />
             </Suspense>
           </AvatarModelBoundary>

@@ -37,6 +37,7 @@ describe("summarizeSceneDiff", () => {
       addedItemIds: ["ai-new-label"],
       removedGeneratedItemIds: ["ai-old-light"],
       protectedItemsPreserved: true,
+      appearanceUpdatedItemIds: [], mediaReplacedItemIds: [], removedOriginalItemIds: [], roomChangedFields: [], floorPlanChanged: false, wallMaterialsChanged: false,
     });
   });
 

@@ -1,0 +1,37 @@
+# Allow only the source needed by the private preview build.
+**
+!package.json
+!package-lock.json
+!index.html
+!vite.config.ts
+!tsconfig.json
+!noob.glb
+!professional.glb
+!funny.glb
+!flower.glb
+!config/
+!config/**
+!src/
+!src/**
+!public/
+!public/**
+!server/
+!server/**
+!deploy/
+!deploy/private/
+!deploy/private/Dockerfile
+!deploy/private/Caddyfile
+
+# Keep these exclusions last, including secrets nested inside allowed trees.
+**/.env*
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.pem
+**/*.key
+**/*.log
+**/node_modules
+**/.git
+server/uploads
+node_modules
+.git

@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { assertPersistentScenePayload } from '../services/exhibitionSceneService.js';
+import { analyticsPeriod, artworkItems, buildGalleryAnalytics } from '../services/galleryAnalyticsService.js';
+
+const visitSchema = z.object({
+  visitorId: z.string().uuid(), sessionId: z.string().uuid(), mode: z.enum(['2d', '3d']),
+  activeSeconds: z.number().finite().min(0).max(86400 * 30),
+  itemDwellSeconds: z.record(z.string().min(1).max(200), z.number().finite().min(0).max(86400 * 30))
+    .refine((items) => Object.keys(items).length <= 200, 'too many items'),
+}).strict();
 
 const SHARE_ROLE_VIEWER = 'viewer';
 const SHARE_ROLE_EDITOR = 'editor';
@@ -19,6 +27,7 @@ const galleryCreateSchema = z.object({
 });
 
 const galleryUpdateSchema = z.object({
+  expectedRevision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
   title: z.string().trim().min(1, 'title is required').max(120, 'title too long').optional(),
   description: z.string().trim().min(1, 'description is required').max(2000, 'description too long').optional(),
   templateTitle: z.string().trim().min(1, 'templateTitle is required').max(200, 'templateTitle too long').optional(),
@@ -32,31 +41,6 @@ const shareLinkCreateSchema = z.object({
   expiresInHours: z.coerce.number().int().positive().max(24 * 365).optional(),
 });
 
-const uploadLinkCreateSchema = z.object({
-  itemId: z.string().trim().min(1, 'itemId is required'),
-  canEditMetadata: z.boolean().optional().default(false),
-  expiresInHours: z.coerce.number().int().positive().max(24 * 365).optional(),
-});
-
-const uploadLinkUpdateSchema = z.object({
-  title: z.string().trim().optional(),
-  artist: z.string().trim().optional(),
-  description: z.string().trim().optional(),
-  externalUrl: z.string().trim().optional(),
-  content: z.string().optional(),
-  fileName: z.string().trim().optional(),
-  fileMimeType: z.string().trim().optional(),
-  videoThumbnailUrl: z.string().optional(),
-});
-
-const competitionPublishSchema = z.object({
-  competitionId: z.string().trim().min(1, 'competitionId is required'),
-  statement: z.string().trim().min(1, 'statement is required').max(5000, 'statement too long'),
-  assets: z.array(z.object({
-    name: z.string().trim().min(1, 'asset name is required').max(255, 'asset name too long'),
-    url: z.string().trim().min(1, 'asset url is required').max(2_000_000, 'asset url too long'),
-  })).max(10, 'too many assets').optional(),
-}).optional();
 
 function rejectNonPersistentScene(res, sceneJson) {
   try {
@@ -81,23 +65,29 @@ export function registerGalleryRoutes(app, deps) {
     listGalleriesByOwnerId,
     listPublishedGalleries,
     getGalleryById,
+    hasReviewAccess = async () => false,
     getPublishedGalleryById,
     updateGalleryById,
     deleteGalleryById,
-    deleteCompetitionsByHostGalleryId,
     updateGalleryShareById,
     updateGalleryPublishById,
+    publishQuickExhibition,
+    saveQuickExhibitionFromEditor,
     getGalleryByShareToken,
-    insertGalleryUploadLink,
-    getGalleryUploadLinkByToken,
-    revokeGalleryUploadLink,
     insertExhibitComment,
     listExhibitCommentsByGalleryAndItem,
     listExhibitCommentsByGalleryOwnerId,
     getExhibitCommentById,
     deleteExhibitCommentById,
-    listVisitorMemoriesByGalleryOwnerId,
+    analyticsRepository,
+    visitLimiter = (_req, _res, next) => next(),
   } = deps;
+
+  const saveGalleryUpdates = async (id, ownerId, updates) => {
+    const quickGallery = await saveQuickExhibitionFromEditor?.(id, ownerId, updates);
+    if (quickGallery) return 1;
+    return updateGalleryById(id, ownerId, updates);
+  };
 
   const authorizeGalleryComments = async (req, res) => {
     const galleryId = String(req.params.id || '').trim();
@@ -150,194 +140,15 @@ export function registerGalleryRoutes(app, deps) {
     templateImage: row.template_image,
     category: row.category,
     sceneJson: row.scene_json,
+    revision: row.revision ?? 0,
     shareRole: row.share_role || SHARE_ROLE_VIEWER,
     shareExpiresAt: row.share_expires_at || null,
     isPublished: Boolean(row.is_published),
+    isBox: Boolean(row.is_box),
     publishedAt: row.published_at || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   });
-
-  const parseJsonValue = (value, fallback) => {
-    if (typeof value !== 'string' || !value.trim()) return fallback;
-    try {
-      return JSON.parse(value);
-    } catch {
-      return fallback;
-    }
-  };
-
-  const getSceneItems = (gallery) => {
-    const scene = parseJsonValue(gallery?.scene_json, null);
-    return Array.isArray(scene?.items) ? scene.items : [];
-  };
-
-  const toAdminAnalytics = ({ galleries, comments, memories }) => {
-    const galleryStats = new Map();
-    const itemStats = new Map();
-    let totalDwellSeconds = 0;
-
-    galleries.forEach((gallery) => {
-      const items = getSceneItems(gallery);
-      const galleryId = gallery.id;
-      galleryStats.set(galleryId, {
-        gallery,
-        itemCount: items.length,
-        commentCount: 0,
-        visitorIds: new Set(),
-        engagedIds: new Set(),
-        dwellSeconds: 0,
-        latestActivityAt: gallery.updated_at,
-      });
-
-      items.forEach((item) => {
-        const itemId = String(item?.id || '').trim();
-        if (!itemId) return;
-        itemStats.set(`${galleryId}:${itemId}`, {
-          galleryId,
-          galleryTitle: gallery.title,
-          itemId,
-          title: String(item?.title || item?.name || itemId),
-          artist: typeof item?.artist === 'string' ? item.artist : null,
-          type: String(item?.type || 'item'),
-          commentCount: 0,
-          visitorIds: new Set(),
-          engagedIds: new Set(),
-          dwellSeconds: 0,
-          latestActivityAt: gallery.updated_at,
-        });
-      });
-    });
-
-    comments.forEach((comment) => {
-      const stat = galleryStats.get(comment.gallery_id);
-      if (!stat) return;
-      stat.commentCount += 1;
-      stat.latestActivityAt = [stat.latestActivityAt, comment.created_at].filter(Boolean).sort().at(-1) || stat.latestActivityAt;
-
-      const key = `${comment.gallery_id}:${comment.item_id}`;
-      const itemStat = itemStats.get(key) || {
-        galleryId: comment.gallery_id,
-        galleryTitle: comment.gallery_title || stat.gallery.title,
-        itemId: comment.item_id,
-        title: comment.item_id,
-        artist: null,
-        type: 'item',
-        commentCount: 0,
-        visitorIds: new Set(),
-        engagedIds: new Set(),
-        dwellSeconds: 0,
-        latestActivityAt: comment.created_at,
-      };
-      itemStat.commentCount += 1;
-      itemStat.latestActivityAt = [itemStat.latestActivityAt, comment.created_at].filter(Boolean).sort().at(-1) || itemStat.latestActivityAt;
-      itemStats.set(key, itemStat);
-    });
-
-    memories.forEach((memory) => {
-      const stat = galleryStats.get(memory.gallery_id);
-      if (!stat) return;
-      const visitorId = memory.user_id || memory.id;
-      stat.visitorIds.add(visitorId);
-      stat.latestActivityAt = [stat.latestActivityAt, memory.updated_at].filter(Boolean).sort().at(-1) || stat.latestActivityAt;
-
-      const visited = parseJsonValue(memory.visited_exhibit_ids_json, []);
-      const engaged = parseJsonValue(memory.engaged_exhibit_ids_json, []);
-      const dwellByItem = parseJsonValue(memory.dwell_seconds_json, {});
-
-      if (Array.isArray(engaged) && engaged.length > 0) {
-        stat.engagedIds.add(visitorId);
-      }
-
-      Object.entries(dwellByItem && typeof dwellByItem === 'object' ? dwellByItem : {}).forEach(([itemId, rawSeconds]) => {
-        const seconds = Math.max(0, Number(rawSeconds) || 0);
-        stat.dwellSeconds += seconds;
-        totalDwellSeconds += seconds;
-        const key = `${memory.gallery_id}:${itemId}`;
-        const itemStat = itemStats.get(key);
-        if (itemStat) {
-          itemStat.dwellSeconds += seconds;
-          itemStat.visitorIds.add(visitorId);
-          itemStat.latestActivityAt = [itemStat.latestActivityAt, memory.updated_at].filter(Boolean).sort().at(-1) || itemStat.latestActivityAt;
-        }
-      });
-
-      visited.forEach((itemId) => {
-        const itemStat = itemStats.get(`${memory.gallery_id}:${itemId}`);
-        if (itemStat) itemStat.visitorIds.add(visitorId);
-      });
-
-      engaged.forEach((itemId) => {
-        const itemStat = itemStats.get(`${memory.gallery_id}:${itemId}`);
-        if (itemStat) itemStat.engagedIds.add(visitorId);
-      });
-    });
-
-    const galleriesResponse = [...galleryStats.values()].map((stat) => {
-      const visitorCount = stat.visitorIds.size;
-      const engagedCount = stat.engagedIds.size;
-      const popularityScore = stat.commentCount * 4 + visitorCount * 3 + engagedCount * 2 + Math.min(stat.dwellSeconds / 60, 50);
-      return {
-        ...toGalleryResponse(stat.gallery),
-        itemCount: stat.itemCount,
-        commentCount: stat.commentCount,
-        visitorCount,
-        engagedCount,
-        totalDwellSeconds: Math.round(stat.dwellSeconds),
-        popularityScore: Math.round(popularityScore * 10) / 10,
-        latestActivityAt: stat.latestActivityAt,
-      };
-    }).sort((a, b) => b.popularityScore - a.popularityScore || new Date(b.latestActivityAt).getTime() - new Date(a.latestActivityAt).getTime());
-
-    const itemsResponse = [...itemStats.values()].map((stat) => {
-      const visitorCount = stat.visitorIds.size;
-      const engagedCount = stat.engagedIds.size;
-      const popularityScore = stat.commentCount * 4 + visitorCount * 3 + engagedCount * 2 + Math.min(stat.dwellSeconds / 60, 25);
-      return {
-        galleryId: stat.galleryId,
-        galleryTitle: stat.galleryTitle,
-        itemId: stat.itemId,
-        title: stat.title,
-        artist: stat.artist,
-        type: stat.type,
-        commentCount: stat.commentCount,
-        visitorCount,
-        engagedCount,
-        dwellSeconds: Math.round(stat.dwellSeconds),
-        popularityScore: Math.round(popularityScore * 10) / 10,
-        latestActivityAt: stat.latestActivityAt,
-      };
-    }).sort((a, b) => b.popularityScore - a.popularityScore || b.commentCount - a.commentCount).slice(0, 30);
-
-    const commentsResponse = comments.slice(0, 100).map((comment) => {
-      const item = itemStats.get(`${comment.gallery_id}:${comment.item_id}`);
-      return {
-        id: comment.id,
-        galleryId: comment.gallery_id,
-        galleryTitle: comment.gallery_title || item?.galleryTitle || '',
-        itemId: comment.item_id,
-        itemTitle: item?.title || comment.item_id,
-        userName: comment.user_name,
-        content: comment.content,
-        createdAt: comment.created_at,
-      };
-    });
-
-    return {
-      summary: {
-        totalGalleries: galleries.length,
-        publishedGalleries: galleries.filter((gallery) => Boolean(gallery.is_published)).length,
-        totalItems: galleriesResponse.reduce((sum, gallery) => sum + gallery.itemCount, 0),
-        totalComments: comments.length,
-        totalVisitors: new Set(memories.map((memory) => memory.user_id)).size,
-        totalDwellSeconds: Math.round(totalDwellSeconds),
-        topGallery: galleriesResponse[0] || null,
-      },
-      galleries: galleriesResponse,
-      items: itemsResponse,
-      comments: commentsResponse,
-    };
-  };
 
   const isShareExpired = (isoDatetime) => {
     if (!isoDatetime) return false;
@@ -411,7 +222,7 @@ export function registerGalleryRoutes(app, deps) {
 
     try {
       const rows = await listGalleriesByOwnerId(payload.sub);
-      const galleries = rows.map((r) => toGalleryResponse(r));
+      const galleries = rows.map((r) => ({ ...toGalleryResponse(r), quickDraftId: r.quick_draft_id || null }));
       res.json({ galleries });
     } catch (err) {
       console.error(err);
@@ -419,11 +230,35 @@ export function registerGalleryRoutes(app, deps) {
     }
   });
 
-  app.get('/api/galleries/published', async (_req, res) => {
+  app.get('/api/galleries/published', async (req, res) => {
+    const query = z.object({
+      limit: z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(1).max(48)).optional(),
+      after: z.string().min(1).max(1024).regex(/^[A-Za-z0-9_-]+$/).optional(),
+    }).safeParse(req.query);
+    if (!query.success) return res.status(400).json({ message: 'invalid gallery page' });
+    let after = null;
+    if (query.data.after) {
+      try {
+        after = z.object({ at: z.string().min(1).max(64), id: z.string().min(1).max(200) }).strict()
+          .parse(JSON.parse(Buffer.from(query.data.after, 'base64url').toString('utf8')));
+      } catch { return res.status(400).json({ message: 'invalid gallery cursor' }); }
+    }
     try {
-      const rows = await listPublishedGalleries();
-      const galleries = rows.map((r) => toGalleryResponse(r));
-      res.json({ galleries });
+      const limit = query.data.limit ?? 12;
+      const rows = await listPublishedGalleries({ limit, after });
+      const page = rows.slice(0, limit);
+      const galleries = page.map((r) => {
+        const summary = toGalleryResponse(r);
+        delete summary.sceneJson;
+        delete summary.shareRole;
+        delete summary.shareExpiresAt;
+        summary.templateImage = r.cover_image ?? r.template_image ?? '';
+        return summary;
+      });
+      const last = page.at(-1);
+      const nextCursor = rows.length > limit && last
+        ? Buffer.from(JSON.stringify({ at: last.published_at || last.updated_at, id: last.id })).toString('base64url') : null;
+      res.json({ galleries, nextCursor });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'internal error' });
@@ -452,15 +287,40 @@ export function registerGalleryRoutes(app, deps) {
     if (!payload) return;
 
     try {
-      const [galleries, comments, memories] = await Promise.all([
+      const range = req.query.range || '30d';
+      if (!['7d', '30d', '90d'].includes(range) || (req.query.galleryId !== undefined && typeof req.query.galleryId !== 'string')) {
+        return res.status(400).json({ message: 'invalid analytics filter' });
+      }
+      const period = analyticsPeriod(range);
+      const [galleries, comments, visits, measurementStartedAt] = await Promise.all([
         listGalleriesByOwnerId(payload.sub),
         listExhibitCommentsByGalleryOwnerId(payload.sub),
-        listVisitorMemoriesByGalleryOwnerId(payload.sub),
+        analyticsRepository.list(payload.sub, period.from),
+        analyticsRepository.startedAt(),
       ]);
-
-      res.json(toAdminAnalytics({ galleries, comments, memories }));
+      if (req.query.galleryId && !galleries.some((g) => g.id === req.query.galleryId)) return res.status(404).json({ message: 'gallery not found' });
+      res.json(buildGalleryAnalytics({ galleries, comments, visits, measurementStartedAt, period, galleryId: req.query.galleryId, toGalleryResponse }));
     } catch (err) {
       console.error(err);
+      res.status(500).json({ message: 'internal error' });
+    }
+  });
+
+  app.post('/api/galleries/:id/visits', visitLimiter, async (req, res) => {
+    try {
+      const parsed = visitSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: 'invalid visit payload' });
+      const authorized = await authorizeGalleryComments(req, res);
+      if (!authorized) return;
+      if (authorized.access.role === 'owner' || authorized.access.role === 'editor') return res.json({ ok: true, excluded: true });
+      const ids = new Set(artworkItems(authorized.gallery).map((item) => item.id));
+      // A previously viewed artwork may have been removed while this session is open.
+      const itemDwellSeconds = Object.fromEntries(Object.entries(parsed.data.itemDwellSeconds).filter(([id]) => ids.has(id)));
+      await analyticsRepository.record({ ...parsed.data, itemDwellSeconds, galleryId: authorized.gallery.id });
+      res.json({ ok: true });
+    } catch (error) {
+      if (error.status === 409) return res.status(409).json({ message: error.message });
+      console.error(error);
       res.status(500).json({ message: 'internal error' });
     }
   });
@@ -474,11 +334,13 @@ export function registerGalleryRoutes(app, deps) {
       if (!id) return res.status(400).json({ message: 'gallery id is required' });
 
       const row = await getGalleryById(id);
-      if (!row || row.owner_id !== payload.sub) {
+      const reviewAccess = Boolean(row && row.owner_id !== payload.sub && await hasReviewAccess(row, payload.sub));
+      if (!row || (row.owner_id !== payload.sub && !reviewAccess)) {
         return res.status(404).json({ message: 'gallery not found' });
       }
 
-      res.json({ gallery: toGalleryResponse(row) });
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.json({ gallery: { ...toGalleryResponse(row), ...(reviewAccess ? { reviewAccess: true, shareRole: SHARE_ROLE_VIEWER } : {}) } });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'internal error' });
@@ -501,6 +363,7 @@ export function registerGalleryRoutes(app, deps) {
 
       const comments = await listExhibitCommentsByGalleryAndItem(galleryId, itemId);
       res.json({
+        canDelete: optionalAuth(req)?.sub === authorized.gallery.owner_id,
         comments: comments.map((comment) => ({
           id: comment.id,
           galleryId: comment.gallery_id,
@@ -626,7 +489,13 @@ export function registerGalleryRoutes(app, deps) {
       }
       if (rejectNonPersistentScene(res, body.sceneJson)) return;
 
-      const changed = await updateGalleryById(id, payload.sub, {
+      if (body.expectedRevision === undefined) return res.status(428).json({ code: 'GALLERY_REVISION_REQUIRED', message: 'Reload the exhibition before saving.' });
+
+      const ownedGallery = await getGalleryById(id);
+      if (!ownedGallery || ownedGallery.owner_id !== payload.sub) return res.status(404).json({ message: 'gallery not found' });
+
+      const changed = await saveGalleryUpdates(id, payload.sub, {
+        expectedRevision: body.expectedRevision,
         title: body.title,
         description: body.description,
         templateTitle: body.templateTitle,
@@ -644,8 +513,11 @@ export function registerGalleryRoutes(app, deps) {
         return res.status(404).json({ message: 'gallery not found' });
       }
 
-      res.json({ gallery: toGalleryResponse(row) });
+      res.json({ gallery: { ...toGalleryResponse(row), revision: body.expectedRevision + 1 } });
     } catch (err) {
+      if (err.status >= 400 && err.status < 500) {
+        return res.status(err.status).json({ code: err.code, message: err.message });
+      }
       console.error(err);
       res.status(500).json({ message: 'internal error' });
     }
@@ -659,16 +531,14 @@ export function registerGalleryRoutes(app, deps) {
       const id = String(req.params.id || '').trim();
       if (!id) return res.status(400).json({ message: 'gallery id is required' });
 
-      const parsedCompetition = competitionPublishSchema.safeParse(req.body?.competitionEntry);
-      if (!parsedCompetition.success) {
-        return res.status(400).json({ message: parsedCompetition.error.issues[0]?.message ?? 'invalid competition entry' });
-      }
-
       const row = await getGalleryById(id);
       if (!row || row.owner_id !== payload.sub) {
         return res.status(404).json({ message: 'gallery not found' });
       }
       if (rejectNonPersistentScene(res, row.scene_json)) return;
+
+      const quickGallery = await publishQuickExhibition?.(id, payload.sub);
+      if (quickGallery) return res.json({ gallery: toGalleryResponse(quickGallery) });
 
       const publishedAt = row.published_at || new Date().toISOString();
       const changed = await updateGalleryPublishById(id, payload.sub, {
@@ -686,6 +556,9 @@ export function registerGalleryRoutes(app, deps) {
       }
 
       res.json({ gallery: toGalleryResponse(updated) });    } catch (err) {
+      if (err.status >= 400 && err.status < 500) {
+        return res.status(err.status).json({ code: err.code, message: err.message });
+      }
       console.error(err);
       res.status(500).json({ message: 'internal error' });
     }
@@ -720,68 +593,6 @@ export function registerGalleryRoutes(app, deps) {
     }
   });
 
-  app.post('/api/galleries/:id/upload-link', async (req, res) => {
-    const payload = requireAuth(req, res);
-    if (!payload) return;
-
-    try {
-      const id = String(req.params.id || '').trim();
-      if (!id) return res.status(400).json({ message: 'gallery id is required' });
-
-      const parsed = uploadLinkCreateSchema.safeParse(req.body || {});
-      if (!parsed.success) {
-        return res.status(400).json({ message: parsed.error.issues[0]?.message ?? 'invalid payload' });
-      }
-
-      const gallery = await getGalleryById(id);
-      if (!gallery || gallery.owner_id !== payload.sub) {
-        return res.status(404).json({ message: 'gallery not found' });
-      }
-
-      const scene = gallery.scene_json ? JSON.parse(gallery.scene_json) : null;
-      const itemExists = Boolean(scene?.items?.some((item) => item?.id === parsed.data.itemId));
-      if (!itemExists) {
-        return res.status(404).json({ message: 'item not found in gallery' });
-      }
-
-      const uploadToken = randomUUID();
-      const now = new Date().toISOString();
-      const expiresAt = typeof parsed.data.expiresInHours === 'number'
-        ? new Date(Date.now() + parsed.data.expiresInHours * 60 * 60 * 1000).toISOString()
-        : null;
-
-      await insertGalleryUploadLink({
-        id: randomUUID(),
-        galleryId: id,
-        itemId: parsed.data.itemId,
-        uploadToken,
-        canEditMetadata: Boolean(parsed.data.canEditMetadata),
-        expiresAt,
-        revokedAt: null,
-        createdBy: payload.sub,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      const frontendOrigin = String(process.env.FRONTEND_ORIGIN || 'http://localhost:5173').trim().replace(/\/$/, '');
-      const url = `${frontendOrigin}/virtual-gallery/upload?token=${encodeURIComponent(uploadToken)}`;
-
-      res.status(201).json({
-        uploadLink: {
-          url,
-          token: uploadToken,
-          galleryId: id,
-          itemId: parsed.data.itemId,
-          canEditMetadata: Boolean(parsed.data.canEditMetadata),
-          expiresAt,
-        },
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'internal error' });
-    }
-  });
-
   app.post('/api/galleries/:id/share-link', async (req, res) => {
     const payload = requireAuth(req, res);
     if (!payload) return;
@@ -796,6 +607,8 @@ export function registerGalleryRoutes(app, deps) {
       }
 
       const role = parsed.data.role;
+      const ownedGallery = await getGalleryById(id);
+      if (!ownedGallery || ownedGallery.owner_id !== payload.sub) return res.status(404).json({ message: 'gallery not found' });
       const expiresAt = typeof parsed.data.expiresInHours === 'number'
         ? new Date(Date.now() + parsed.data.expiresInHours * 60 * 60 * 1000).toISOString()
         : null;
@@ -822,111 +635,6 @@ export function registerGalleryRoutes(app, deps) {
           expiresAt,
         },
       });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'internal error' });
-    }
-  });
-
-  app.get('/api/upload-links/:token', async (req, res) => {
-    try {
-      const token = String(req.params.token || '').trim();
-      if (!token) return res.status(400).json({ message: 'upload token is required' });
-
-      const link = await getGalleryUploadLinkByToken(token);
-      if (!link) return res.status(404).json({ message: 'upload link not found' });
-      if (link.revoked_at) return res.status(410).json({ message: 'upload link revoked' });
-      if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
-        return res.status(410).json({ message: 'upload link expired' });
-      }
-
-      const gallery = await getGalleryById(link.gallery_id);
-      if (!gallery) return res.status(404).json({ message: 'gallery not found' });
-      const scene = gallery.scene_json ? JSON.parse(gallery.scene_json) : null;
-      const item = scene?.items?.find((it) => it?.id === link.item_id) || null;
-
-      res.json({
-        uploadLink: {
-          token: link.upload_token,
-          galleryId: link.gallery_id,
-          itemId: link.item_id,
-          canEditMetadata: Boolean(link.can_edit_metadata),
-          expiresAt: link.expires_at,
-        },
-        gallery: toGalleryResponse(gallery),
-        item,
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'internal error' });
-    }
-  });
-
-  app.patch('/api/upload-links/:token', async (req, res) => {
-    try {
-      const token = String(req.params.token || '').trim();
-      if (!token) return res.status(400).json({ message: 'upload token is required' });
-
-      const link = await getGalleryUploadLinkByToken(token);
-      if (!link) return res.status(404).json({ message: 'upload link not found' });
-      if (link.revoked_at) return res.status(410).json({ message: 'upload link revoked' });
-      if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
-        return res.status(410).json({ message: 'upload link expired' });
-      }
-
-      const parsed = uploadLinkUpdateSchema.safeParse(req.body || {});
-      if (!parsed.success) {
-        return res.status(400).json({ message: parsed.error.issues[0]?.message ?? 'invalid payload' });
-      }
-
-      const gallery = await getGalleryById(link.gallery_id);
-      if (!gallery) return res.status(404).json({ message: 'gallery not found' });
-      const scene = gallery.scene_json ? JSON.parse(gallery.scene_json) : null;
-      const items = Array.isArray(scene?.items) ? scene.items : [];
-      const itemIndex = items.findIndex((it) => it?.id === link.item_id);
-      if (itemIndex < 0) return res.status(404).json({ message: 'item not found' });
-
-      const currentItem = items[itemIndex] || {};
-      const nextItem = {
-        ...currentItem,
-        ...(typeof parsed.data.title === 'string' ? { title: parsed.data.title } : {}),
-        ...(typeof parsed.data.artist === 'string' ? { artist: parsed.data.artist } : {}),
-        ...(typeof parsed.data.description === 'string' ? { description: parsed.data.description } : {}),
-        ...(typeof parsed.data.externalUrl === 'string' ? { externalUrl: parsed.data.externalUrl } : {}),
-        ...(typeof parsed.data.content === 'string' ? { content: parsed.data.content } : {}),
-        ...(typeof parsed.data.fileName === 'string' ? { fileName: parsed.data.fileName } : {}),
-        ...(typeof parsed.data.fileMimeType === 'string' ? { fileMimeType: parsed.data.fileMimeType } : {}),
-        ...(typeof parsed.data.videoThumbnailUrl === 'string' ? { videoThumbnailUrl: parsed.data.videoThumbnailUrl } : {}),
-      };
-
-      items[itemIndex] = nextItem;
-      const nextScene = { ...scene, items };
-      if (rejectNonPersistentScene(res, nextScene)) return;
-      const changed = await updateGalleryById(link.gallery_id, gallery.owner_id, { sceneJson: JSON.stringify(nextScene) });
-      if (!changed) return res.status(404).json({ message: 'gallery not found' });
-
-      const updated = await getGalleryById(link.gallery_id);
-      res.json({
-        gallery: updated ? toGalleryResponse(updated) : null,
-        item: nextItem,
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'internal error' });
-    }
-  });
-
-  app.delete('/api/upload-links/:token', async (req, res) => {
-    const payload = requireAuth(req, res);
-    if (!payload) return;
-
-    try {
-      const token = String(req.params.token || '').trim();
-      if (!token) return res.status(400).json({ message: 'upload token is required' });
-
-      const deleted = await revokeGalleryUploadLink(token, payload.sub);
-      if (!deleted) return res.status(404).json({ message: 'upload link not found' });
-      res.json({ ok: true });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'internal error' });
@@ -1019,7 +727,10 @@ export function registerGalleryRoutes(app, deps) {
       }
       if (rejectNonPersistentScene(res, body.sceneJson)) return;
 
-      const changed = await updateGalleryById(row.id, row.owner_id, {
+      if (body.expectedRevision === undefined) return res.status(428).json({ code: 'GALLERY_REVISION_REQUIRED', message: 'Reload the exhibition before saving.' });
+
+      const changed = await saveGalleryUpdates(row.id, row.owner_id, {
+        expectedRevision: body.expectedRevision,
         title: body.title,
         description: body.description,
         templateTitle: body.templateTitle,
@@ -1035,8 +746,11 @@ export function registerGalleryRoutes(app, deps) {
       const updated = await getGalleryById(row.id);
       if (!updated) return res.status(404).json({ message: 'gallery not found' });
 
-      res.json({ gallery: toGalleryResponse(updated) });
+      res.json({ gallery: { ...toGalleryResponse(updated), revision: body.expectedRevision + 1 } });
     } catch (err) {
+      if (err.status >= 400 && err.status < 500) {
+        return res.status(err.status).json({ code: err.code, message: err.message });
+      }
       console.error(err);
       res.status(500).json({ message: 'internal error' });
     }
@@ -1059,8 +773,6 @@ export function registerGalleryRoutes(app, deps) {
       if (!changed) {
         return res.status(404).json({ message: 'gallery not found' });
       }
-
-      await deleteCompetitionsByHostGalleryId(id);
 
       res.json({ ok: true });
     } catch (err) {

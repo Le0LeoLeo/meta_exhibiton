@@ -60,7 +60,8 @@ export function createConfiguredAvatarScene(
       const colorKey =
         MATERIAL_COLOR_KEYS[material.name as keyof typeof MATERIAL_COLOR_KEYS];
       if (colorKey && "color" in clone && clone.color instanceof THREE.Color) {
-        clone.color.set(AVATAR_MANIFEST.colors[colorKey][appearance.colors[colorKey]]);
+        const palette: Readonly<Record<string, string>> = AVATAR_MANIFEST.colors[colorKey];
+        clone.color.set(palette[appearance.colors[colorKey]]);
       }
       materialClones.set(material, clone);
       return clone;

@@ -1,7 +1,7 @@
 import { useMetaverseStudioStore } from "../../../modules/metaverse3d/store/useMetaverseStudioStore";
 import type { AgentState } from "../../../modules/metaverse3d/agent/types";
 import type { AppMode, ExhibitItem } from "../types";
-import type { SceneSnapshot } from "../../../modules/metaverse3d/store/metaverseStoreTypes";
+import type { SceneSnapshot, ImportedSceneSnapshot } from "../../../modules/metaverse3d/store/metaverseStoreTypes";
 import { useShallow } from "zustand/react/shallow";
 
 export type AddItemAction = (
@@ -33,6 +33,16 @@ export type AgentViewModel = AgentState & {
 export { useMetaverseStudioStore };
 export { useMetaverseStudioStore as useStore };
 
+// Keep persistence subscribers scoped to the fields exported in a scene snapshot.
+export function subscribeToSceneChanges(onChange: () => void): () => void {
+  return useMetaverseStudioStore.subscribe((state, previous) => {
+    if (state.roomSize !== previous.roomSize
+      || state.items !== previous.items
+      || state.floorPlanElements !== previous.floorPlanElements
+      || state.wallMaterialOverrides !== previous.wallMaterialOverrides) onChange();
+  });
+}
+
 export function useStudioMode(): AppMode {
   return useMetaverseStudioStore((state) => state.mode);
 }
@@ -54,7 +64,7 @@ export function useEditorActions(): {
   removeItem: (id: string) => void;
   undo: () => void;
   redo: () => void;
-  importScene: (snapshot: SceneSnapshot) => void;
+  importScene: (snapshot: ImportedSceneSnapshot) => void;
   exportScene: () => SceneSnapshot;
   syncSceneSnapshot: (snapshot: SceneSnapshot) => void;
 } {

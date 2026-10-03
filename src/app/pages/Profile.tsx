@@ -11,14 +11,16 @@ import {
   exportMyData,
 } from '../api/client';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useI18n } from '../components/I18nProvider';
+import { useConfirmDiscard } from '../components/UnsavedChangesProvider';
 
 export default function Profile() {
   const navigate = useNavigate();
   const { t } = useI18n();
+  const confirmDiscard = useConfirmDiscard();
   const { token, user: cachedUser, source } = loadAuth();
 
   const [loading, setLoading] = useState(true);
@@ -70,15 +72,15 @@ export default function Profile() {
     return () => {
       cancelled = true;
     };
-  }, [token, navigate]);
+  }, [token, navigate, t]);
 
   const remember = source === 'local';
 
-  const handleLogout = () => {
+  const handleLogout = () => confirmDiscard(() => {
     clearAuth();
     toast.success(t('logout'));
     navigate('/', { replace: true });
-  };
+  });
 
   const handleSaveName = async () => {
     if (!token || !me) return;
@@ -166,9 +168,9 @@ export default function Profile() {
       anchor.download = 'personal-data.json';
       anchor.click();
       URL.revokeObjectURL(url);
-      toast.success('個人資料已匯出');
+      toast.success(t('profileExportSuccess'));
     } catch (err) {
-      toast.error('個人資料匯出失敗', {
+      toast.error(t('profileExportError'), {
         description: err instanceof Error ? err.message : t('retryLater'),
       });
     } finally {
@@ -180,7 +182,7 @@ export default function Profile() {
     <div className="min-h-screen bg-background px-4 py-12 text-foreground transition-colors duration-300 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl space-y-6">
         <motion.div
-          className="overflow-hidden rounded-md border border-border bg-card shadow-[0_18px_45px_-38px_rgba(28,28,26,0.45)]"
+          className="overflow-hidden rounded-md border border-border bg-card"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
@@ -211,6 +213,16 @@ export default function Profile() {
               <div className="text-muted-foreground">{t('profileNotFound')}</div>
             ) : (
               <>
+                <section aria-labelledby="profile-workspace-title" className="space-y-3">
+                  <h2 id="profile-workspace-title" className="text-lg font-semibold">{t('navWorkspace')}</h2>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {[
+                      ['/virtual-gallery/my-exhibitions', 'myExhibitions'],
+                      ['/graduation', 'navClasses'],
+                      ['/cv', 'navCv'],
+                    ].map(([path, label]) => <Link key={path} to={path} className="flex min-h-14 items-center justify-center rounded-md border border-border px-3 py-3 text-center text-sm font-medium hover:bg-secondary">{t(label)}</Link>)}
+                  </div>
+                </section>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <div className="rounded-md border border-border bg-secondary p-5">
                     <div className="text-xs text-muted-foreground">{t('name')}</div>
@@ -312,12 +324,12 @@ export default function Profile() {
 
                 {/* 刪除帳號 */}
                 <div className="border-t border-border pt-6">
-                  <h2 className="mb-3 text-lg font-semibold text-foreground">匯出個人資料</h2>
+                  <h2 className="mb-3 text-lg font-semibold text-foreground">{t('profileExportTitle')}</h2>
                   <p className="mb-3 text-sm text-muted-foreground">
-                    下載帳戶、展覽、作品及活動紀錄的 JSON 副本；檔案不包含密碼或分享密鑰。
+                    {t('profileExportDescription')}
                   </p>
                   <Button type="button" variant="outline" disabled={exporting} onClick={handleExportData}>
-                    {exporting ? '正在準備資料…' : '下載我的資料'}
+                    {t(exporting ? 'profileExportWorking' : 'profileExportAction')}
                   </Button>
                 </div>
 

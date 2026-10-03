@@ -16,10 +16,39 @@ const ITEM_TYPES = [
   'plant',
   'column',
   'neon',
+  'chair',
+  'sofa',
+  'floorlamp',
+  'cabinet',
+  'turntable',
+  'fountain',
 ];
 
 const WALL_MATERIAL_PRESETS = ['paint', 'concrete', 'metal', 'wood', 'glass'];
+const PAINTING_FRAME_STYLES = ['modern', 'classic', 'natural', 'metal', 'floating', 'borderless'];
 const FLOOR_PLAN_TYPES = ['room', 'wall'];
+
+const sourceUrlSchema = z.string().max(1000).refine((value) => {
+  try {
+    if (!/^https?:\/\//i.test(value)) return false;
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}, 'source URL must use http or https');
+
+export const exhibitWorkContextSchema = z.object({
+  contribution: z.string().max(2000).optional(),
+  process: z.string().max(2000).optional(),
+  outcome: z.string().max(2000).optional(),
+  reflection: z.string().max(2000).optional(),
+  sources: z.array(z.object({
+    label: z.string().trim().min(1).max(200),
+    url: sourceUrlSchema.optional(),
+    excerpt: z.string().max(2000).optional(),
+  }).strict()).max(5).optional(),
+}).strict();
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -71,10 +100,21 @@ export const exhibitItemSchema = z.object({
   videoMuted: z.boolean().optional(),
   frameWidth: z.number().positive().optional(),
   frameHeight: z.number().positive().optional(),
+  imageAspectRatio: z.number().positive().optional(),
+  frameStyle: z.enum(PAINTING_FRAME_STYLES).optional(),
+  frameColor: z.string().optional(),
+  frameInnerColor: z.string().optional(),
+  frameThickness: z.number().min(0.02).max(0.3).optional(),
+  frameDepth: z.number().min(0.02).max(0.2).optional(),
+  frameMatEnabled: z.boolean().optional(),
+  frameMatColor: z.string().optional(),
+  frameMatWidth: z.number().min(0).max(0.35).optional(),
+  frameGlassEnabled: z.boolean().optional(),
   modelOffset: vec3Schema('modelOffset').optional(),
   title: z.string().optional(),
   artist: z.string().optional(),
   description: z.string().optional(),
+  workContext: exhibitWorkContextSchema.optional(),
   externalUrl: z.string().optional(),
   textFontFamily: z.enum(['sans', 'serif', 'mono']).optional(),
   textColor: z.string().optional(),
@@ -127,3 +167,24 @@ export const sceneSnapshotSchema = z.object({
 export function sanitizeSceneSnapshot(scene) {
   return sceneSnapshotSchema.parse(scene);
 }
+
+// Validate saved editor snapshots without applying AI normalization or dropping
+// legacy/extension fields. A null room is valid while drawing a floor plan.
+export const persistentSceneSchema = sceneSnapshotSchema.extend({
+  roomSize: roomSizeSchema.extend({
+    width: z.number().positive().max(100_000),
+    length: z.number().positive().max(100_000),
+    height: z.number().positive().max(100_000),
+    wallThickness: z.number().positive().max(1_000),
+  }).nullable(),
+  items: z.array(exhibitItemSchema).max(500),
+  floorPlanElements: z.array(floorPlanElementSchema).max(500).optional(),
+}).superRefine((scene, context) => {
+  for (const field of ['items', 'floorPlanElements']) {
+    const ids = new Set();
+    for (const item of scene[field] ?? []) {
+      if (ids.has(item.id)) context.addIssue({ code: 'custom', path: [field], message: 'duplicate item id' });
+      ids.add(item.id);
+    }
+  }
+});

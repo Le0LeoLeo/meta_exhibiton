@@ -7,6 +7,7 @@ export type VisitorMemoryPayload = {
   dwellSecondsByExhibit?: Record<string, number>;
   preferredPersonality?: 'xiaobai' | 'expert' | 'humor';
   preferredLanguage?: string;
+  lastRecommendedExhibitId?: string | null;
 };
 
 export type VisitorMemoryResponse = {
@@ -18,6 +19,7 @@ export type VisitorMemoryResponse = {
   dwellSecondsByExhibit: Record<string, number>;
   preferredPersonality: string;
   preferredLanguage: string;
+  lastRecommendedExhibitId: string | null;
   updatedAt: string;
 };
 

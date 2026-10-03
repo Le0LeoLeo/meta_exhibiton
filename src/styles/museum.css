@@ -1,0 +1,55 @@
+/* Shared museum typography and surfaces. Canvas tools retain compact UI type. */
+.museum-pages main h1,.museum-pages main h2 { font-family: var(--home-serif); font-weight: 500; text-wrap: balance; }
+.museum-pages main h1 { letter-spacing: -.035em; line-height: 1.35; }
+.museum-pages .editor-shell :is(h1,h2) { font-family: var(--font-sans-ui); }
+.museum-pages main [data-slot="card"] { box-shadow: none; }
+.museum-page-heading { max-width: 1240px; margin: auto; padding: 64px 32px 48px; text-align: left; }
+.museum-page-heading h1 { font-size: clamp(36px,4.5vw,64px); margin: 16px 0 24px; }
+.museum-page-heading>p { max-width: 42em; margin-left: 0; line-height: 1.9; }
+.museum-page-heading>div:first-child:not(:has(h1)) { border: 0; background: none; padding: 0; border-radius: 0; }
+.museum-page-heading>.flex { justify-content: flex-start; }
+.museum-page-heading>form { max-width: 640px; }
+.museum-page-heading>div.mx-auto { margin-left: 0; }
+.museum-list { max-width: 1240px; margin: auto; padding: 40px 32px 64px; }
+.museum-list-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding-bottom: 22px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+.museum-list-heading h2 { font-size: 27px; }
+.museum-exhibition-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 40px 28px; }
+.museum-exhibition-card { display: block; min-width: 0; text-align: left; }
+.museum-exhibition-card .museum-cover { aspect-ratio: 4/3; background: var(--secondary); overflow: hidden; }
+.museum-cover>img { width: 100%; height: 100%; object-fit: contain; }
+.museum-exhibition-card h3 { font: 500 26px/1.5 var(--home-serif); margin: 12px 0; overflow-wrap: anywhere; }
+.museum-exhibition-card:hover h3 { text-decoration: underline; text-underline-offset: 6px; }
+.museum-exhibition-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; font-size: 12px; color: var(--muted-foreground); }
+.museum-exhibition-meta:last-child { border-top: 1px solid var(--border); padding-top: 16px; }
+.museum-empty { padding: 42px 24px; border-bottom: 1px solid var(--border); text-align: center; }
+.museum-callout { border-top: 1px solid var(--border); margin-top: 56px; padding-top: 12px; }
+.museum-auth-layout { max-width: 1100px; padding: 72px 32px; margin: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12%; align-items: start; }
+.museum-auth-aside { padding-top: 32px; }
+.museum-auth-aside h2 { font-size: clamp(36px,4vw,56px); line-height: 1.45; margin: 26px 0; }
+.museum-auth-aside>p:not(.home-eyebrow) { color: var(--muted-foreground); line-height: 1.9; }
+.museum-auth-aside>a { margin-top: 30px; }
+.museum-auth-form>div { border: 0; border-left: 1px solid var(--border); border-radius: 0; padding: 24px 0 24px 40px; background: transparent; }
+.museum-auth-form .text-center { text-align: left; }
+.museum-auth-form h1 { font-size: 34px; }
+.museum-auth-form input:not([type="checkbox"]) { min-height: 44px; }
+.museum-auth-form [type="submit"] { min-height: 48px; }
+.museum-template-features { border-top: 1px solid var(--border); padding: 32px 0; background: transparent; border-radius: 0; border-right: 0; border-bottom: 0; border-left: 0; }
+.museum-workspace-heading { border-bottom: 1px solid var(--border); padding-bottom: 28px; margin-bottom: 32px; }
+.museum-workspace-heading h1 { font-size: clamp(30px,3.5vw,46px); }
+[data-slot="dialog-content"],[data-slot="alert-dialog-content"],[data-slot="popover-content"],[data-slot="dropdown-menu-content"] { font-family: var(--font-sans-ui); }
+@media(max-width:900px) { .museum-exhibition-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .museum-auth-layout { gap: 6%; } }
+@media(max-width:650px) {
+ .museum-page-heading { padding: 38px 24px 32px; }
+ .museum-page-heading h1 { font-size: 38px; }
+ .museum-page-heading>p { font-size: 16px; }
+ .museum-list { padding: 28px 24px 44px; }
+ .museum-exhibition-grid { grid-template-columns: 1fr; gap: 36px; }
+ .museum-list-heading { gap: 12px; }
+ .museum-list-heading h2 { font-size: 24px; }
+ .museum-auth-layout { display: block; padding: 36px 24px; }
+ .museum-auth-aside { padding: 0 0 26px; border-bottom: 1px solid var(--border); }
+ .museum-auth-aside h2 { font-size: 28px; margin: 12px 0; }
+ .museum-auth-aside>a { margin-top: 12px; }
+ .museum-auth-form>div { border: 0; padding: 30px 0 0; }
+ .museum-auth-form h1 { font-size: 30px; }
+}

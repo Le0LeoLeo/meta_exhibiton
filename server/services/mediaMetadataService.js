@@ -93,7 +93,7 @@ async function reencodeRasterImage(buffer, detected, options) {
     sequentialRead: true,
   });
   const metadata = await pipeline.metadata();
-  const expectedFormat = detected.mimeType === 'image/png' ? 'png' : 'webp';
+  const expectedFormat = detected.mimeType.slice('image/'.length);
 
   if (metadata.format !== expectedFormat || !metadata.width || !metadata.height) {
     throw new Error('image decoder rejected the content');
@@ -106,9 +106,16 @@ async function reencodeRasterImage(buffer, detected, options) {
     throw new Error('image pixel count exceeds the limit');
   }
 
-  const encoder = detected.mimeType === 'image/png'
-    ? pipeline.png({ compressionLevel: 9 })
-    : pipeline.webp({ lossless: true, alphaQuality: 100, exact: true, effort: 4 });
+  // Apply EXIF rotation/reflection to pixels before the encoder strips metadata.
+  pipeline.autoOrient();
+  let encoder;
+  if (detected.mimeType === 'image/jpeg') {
+    encoder = pipeline.jpeg({ quality: 90, chromaSubsampling: '4:4:4' });
+  } else if (detected.mimeType === 'image/png') {
+    encoder = pipeline.png({ compressionLevel: 9 });
+  } else {
+    encoder = pipeline.webp({ lossless: true, alphaQuality: 100, exact: true, effort: 4 });
+  }
   const { data, info } = await encoder.toBuffer({ resolveWithObject: true });
 
   return {
@@ -198,19 +205,7 @@ export function stripJpegApp1Segments(buffer) {
 
 export async function planImageMetadataSanitization(buffer, claimedMimeType, options = {}) {
   const detected = validateImageMedia(buffer, claimedMimeType);
-
-  if (detected.mimeType !== 'image/jpeg') {
-    return reencodeRasterImage(buffer, detected, options);
-  }
-
-  const cleaned = stripJpegApp1Segments(buffer);
-  return {
-    action: 'app1-stripped',
-    mimeType: detected.mimeType,
-    extension: detected.extension,
-    removedApp1: cleaned.length !== buffer.length,
-    buffer: cleaned,
-  };
+  return reencodeRasterImage(buffer, detected, options);
 }
 import sharp from 'sharp';
 

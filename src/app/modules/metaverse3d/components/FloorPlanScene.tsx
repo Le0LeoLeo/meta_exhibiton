@@ -154,9 +154,10 @@ export function FloorPlanScene() {
   }, [roomBounds]);
 
   const autoDoors = useMemo(() => {
-    const topology = buildWallTopology(roomBounds, 6, 0.1, center);
+    // This group already applies the floor-plan center translation.
+    const topology = buildWallTopology(roomBounds, 6, 0.1, { x: 0, z: 0 });
     return topology.doorOpenings;
-  }, [roomBounds, center]);
+  }, [roomBounds]);
 
   return (
     <group position={[-center.x, 0, -center.z]}>
@@ -220,11 +221,11 @@ export function FloorPlanScene() {
 
       {autoDoors.map((door) => (
         <group key={door.id} position={door.position} rotation={[0, door.rotationY, 0]}>
-          <mesh position={[door.rotationY === 0 ? door.offset : 0, 0, door.rotationY === 0 ? 0 : door.offset]}>
+          <mesh position={[0, 0, 0]}>
             <boxGeometry args={[door.width, 0.03, 0.14]} />
             <meshStandardMaterial color="#d97706" />
           </mesh>
-          <mesh position={[door.rotationY === 0 ? door.offset : 0, 0.04, door.rotationY === 0 ? 0 : door.offset]}>
+          <mesh position={[0, 0.04, 0]}>
             <torusGeometry args={[Math.max(0.18, door.width * 0.23), 0.07, 12, 20, Math.PI]} />
             <meshStandardMaterial color="#d97706" />
           </mesh>

@@ -10,15 +10,15 @@ const text = {
   warmMemory: "\u6eab\u6696\u56de\u61b6",
   professionalGallery: "\u5c08\u696d\u5c55\u89bd",
   generate: "\u751f\u6210\u7b56\u5c55\u65b9\u6848",
-  generating: "\u6b63\u5728\u6574\u7406\u4f60\u7684\u7b56\u5c55\u65b9\u5411\uff0c\u5148\u4e0d\u6703\u6539\u52d5\u76ee\u524d\u5c55\u5834\u3002",
+  generating: "正在依主題整理策展文字草稿，目前不會改動展場。",
   preserveExisting: "\u4fdd\u7559\u73fe\u6709\u5c55\u54c1",
-  preserveWarning: "\u6703\u5148\u4fdd\u7559\u4f60\u73fe\u6709\u7684\u5c55\u54c1\u8cc7\u6599\uff0c\u518d\u6839\u64da\u65b0\u7684\u7b56\u5c55\u65b9\u5411\u6574\u7406\u5c55\u793a\u4f4d\u7f6e\u548c\u8aaa\u660e\u3002",
-  preserveDetail: "\u6703\u4fdd\u7559\uff1a\u5df2\u4e0a\u50b3\u5a92\u9ad4\u3001\u73fe\u6709\u5c55\u54c1\u8cc7\u6599\u3002",
-  changeDetail: "\u6703\u6574\u7406\uff1a\u5c55\u5340\u7bc0\u594f\u3001\u6587\u5b57\u8aaa\u660e\u3001\u71c8\u5149\u8207\u5c55\u793a\u4f4d\u7f6e\u3002",
+  preserveWarning: "保留現有展品及原來位置，另外加入 AI 草稿的展區文字、示例展品文字和燈光；請檢查是否與現有展品重疊。",
+  preserveDetail: "保留：現有展品、已上傳媒體的引用及目前位置。",
+  changeDetail: "新增：標題、展區與示例展品文字及燈光。AI 不會自動重排現有作品。",
   applyToScene: "\u5957\u7528\u5230\u5c55\u5ef3",
   confirmApply: "\u78ba\u8a8d\u5957\u7528",
   title: "\u6fb3\u9580\u975e\u907a\u6587\u5316\u5c55",
-  counts: "1 \u500b\u5c55\u5340 / 1 \u4ef6\u5c55\u54c1",
+  counts: "1 個展區 / 1 則示例展品文字",
   unchangedError: "\u9019\u6b21\u6c92\u6709\u6210\u529f\u751f\u6210\u8a08\u5283\u3002\u4f60\u7684\u5c55\u5834\u4ecd\u7136\u4fdd\u6301\u539f\u72c0\uff0c\u53ef\u4ee5\u7a0d\u5f8c\u91cd\u8a66\u3002",
 };
 
@@ -135,6 +135,8 @@ describe("AiCuratorPanel", () => {
     );
 
     expect(screen.getByLabelText(text.intent)).toHaveValue("warm-memory");
+    expect(screen.getByLabelText(text.preserveExisting)).toBeChecked();
+    expect(screen.getByText("目前依你輸入的主題與偏好產生策展文字草稿；不會讀取或分析現有展品的內容。")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: text.warmMemory })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(text.intent), {
       target: { value: "professional-gallery" },
@@ -143,7 +145,6 @@ describe("AiCuratorPanel", () => {
     fireEvent.change(screen.getByLabelText(text.theme), {
       target: { value: text.title },
     });
-    fireEvent.click(screen.getByLabelText(text.preserveExisting));
     fireEvent.click(screen.getByRole("button", { name: text.generate }));
     expect(await screen.findByRole("button", { name: text.generating })).toBeDisabled();
     act(() => {
@@ -198,5 +199,29 @@ describe("AiCuratorPanel", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("network failed");
     });
     expect(importScene).not.toHaveBeenCalled();
+  });
+
+  it("requires an explicit replacement choice and confirmation before removing existing artwork", async () => {
+    const importScene = vi.fn();
+    render(
+      <AiCuratorPanel
+        token="token-1"
+        currentScene={currentScene}
+        importScene={importScene}
+        requestCuratorPlan={vi.fn().mockResolvedValue(plan)}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(text.theme), { target: { value: text.title } });
+    fireEvent.click(screen.getByRole("button", { name: text.generate }));
+    await screen.findByText(plan.exhibition.introduction);
+    fireEvent.click(screen.getByLabelText("重建展廳"));
+    fireEvent.click(screen.getByRole("button", { name: text.applyToScene }));
+
+    expect(screen.getByText(/現有展品將從場景移除/)).toBeInTheDocument();
+    expect(importScene).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: text.confirmApply }));
+    expect(importScene).toHaveBeenCalledTimes(1);
+    expect(importScene.mock.calls[0][0].items.some((item: { id: string }) => item.id === "existing-painting")).toBe(false);
   });
 });

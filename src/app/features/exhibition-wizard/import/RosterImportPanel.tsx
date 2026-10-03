@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useI18n } from "@/app/components/I18nProvider";
 
 import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
 import { Button } from "@/app/components/ui/button";
@@ -48,6 +49,7 @@ export function RosterImportPanel({
   onImport,
   className,
 }: RosterImportPanelProps) {
+  const { t } = useI18n();
   const inputId = useId();
   const helpId = useId();
   const [fileName, setFileName] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export function RosterImportPanel({
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result !== "string") {
-        setReadError("無法讀取此 CSV 檔案，請重新選擇檔案。");
+        setReadError("wizardImportReadRetry");
         setIsReading(false);
         return;
       }
@@ -88,7 +90,7 @@ export function RosterImportPanel({
       setIsReading(false);
     };
     reader.onerror = () => {
-      setReadError("無法讀取此 CSV 檔案，請檢查檔案後再試。");
+      setReadError("wizardImportReadFailed");
       setIsReading(false);
     };
     reader.readAsText(file, "UTF-8");
@@ -97,15 +99,15 @@ export function RosterImportPanel({
   return (
     <Card data-slot="roster-import-panel" className={cn("gap-4", className)}>
       <CardHeader className="px-4 pt-4 sm:px-6 sm:pt-6">
-        <CardTitle>匯入學生作品資料</CardTitle>
+        <CardTitle>{t('wizardImportTitle')}</CardTitle>
         <CardDescription id={helpId}>
-          選擇 UTF-8 CSV；Excel 資料可由上層解碼後傳入。必填欄位為學生編號、作品名稱和檔案名稱。
+          {t('wizardImportHelp')}
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4 px-4 sm:px-6">
         <div className="space-y-2">
-          <Label htmlFor={inputId}>CSV 檔案</Label>
+          <Label htmlFor={inputId}>{t('wizardImportFile')}</Label>
           <Input
             id={inputId}
             type="file"
@@ -114,37 +116,38 @@ export function RosterImportPanel({
             onChange={handleFileChange}
             className="h-11 cursor-pointer py-1.5 file:mr-3"
           />
-          {fileName ? <p className="text-sm text-muted-foreground">已選擇：{fileName}</p> : null}
+          {fileName ? <p className="text-sm text-muted-foreground">{t('wizardImportSelected', { fileName })}</p> : null}
         </div>
 
         <div className="min-h-6 text-sm" aria-live="polite" aria-atomic="true">
-          {isReading ? <p>正在讀取檔案…</p> : null}
+          {isReading ? <p>{t('wizardImportReading')}</p> : null}
           {!isReading && result ? (
             <p>
-              已解析 <strong>{result.rows.length}</strong> 筆可預覽資料
-              {result.errors.length > 0 ? `，發現 ${result.errors.length} 項錯誤` : "，資料格式正確"}。
+              {t(result.errors.length > 0 ? 'wizardImportParsedErrors' : 'wizardImportParsedValid', { count: result.rows.length, errors: result.errors.length })}
             </p>
           ) : null}
         </div>
 
         {readError ? (
           <Alert variant="destructive">
-            <AlertTitle>檔案讀取失敗</AlertTitle>
-            <AlertDescription>{readError}</AlertDescription>
+            <AlertTitle>{t('wizardImportReadTitle')}</AlertTitle>
+            <AlertDescription>{t(readError)}</AlertDescription>
           </Alert>
         ) : null}
 
         {result && result.errors.length > 0 ? (
           <Alert variant="destructive">
-            <AlertTitle>請修正匯入資料</AlertTitle>
+            <AlertTitle>{t('wizardImportFixTitle')}</AlertTitle>
             <AlertDescription>
               <ul className="list-disc space-y-1 pl-5">
                 {result.errors.map((error, index) => (
                   <li key={`${error.code}-${error.row ?? "none"}-${error.column ?? "none"}-${index}`}>
-                    <span className="font-medium">{error.code}</span>
-                    {error.row ? `（第 ${error.row} 列）` : ""}
-                    {error.column ? `（第 ${error.column} 欄）` : ""}
-                    {error.field ? `［${error.field}］` : ""}：{error.message}
+                    {t(`wizardImportError_${error.code}`, {
+                      field: error.field ? t(`wizardImportField_${error.field}`) : '',
+                      relatedRow: error.relatedRow ?? '',
+                    })}
+                    {error.row ? t('wizardImportRow', { row: error.row }) : ''}
+                    {error.column ? t('wizardImportColumn', { column: error.column }) : ''}
                   </li>
                 ))}
               </ul>
@@ -155,19 +158,19 @@ export function RosterImportPanel({
         {previewRows.length > 0 ? (
           <section aria-labelledby={`${inputId}-preview`} className="space-y-2">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 id={`${inputId}-preview`} className="font-medium">資料預覽</h3>
+              <h3 id={`${inputId}-preview`} className="font-medium">{t('wizardImportPreview')}</h3>
               <p className="text-sm text-muted-foreground">
-                顯示前 {previewRows.length} 筆，共 {result?.rows.length ?? 0} 筆
+                {t('wizardImportPreviewCount', { visible: previewRows.length, total: result?.rows.length ?? 0 })}
               </p>
             </div>
             <div className="rounded-md border border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>學生編號</TableHead>
-                    <TableHead>作品名稱</TableHead>
-                    <TableHead>作者</TableHead>
-                    <TableHead>檔案名稱</TableHead>
+                    <TableHead>{t('wizardImportField_studentCode')}</TableHead>
+                    <TableHead>{t('wizardImportField_workTitle')}</TableHead>
+                    <TableHead>{t('wizardImportField_authorDisplayName')}</TableHead>
+                    <TableHead>{t('wizardImportField_fileName')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -196,7 +199,7 @@ export function RosterImportPanel({
             if (canImport && result) onImport(result.rows);
           }}
         >
-          匯入 {canImport ? result?.rows.length : 0} 筆資料
+          {t('wizardImportSubmit', { count: canImport ? result?.rows.length ?? 0 : 0 })}
         </Button>
       </CardFooter>
     </Card>

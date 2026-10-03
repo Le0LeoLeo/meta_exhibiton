@@ -141,6 +141,28 @@ describe('validateSecurityEnv', () => {
     }
   });
 
+  it('accepts one Google web client ID for both the browser and backend verifier', () => {
+    const clientId = '1234567890-example_web_client.apps.googleusercontent.com';
+
+    expect(validateSecurityEnv({
+      ...secureProductionEnv,
+      GOOGLE_CLIENT_ID: ` ${clientId} `,
+      VITE_GOOGLE_CLIENT_ID: clientId,
+    }).GOOGLE_CLIENT_ID).toBe(clientId);
+  });
+
+  it('rejects malformed or mismatched Google client IDs', () => {
+    expect(() => validateSecurityEnv({
+      ...secureProductionEnv,
+      GOOGLE_CLIENT_ID: 'not-a-google-client-id',
+    })).toThrow(/GOOGLE_CLIENT_ID/);
+    expect(() => validateSecurityEnv({
+      ...secureProductionEnv,
+      GOOGLE_CLIENT_ID: '123-first.apps.googleusercontent.com',
+      VITE_GOOGLE_CLIENT_ID: '456-second.apps.googleusercontent.com',
+    })).toThrow(/match/);
+  });
+
   it.each([
     [
       'the exact .env.example admin placeholder',

@@ -7,6 +7,7 @@ const saveMemorySchema = z.object({
   dwellSecondsByExhibit: z.record(z.string(), z.number().min(0)).optional().default({}),
   preferredPersonality: z.enum(['xiaobai', 'expert', 'humor']).optional().default('xiaobai'),
   preferredLanguage: z.string().max(20).optional().default('zh-TW'),
+  lastRecommendedExhibitId: z.string().trim().min(1).max(200).nullable().optional().default(null),
 });
 
 const noRateLimit = (_req, _res, next) => next();
@@ -74,6 +75,7 @@ export function registerVisitorMemoryRoutes(app, deps = {}) {
         dwellSecondsByExhibit: data.dwellSecondsByExhibit,
         preferredPersonality: data.preferredPersonality,
         preferredLanguage: data.preferredLanguage,
+        lastRecommendedExhibitId: data.lastRecommendedExhibitId,
       });
 
       res.json({ ok: true });

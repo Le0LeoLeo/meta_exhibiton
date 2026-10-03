@@ -13,9 +13,9 @@ export function FloorPlanStatusPanel({ roomCount, wallCount, selectedElementExis
   const isDirty = undoCount > 0;
 
   return (
-    <div className="rounded-xl bg-[rgba(255,255,255,0.2)] p-3 text-xs leading-relaxed text-white">
+    <div className="floorplan-section text-xs leading-relaxed text-white">
       <p className="mb-1 font-semibold text-white">{t("floorPlanSyncStatus")}</p>
-      <div className="grid grid-cols-2 gap-2 text-[11px]">
+      <div className="floorplan-status-grid grid grid-cols-2 gap-2 text-xs">
         <div className="rounded-lg border border-[rgba(184,230,254,1)] bg-[rgba(255,255,255,0.3)] p-2">
           <div className="font-semibold text-white">{t("floorPlanRoom")}</div>
           <div>{t("floorPlanCount", { count: roomCount })}</div>
@@ -33,7 +33,7 @@ export function FloorPlanStatusPanel({ roomCount, wallCount, selectedElementExis
           <div>{undoCount} / {redoCount}</div>
         </div>
       </div>
-      <div className="mt-3 rounded-lg border border-[rgba(184,230,254,1)] bg-[rgba(255,255,255,0.3)] px-3 py-2 text-[11px] text-white">
+      <div className="floorplan-status-message mt-3 rounded-lg px-3 py-2 text-xs text-slate-200" role="status">
         {isDirty ? t("floorPlanDirtyHint") : t("floorPlanCleanHint")}
       </div>
     </div>

@@ -6,7 +6,7 @@ import {
   updateRemoteAvatarMotion,
 } from "./remotePlayerAppearance";
 import { DEFAULT_AVATAR_APPEARANCE } from "../../avatar/avatarAppearance";
-import { DEFAULT_EYE_HEIGHT } from "../../sceneScale";
+import { getAvatarEyeHeight } from "../../avatar/avatarEyeHeight";
 
 describe("remote player appearance", () => {
   it("assigns a stable palette from the player seed", () => {
@@ -66,6 +66,28 @@ describe("remote player appearance", () => {
     expect(pose.lean).toBe(-0.07);
   });
 
+  it("smoothly blends into a still sitting pose", () => {
+    const pose = updateRemoteAvatarMotion(
+      {
+        armSwing: 1,
+        legSwing: 1,
+        bob: 1,
+        lean: 1,
+        sittingBlend: 0,
+      },
+      0.2,
+      2,
+      true,
+      1 / 30,
+    );
+
+    expect(pose.armSwing).toBe(0);
+    expect(pose.legSwing).toBe(0);
+    expect(pose.bob).toBe(0);
+    expect(pose.sittingBlend).toBeGreaterThan(0);
+    expect(pose.sittingBlend).toBeLessThan(1);
+  });
+
   it.each([-3, Number.NaN])("treats invalid speed %s as idle", (speed) => {
     const pose = updateRemoteAvatarMotion(
       { armSwing: 1, legSwing: 1, bob: 1, lean: 1 },
@@ -82,15 +104,31 @@ describe("remote player appearance", () => {
   });
 
   it("converts eye-origin network coordinates to a feet-origin model transform", () => {
+    const eyeHeight = getAvatarEyeHeight(DEFAULT_AVATAR_APPEARANCE);
     const transform = getRemotePlayerTransform({
-      renderPosition: { x: 3, y: DEFAULT_EYE_HEIGHT + 0.4, z: -5 },
+      renderPosition: { x: 3, y: eyeHeight + 0.4, z: -5 },
       renderYaw: Math.PI / 3,
+      appearance: DEFAULT_AVATAR_APPEARANCE,
     });
 
     expect(transform.position[0]).toBe(3);
     expect(transform.position[1]).toBeCloseTo(0.4);
     expect(transform.position[2]).toBe(-5);
-    expect(transform.rotation).toEqual([0, Math.PI / 3, 0]);
+    expect(transform.rotation).toEqual([0, Math.PI / 3 + Math.PI, 0]);
+  });
+
+  it("rotates the model 180 degrees from the camera yaw", () => {
+    const transform = getRemotePlayerTransform({
+      renderPosition: {
+        x: 0,
+        y: getAvatarEyeHeight(DEFAULT_AVATAR_APPEARANCE),
+        z: 0,
+      },
+      renderYaw: 0,
+      appearance: DEFAULT_AVATAR_APPEARANCE,
+    });
+
+    expect(transform.rotation).toEqual([0, Math.PI, 0]);
   });
 
   it("changes the boundary reset key when any appearance selection changes", () => {

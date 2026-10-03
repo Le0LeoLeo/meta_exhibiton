@@ -1,8 +1,9 @@
 import { ReactNode, RefObject } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useI18n } from "../../../../components/I18nProvider";
 
 type Props = {
-  workspaceRef?: RefObject<HTMLDivElement | null>;
+  workspaceRef?: RefObject<HTMLDivElement>;
   glassPanelClass: string;
   glassButtonClass: string;
   glassInputClass: string;
@@ -20,19 +21,19 @@ export function EditorWorkspacePanel({ workspaceRef, glassPanelClass, glassButto
   return (
     <div
       ref={workspaceRef}
+      data-collapsed={isSettingsPanelCollapsed}
       style={{ maxHeight: "calc(100dvh - var(--top-bar-height, 6rem) - 1rem)", top: "calc(var(--top-bar-height, 6rem) + 0.75rem)" }}
-      className={`absolute left-[5.2rem] rounded-[1.5rem] pointer-events-auto transition-all duration-200 z-20 sm:left-24 sm:rounded-[1.75rem] overflow-y-auto text-white ${glassPanelClass} ${isModelLibraryOpen && !isSettingsPanelCollapsed ? "sm:left-[18.5rem]" : ""} ${className ?? ""} ${isSettingsPanelCollapsed ? "w-12 overflow-hidden p-2 sm:w-14 sm:p-2.5" : "w-[17.5rem] p-3 sm:w-[20rem] sm:p-4 lg:w-[22rem] xl:w-[23rem]"}`}
+      className={`editor-workspace absolute pointer-events-auto z-20 overflow-y-auto text-white ${glassPanelClass} ${isModelLibraryOpen ? "invisible" : ""} ${className ?? ""}`}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className={`${isSettingsPanelCollapsed ? "" : "editor-panel-heading mb-4"} flex items-center justify-between gap-2`}>
         {!isSettingsPanelCollapsed ? (
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/65">Workspace</p>
             <h3 className="text-sm font-semibold text-white">{t('editorWorkspaceTitle')}</h3>
             <p className="mt-0.5 text-[11px] text-white/70">{t('editorWorkspaceDesc')}</p>
           </div>
-        ) : <div className="h-6" />}
-        <button onClick={() => { setIsSettingsPanelCollapsed((prev) => !prev); setIsModelLibraryOpen(false); }} title={isSettingsPanelCollapsed ? t('editorExpandSettings') : t('editorCollapseSettings')} className={`flex h-7 w-7 items-center justify-center rounded-xl text-sm text-white/90 transition-colors ${glassButtonClass}`}>
-          {isSettingsPanelCollapsed ? "▶" : "◀"}
+        ) : null}
+        <button onClick={() => { setIsSettingsPanelCollapsed((prev) => !prev); setIsModelLibraryOpen(false); }} aria-expanded={!isSettingsPanelCollapsed} aria-label={isSettingsPanelCollapsed ? t('editorExpandSettings') : t('editorCollapseSettings')} title={isSettingsPanelCollapsed ? t('editorExpandSettings') : t('editorCollapseSettings')} className={`flex min-w-9 shrink-0 items-center justify-center rounded-lg text-sm text-white/90 ${glassButtonClass}`}>
+          {isSettingsPanelCollapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
         </button>
       </div>
       {!isSettingsPanelCollapsed && children}

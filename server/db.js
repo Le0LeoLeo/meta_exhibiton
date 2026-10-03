@@ -1,13 +1,21 @@
+import { JOURNEY_SCHEMA } from './services/journeyAnalytics.js';
+import { EMAIL_VERIFICATION_SCHEMA } from './services/emailVerificationService.js';
+import { PASSWORD_RESET_SCHEMA } from './services/passwordResetService.js';
+import { listPublishedGalleryRows } from './repositories/publicGalleryRepository.js';
+import { listOwnerGalleryRows } from './repositories/ownerGalleryRepository.js';
 import sqlite3 from 'sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
-import { initCompetitionEntrySchema } from './dbMigrations.js';
 import { checkDatabaseReadiness } from './readiness.js';
-import { getStatement, runStatement } from './repositories/sqliteHelpers.js';
+import { runStatement } from './repositories/sqliteHelpers.js';
 import * as userRepository from './repositories/userRepository.js';
 import * as mediaRepository from './repositories/mediaRepository.js';
+import { QUICK_EXHIBITION_SCHEMA } from './repositories/quickExhibitionRepository.js';
+import { GALLERY_ANALYTICS_SCHEMA } from './repositories/galleryAnalyticsRepository.js';
+import { BOX_SCHEMA } from './repositories/legacyBoxData.js';
+import { GALLERY_FOLDER_SCHEMA } from './repositories/galleryFolderRepository.js';
 
-const dbFile = path.join(process.cwd(), 'server', 'app.db');
+export const dbFile = path.join(process.cwd(), 'server', 'app.db');
 
 // 確保 server 資料夾存在（通常已存在）
 const dir = path.dirname(dbFile);
@@ -24,12 +32,11 @@ export function initDb(database = db) {
   const db = database;
   return new Promise((resolve, reject) => {
     let queueFinished = false;
-    let migrationFinished = false;
     let migrationError;
     let validationStarted = false;
 
     const finish = () => {
-      if (!queueFinished || !migrationFinished || validationStarted) return;
+      if (!queueFinished || validationStarted) return;
       if (migrationError) reject(migrationError);
       else {
         validationStarted = true;
@@ -53,6 +60,19 @@ export function initDb(database = db) {
       );
     `);
 
+    db.run('ALTER TABLE users ADD COLUMN email_verified_at TEXT', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column name')) migrationError ??= err;
+    });
+    db.run(JOURNEY_SCHEMA, (err) => { if (err) migrationError ??= err; });
+    db.run(EMAIL_VERIFICATION_SCHEMA, (err) => { if (err) migrationError ??= err; });
+    db.run(PASSWORD_RESET_SCHEMA, (err) => { if (err) migrationError ??= err; });
+
+    db.run('ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column name')) {
+        migrationError ??= new Error(`[db] failed to add session version: ${err.message}`, { cause: err });
+      }
+    });
+
     db.run('ALTER TABLE users ADD COLUMN avatar_appearance_json TEXT', (err) => {
       if (err && !String(err.message || '').includes('duplicate column name')) {
         migrationError ??= new Error(
@@ -61,6 +81,20 @@ export function initDb(database = db) {
         );
       }
     });
+
+    db.run('ALTER TABLE users ADD COLUMN google_subject TEXT', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column name')) {
+        migrationError ??= new Error(
+          `[db] failed to add Google subject column: ${err.message}`,
+          { cause: err },
+        );
+      }
+    });
+    db.run(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_subject
+       ON users(google_subject)
+       WHERE google_subject IS NOT NULL`,
+    );
 
     db.run(`
       CREATE TABLE IF NOT EXISTS galleries (
@@ -78,6 +112,9 @@ export function initDb(database = db) {
     `);
 
     db.run('CREATE INDEX IF NOT EXISTS idx_galleries_owner_id ON galleries(owner_id)');
+    db.run('ALTER TABLE galleries ADD COLUMN is_box INTEGER NOT NULL DEFAULT 0', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column name')) migrationError ??= err;
+    });
     db.run('CREATE INDEX IF NOT EXISTS idx_galleries_created_at ON galleries(created_at)');
 
     db.run(`
@@ -91,18 +128,73 @@ export function initDb(database = db) {
         size_bytes INTEGER NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
+        usage TEXT NOT NULL DEFAULT 'gallery',
         FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY(gallery_id) REFERENCES galleries(id) ON DELETE SET NULL
       );
     `);
 
+    db.run('ALTER TABLE media_assets ADD COLUMN library_retained INTEGER NOT NULL DEFAULT 0', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column name')) migrationError ??= err;
+    });
+    db.exec(BOX_SCHEMA, (err) => { if (err) migrationError ??= err; });
+    db.exec(GALLERY_FOLDER_SCHEMA, (err) => { if (err) migrationError ??= err; });
     db.run('CREATE INDEX IF NOT EXISTS idx_media_assets_owner_id ON media_assets(owner_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_media_assets_gallery_id ON media_assets(gallery_id)');
+    db.run("ALTER TABLE media_assets ADD COLUMN usage TEXT NOT NULL DEFAULT 'gallery'", (err) => {
+      if (err && !String(err.message || '').includes('duplicate column name')) {
+        migrationError ??= new Error(
+          `[db] failed to add media usage column: ${err.message}`,
+          { cause: err },
+        );
+      }
+    });
+
+    for (const column of ['width', 'height']) {
+      db.run(`ALTER TABLE media_assets ADD COLUMN ${column} INTEGER`, (err) => {
+        if (err && !String(err.message || '').includes('duplicate column name')) {
+          migrationError ??= new Error(`[db] failed to add media ${column}: ${err.message}`, { cause: err });
+        }
+      });
+    }
+    db.exec(QUICK_EXHIBITION_SCHEMA, (err) => {
+      if (err) migrationError ??= err;
+    });
+    db.exec(GALLERY_ANALYTICS_SCHEMA, (err) => {
+      if (err) migrationError ??= err;
+    });
+    for (const column of ['applied_input_json', 'applied_result_json', 'editor_managed_at']) {
+      db.run(`ALTER TABLE quick_exhibition_drafts ADD COLUMN ${column} TEXT`, (err) => {
+        if (err && !String(err.message || '').includes('duplicate column name')) {
+          migrationError ??= new Error(`[db] failed to add quick draft ${column}: ${err.message}`, { cause: err });
+        }
+      });
+    }
+    // Only ready/published rows still hold the exact applied input/result pair.
+    // An older candidate cannot recover omitted client IDs or prior settings.
+    db.run(`UPDATE quick_exhibition_drafts SET applied_input_json = input_json, applied_result_json = result_json
+      WHERE status IN ('ready', 'published') AND result_json IS NOT NULL
+        AND applied_input_json IS NULL AND applied_result_json IS NULL`, (err) => {
+      if (err) migrationError ??= err;
+    });
 
     db.run('ALTER TABLE galleries ADD COLUMN scene_json TEXT', (err) => {
       if (err && !String(err.message || '').includes('duplicate column name')) {
         console.error('[db] failed to add scene_json column:', err);
       }
+    });
+
+    db.run('ALTER TABLE galleries ADD COLUMN revision INTEGER NOT NULL DEFAULT 0', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column name')) {
+        migrationError ??= new Error(`[db] failed to add gallery revision: ${err.message}`, { cause: err });
+      }
+    });
+    // Cover every scene writer, including quick-exhibition transactions.
+    db.run(`CREATE TRIGGER IF NOT EXISTS gallery_content_revision
+      AFTER UPDATE OF scene_json, title, description, template_title, template_image, category ON galleries
+      WHEN NEW.revision = OLD.revision
+      BEGIN UPDATE galleries SET revision = OLD.revision + 1 WHERE id = NEW.id; END`, (err) => {
+      if (err) migrationError ??= err;
     });
 
     db.run('ALTER TABLE galleries ADD COLUMN share_token TEXT', (err) => {
@@ -135,46 +227,11 @@ export function initDb(database = db) {
       }
     });
 
-    db.run('ALTER TABLE galleries ADD COLUMN growth_enabled INTEGER NOT NULL DEFAULT 0', (err) => {
-      if (err && !String(err.message || '').includes('duplicate column name')) {
-        console.error('[db] failed to add growth_enabled column:', err);
-      }
-    });
-
-    db.run('ALTER TABLE galleries ADD COLUMN growth_public_share INTEGER NOT NULL DEFAULT 0', (err) => {
-      if (err && !String(err.message || '').includes('duplicate column name')) {
-        console.error('[db] failed to add growth_public_share column:', err);
-      }
-    });
-
-    db.run('ALTER TABLE galleries ADD COLUMN growth_gallery_3d INTEGER NOT NULL DEFAULT 0', (err) => {
-      if (err && !String(err.message || '').includes('duplicate column name')) {
-        console.error('[db] failed to add growth_gallery_3d column:', err);
-      }
-    });
-
     db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_galleries_share_token ON galleries(share_token)');
     db.run('CREATE INDEX IF NOT EXISTS idx_galleries_is_published ON galleries(is_published, published_at)');
-
-    db.run(`
-      CREATE TABLE IF NOT EXISTS gallery_upload_links (
-        id TEXT PRIMARY KEY,
-        gallery_id TEXT NOT NULL,
-        item_id TEXT NOT NULL,
-        upload_token TEXT NOT NULL UNIQUE,
-        can_edit_metadata INTEGER NOT NULL DEFAULT 0,
-        expires_at TEXT,
-        revoked_at TEXT,
-        created_by TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY(gallery_id) REFERENCES galleries(id) ON DELETE CASCADE,
-        FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
-      );
-    `);
-
-    db.run('CREATE INDEX IF NOT EXISTS idx_gallery_upload_links_gallery_id ON gallery_upload_links(gallery_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_gallery_upload_links_token ON gallery_upload_links(upload_token)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_galleries_public_page ON galleries(is_published, COALESCE(published_at, updated_at) DESC, id DESC)', (err) => {
+      if (err) migrationError ??= new Error(`[db] failed to index public gallery pages: ${err.message}`, { cause: err });
+    });
 
     db.run(`
       CREATE TABLE IF NOT EXISTS exhibit_comments (
@@ -189,138 +246,6 @@ export function initDb(database = db) {
     `);
 
     db.run('CREATE INDEX IF NOT EXISTS idx_exhibit_comments_gallery_item_id ON exhibit_comments(gallery_id, item_id)');
-
-    db.run(`
-      CREATE TABLE IF NOT EXISTS growth_children (
-        id TEXT PRIMARY KEY,
-        owner_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        birthday TEXT NOT NULL,
-        avatar_url TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
-      );
-    `);
-
-    db.run(`
-      CREATE TABLE IF NOT EXISTS growth_exhibits (
-        id TEXT PRIMARY KEY,
-        owner_id TEXT NOT NULL,
-        child_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        template_id TEXT NOT NULL,
-        intro_story TEXT NOT NULL,
-        is_private INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY(child_id) REFERENCES growth_children(id) ON DELETE CASCADE
-      );
-    `);
-
-    db.run('CREATE INDEX IF NOT EXISTS idx_growth_children_owner_id ON growth_children(owner_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_growth_exhibits_owner_id ON growth_exhibits(owner_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_growth_exhibits_child_id ON growth_exhibits(child_id)');
-
-    db.run('ALTER TABLE growth_exhibits ADD COLUMN share_token TEXT', (err) => {
-      if (err && !String(err.message || '').includes('duplicate column name')) {
-        console.error('[db] failed to add growth share_token column:', err);
-      }
-    });
-
-    db.run("ALTER TABLE growth_exhibits ADD COLUMN share_role TEXT NOT NULL DEFAULT 'viewer'", (err) => {
-      if (err && !String(err.message || '').includes('duplicate column name')) {
-        console.error('[db] failed to add growth share_role column:', err);
-      }
-    });
-
-    db.run('ALTER TABLE growth_exhibits ADD COLUMN share_expires_at TEXT', (err) => {
-      if (err && !String(err.message || '').includes('duplicate column name')) {
-        console.error('[db] failed to add growth share_expires_at column:', err);
-      }
-    });
-
-    db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_growth_exhibits_share_token ON growth_exhibits(share_token)');
-
-    db.run(`
-      CREATE TABLE IF NOT EXISTS growth_assets (
-        id TEXT PRIMARY KEY,
-        owner_id TEXT NOT NULL,
-        exhibit_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        content_url TEXT,
-        note TEXT,
-        captured_at TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY(exhibit_id) REFERENCES growth_exhibits(id) ON DELETE CASCADE
-      );
-    `);
-
-    db.run(`
-      CREATE TABLE IF NOT EXISTS growth_comments (
-        id TEXT PRIMARY KEY,
-        owner_id TEXT NOT NULL,
-        exhibit_id TEXT NOT NULL,
-        user_name TEXT NOT NULL,
-        content TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY(exhibit_id) REFERENCES growth_exhibits(id) ON DELETE CASCADE
-      );
-    `);
-
-    db.run('CREATE INDEX IF NOT EXISTS idx_growth_assets_exhibit_id ON growth_assets(exhibit_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_growth_comments_exhibit_id ON growth_comments(exhibit_id)');
-
-    db.run(`
-      CREATE TABLE IF NOT EXISTS competitions (
-        id TEXT PRIMARY KEY,
-        host_gallery_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        description TEXT NOT NULL,
-        rules TEXT NOT NULL,
-        cover_image TEXT,
-        is_public INTEGER NOT NULL DEFAULT 1,
-        registration_deadline TEXT NOT NULL,
-        voting_deadline TEXT,
-        submission_fields_json TEXT,
-        status TEXT NOT NULL DEFAULT 'draft',
-        created_by TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY(host_gallery_id) REFERENCES galleries(id) ON DELETE CASCADE,
-        FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
-      );
-    `);
-
-    db.run('ALTER TABLE competitions ADD COLUMN host_gallery_id TEXT', (err) => {
-      if (err && !String(err.message || '').includes('duplicate column name')) {
-        console.error('[db] failed to add host_gallery_id column:', err);
-      }
-    });
-    db.run('ALTER TABLE competitions ADD COLUMN submission_fields_json TEXT', (err) => {
-      if (err && !String(err.message || '').includes('duplicate column name')) {
-        console.error('[db] failed to add submission_fields_json column:', err);
-      }
-    });
-    initCompetitionEntrySchema(db).then(
-      () => {
-        migrationFinished = true;
-        finish();
-      },
-      (error) => {
-        migrationError = error;
-        migrationFinished = true;
-        finish();
-      },
-    );
-
-    db.run('CREATE INDEX IF NOT EXISTS idx_competitions_created_by ON competitions(created_by)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_competitions_host_gallery_id ON competitions(host_gallery_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_competitions_visibility ON competitions(is_public, status, registration_deadline)');
 
     db.run(`
       CREATE TABLE IF NOT EXISTS file_cleanup_jobs (
@@ -348,12 +273,38 @@ export function initDb(database = db) {
         dwell_seconds_json TEXT NOT NULL DEFAULT '{}',
         preferred_personality TEXT DEFAULT 'xiaobai',
         preferred_language TEXT DEFAULT 'zh-TW',
+        last_recommended_exhibit_id TEXT,
         updated_at TEXT NOT NULL,
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `);
 
+    db.run('ALTER TABLE visitor_memories ADD COLUMN last_recommended_exhibit_id TEXT', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column name')) {
+        migrationError ??= new Error(
+          `[db] failed to add visitor recommendation memory column: ${err.message}`,
+          { cause: err },
+        );
+      }
+    });
+
     db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_visitor_memories_user_gallery ON visitor_memories(user_id, gallery_id)');
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS exhibition_builder_sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        versions_json TEXT NOT NULL DEFAULT '[]',
+        current_version_id TEXT NOT NULL,
+        revision_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `);
+    db.run('CREATE INDEX IF NOT EXISTS idx_exhibition_builder_sessions_user_updated ON exhibition_builder_sessions(user_id, updated_at)');
 
     db.run(`
       CREATE TABLE IF NOT EXISTS exhibition_passports (
@@ -402,8 +353,16 @@ export function getUserByEmail(email) {
   return userRepository.getUserByEmail(email, db);
 }
 
+export function getUserByGoogleSubject(subject) {
+  return userRepository.getUserByGoogleSubject(subject, db);
+}
+
 export function insertUser(user) {
   return userRepository.insertUser(user, db);
+}
+
+export function linkGoogleSubject(id, subject) {
+  return userRepository.linkGoogleSubject(id, subject, db);
 }
 
 export function getUserById(id) {
@@ -494,34 +453,11 @@ export function insertGallery(gallery) {
 }
 
 export function listGalleriesByOwnerId(ownerId) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      'SELECT * FROM galleries WHERE owner_id = ? ORDER BY created_at DESC',
-      [ownerId],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
+  return listOwnerGalleryRows(db, ownerId);
 }
 
-export function listPublishedGalleries() {
-  return new Promise((resolve, reject) => {
-    db.all(
-      `SELECT galleries.*, users.name AS owner_name
-       FROM galleries
-       LEFT JOIN users ON users.id = galleries.owner_id
-       LEFT JOIN competitions ON competitions.host_gallery_id = galleries.id
-       WHERE galleries.is_published = 1 AND competitions.id IS NULL
-       ORDER BY COALESCE(galleries.published_at, galleries.updated_at) DESC`,
-      [],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
+export function listPublishedGalleries(options) {
+  return listPublishedGalleryRows(db, options);
 }
 
 export function getPublishedGalleryById(id) {
@@ -530,7 +466,7 @@ export function getPublishedGalleryById(id) {
       `SELECT galleries.*, users.name AS owner_name
        FROM galleries
        LEFT JOIN users ON users.id = galleries.owner_id
-       WHERE galleries.id = ? AND galleries.is_published = 1`,
+       WHERE galleries.id = ? AND galleries.is_published = 1 AND galleries.is_box = 0`,
       [id],
       (err, row) => {
         if (err) return reject(err);
@@ -585,7 +521,7 @@ export function bindMediaAssetsToGallery(assetIds, galleryId, ownerId, database 
   return mediaRepository.bindMediaAssetsToGallery(assetIds, galleryId, ownerId, database);
 }
 
-export function updateGalleryById(id, ownerId, updates) {
+export function updateGalleryById(id, ownerId, updates, database = db) {
   return new Promise((resolve, reject) => {
     const fields = [];
     const values = [];
@@ -614,7 +550,7 @@ export function updateGalleryById(id, ownerId, updates) {
       fields.push('category = ?');
       values.push(updates.category);
     }
-    if (Object.prototype.hasOwnProperty.call(updates, 'sceneJson')) {
+    if (updates.sceneJson !== undefined) {
       fields.push('scene_json = ?');
       values.push(updates.sceneJson);
     }
@@ -624,11 +560,21 @@ export function updateGalleryById(id, ownerId, updates) {
 
     values.push(id, ownerId);
 
-    db.run(
-      `UPDATE galleries SET ${fields.join(', ')} WHERE id = ? AND owner_id = ?`,
+    const versioned = Number.isSafeInteger(updates.expectedRevision);
+    if (versioned) values.push(updates.expectedRevision);
+    database.run(
+      `UPDATE galleries SET ${fields.join(', ')} WHERE id = ? AND owner_id = ?${versioned ? ' AND revision = ?' : ''}`,
       values,
       function (err) {
         if (err) return reject(err);
+        if (!this.changes && versioned) {
+          database.get('SELECT id FROM galleries WHERE id = ? AND owner_id = ?', [id, ownerId], (error, row) => {
+            if (error) return reject(error);
+            if (row) return reject(Object.assign(new Error('This exhibition has changed. Reload the latest version before saving.'), { code: 'GALLERY_CONFLICT', status: 409 }));
+            resolve(0);
+          });
+          return;
+        }
         resolve(this.changes || 0);
       },
     );
@@ -656,15 +602,6 @@ export async function deleteGalleryById(id, ownerId, database = db) {
     await runStatement(database, 'ROLLBACK').catch(() => {});
     throw error;
   }
-}
-
-export function deleteCompetitionsByHostGalleryId(hostGalleryId) {
-  return new Promise((resolve, reject) => {
-    db.run('DELETE FROM competitions WHERE host_gallery_id = ?', [hostGalleryId], function (err) {
-      if (err) return reject(err);
-      resolve(this.changes || 0);
-    });
-  });
 }
 
 export function updateGalleryShareById(id, ownerId, updates) {
@@ -736,59 +673,12 @@ export function updateGalleryPublishById(id, ownerId, updates) {
 
 export function getGalleryByShareToken(shareToken) {
   return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM galleries WHERE share_token = ?', [shareToken], (err, row) => {
+    db.get('SELECT * FROM galleries WHERE share_token = ? AND is_box = 0', [shareToken], (err, row) => {
       if (err) return reject(err);
       resolve(row || null);
     });
   });
 }
-
-export function insertGalleryUploadLink(link) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO gallery_upload_links (id, gallery_id, item_id, upload_token, can_edit_metadata, expires_at, revoked_at, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [link.id, link.galleryId, link.itemId, link.uploadToken, link.canEditMetadata ? 1 : 0, link.expiresAt ?? null, link.revokedAt ?? null, link.createdBy, link.createdAt, link.updatedAt],
-      (err) => {
-        if (err) return reject(err);
-        resolve();
-      },
-    );
-  });
-}
-
-export function listGalleryUploadLinksByGalleryId(galleryId) {
-  return new Promise((resolve, reject) => {
-    db.all('SELECT * FROM gallery_upload_links WHERE gallery_id = ? ORDER BY created_at DESC', [galleryId], (err, rows) => {
-      if (err) return reject(err);
-      resolve(rows || []);
-    });
-  });
-}
-
-export function getGalleryUploadLinkByToken(uploadToken) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM gallery_upload_links WHERE upload_token = ?', [uploadToken], (err, row) => {
-      if (err) return reject(err);
-      resolve(row || null);
-    });
-  });
-}
-
-export function revokeGalleryUploadLink(uploadToken, ownerId) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      `UPDATE gallery_upload_links
-       SET revoked_at = ?, updated_at = ?
-       WHERE upload_token = ? AND gallery_id IN (SELECT id FROM galleries WHERE owner_id = ?)`,
-      [new Date().toISOString(), new Date().toISOString(), uploadToken, ownerId],
-      function (err) {
-        if (err) return reject(err);
-        resolve(this.changes || 0);
-      },
-    );
-  });
-}
-
 
 export function insertExhibitComment(comment) {
   return new Promise((resolve, reject) => {
@@ -864,592 +754,20 @@ export function deleteExhibitCommentByGalleryAndItem(galleryId, itemId, commentI
   });
 }
 
-export function insertGrowthChild(child) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO growth_children (id, owner_id, name, birthday, avatar_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [child.id, child.ownerId, child.name, child.birthday, child.avatarUrl ?? null, child.createdAt, child.updatedAt],
-      (err) => {
-        if (err) return reject(err);
-        resolve();
-      },
-    );
-  });
-}
-
-export function listGrowthChildrenByOwnerId(ownerId) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      'SELECT * FROM growth_children WHERE owner_id = ? ORDER BY created_at DESC',
-      [ownerId],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
-}
-
-export function getGrowthChildById(id) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM growth_children WHERE id = ?', [id], (err, row) => {
-      if (err) return reject(err);
-      resolve(row || null);
-    });
-  });
-}
-
-export function insertGrowthExhibit(exhibit) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO growth_exhibits (id, owner_id, child_id, title, template_id, intro_story, is_private, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        exhibit.id,
-        exhibit.ownerId,
-        exhibit.childId,
-        exhibit.title,
-        exhibit.templateId,
-        exhibit.introStory,
-        exhibit.isPrivate ? 1 : 0,
-        exhibit.createdAt,
-        exhibit.updatedAt,
-      ],
-      (err) => {
-        if (err) return reject(err);
-        resolve();
-      },
-    );
-  });
-}
-
-export function listGrowthExhibitsByOwnerId(ownerId) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      `SELECT e.*, c.name as child_name, c.birthday as child_birthday
-       FROM growth_exhibits e
-       JOIN growth_children c ON c.id = e.child_id
-       WHERE e.owner_id = ?
-       ORDER BY e.created_at DESC`,
-      [ownerId],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
-}
-
-export function listAllGrowthExhibitsByOwnerId(ownerId) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      `SELECT e.*, c.name as child_name, c.birthday as child_birthday,
-              (SELECT COUNT(*) FROM growth_assets a WHERE a.exhibit_id = e.id) AS asset_count,
-              (SELECT COUNT(*) FROM growth_comments m WHERE m.exhibit_id = e.id) AS comment_count,
-              (SELECT MAX(COALESCE(a.captured_at, a.created_at)) FROM growth_assets a WHERE a.exhibit_id = e.id) AS latest_activity_at
-       FROM growth_exhibits e
-       JOIN growth_children c ON c.id = e.child_id
-       WHERE e.owner_id = ?
-       ORDER BY COALESCE(latest_activity_at, e.updated_at, e.created_at) DESC`,
-      [ownerId],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
-}
-
-export function getGrowthExhibitById(id) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM growth_exhibits WHERE id = ?', [id], (err, row) => {
-      if (err) return reject(err);
-      resolve(row || null);
-    });
-  });
-}
-
-export function updateGrowthExhibitShareById(id, ownerId, updates) {
-  return new Promise((resolve, reject) => {
-    const fields = [];
-    const values = [];
-
-    if (Object.prototype.hasOwnProperty.call(updates, 'shareToken')) {
-      fields.push('share_token = ?');
-      values.push(updates.shareToken);
-    }
-
-    if (typeof updates.shareRole === 'string') {
-      fields.push('share_role = ?');
-      values.push(updates.shareRole);
-    }
-
-    if (Object.prototype.hasOwnProperty.call(updates, 'shareExpiresAt')) {
-      fields.push('share_expires_at = ?');
-      values.push(updates.shareExpiresAt);
-    }
-
-    fields.push('updated_at = ?');
-    values.push(new Date().toISOString());
-
-    values.push(id, ownerId);
-
-    db.run(
-      `UPDATE growth_exhibits SET ${fields.join(', ')} WHERE id = ? AND owner_id = ?`,
-      values,
-      function (err) {
-        if (err) return reject(err);
-        resolve(this.changes || 0);
-      },
-    );
-  });
-}
-
-export function getGrowthExhibitByShareToken(shareToken) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM growth_exhibits WHERE share_token = ?', [shareToken], (err, row) => {
-      if (err) return reject(err);
-      resolve(row || null);
-    });
-  });
-}
-
-export function insertGrowthAsset(asset) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO growth_assets (id, owner_id, exhibit_id, type, title, content_url, note, captured_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        asset.id,
-        asset.ownerId,
-        asset.exhibitId,
-        asset.type,
-        asset.title,
-        asset.contentUrl ?? null,
-        asset.note ?? null,
-        asset.capturedAt ?? null,
-        asset.createdAt,
-      ],
-      (err) => {
-        if (err) return reject(err);
-        resolve();
-      },
-    );
-  });
-}
-
-export function listGrowthAssetsByExhibitId(exhibitId) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      'SELECT * FROM growth_assets WHERE exhibit_id = ? ORDER BY COALESCE(captured_at, created_at) ASC, created_at ASC',
-      [exhibitId],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
-}
-
-export function getGrowthAssetById(id) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM growth_assets WHERE id = ?', [id], (err, row) => {
-      if (err) return reject(err);
-      resolve(row || null);
-    });
-  });
-}
-
 export function listGrowthAssetContentUrlsByOwnerId(ownerId) {
   return new Promise((resolve, reject) => {
-    db.all(
-      'SELECT content_url FROM growth_assets WHERE owner_id = ? AND content_url IS NOT NULL',
-      [ownerId],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve((rows || []).map((row) => row.content_url));
-      },
-    );
-  });
-}
-
-export function insertGrowthComment(comment) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO growth_comments (id, owner_id, exhibit_id, user_name, content, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [comment.id, comment.ownerId, comment.exhibitId, comment.userName, comment.content, comment.createdAt],
-      (err) => {
-        if (err) return reject(err);
-        resolve();
-      },
-    );
-  });
-}
-
-export function listGrowthCommentsByExhibitId(exhibitId) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      'SELECT * FROM growth_comments WHERE exhibit_id = ? ORDER BY created_at DESC',
-      [exhibitId],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
-}
-
-export function insertCompetition(competition) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO competitions (id, host_gallery_id, title, description, rules, cover_image, is_public, registration_deadline, voting_deadline, submission_fields_json, status, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        competition.id,
-        competition.hostGalleryId,
-        competition.title,
-        competition.description,
-        competition.rules,
-        competition.coverImage ?? null,
-        competition.isPublic ? 1 : 0,
-        competition.registrationDeadline,
-        competition.votingDeadline ?? null,
-        competition.submissionFieldsJson ?? null,
-        competition.status,
-        competition.createdBy,
-        competition.createdAt,
-        competition.updatedAt,
-      ],
-      (err) => {
-        if (err) return reject(err);
-        resolve();
-      },
-    );
-  });
-}
-
-export function listCompetitions({ includePrivate = false } = {}) {
-  return new Promise((resolve, reject) => {
-    const where = includePrivate ? '' : 'WHERE competitions.is_public = 1';
-    db.all(
-      `SELECT competitions.*, users.name AS created_by_name,
-              host.title AS host_gallery_title,
-              host.template_image AS host_gallery_image,
-              host.category AS host_gallery_category,
-              host.is_published AS host_gallery_is_published
-       FROM competitions
-       LEFT JOIN users ON users.id = competitions.created_by
-       LEFT JOIN galleries AS host ON host.id = competitions.host_gallery_id
-       ${where}
-       ORDER BY competitions.created_at DESC`,
-      [],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
-}
-
-export function getCompetitionById(id) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      `SELECT competitions.*, users.name AS created_by_name,
-              host.title AS host_gallery_title,
-              host.template_image AS host_gallery_image,
-              host.category AS host_gallery_category,
-              host.is_published AS host_gallery_is_published
-       FROM competitions
-       LEFT JOIN users ON users.id = competitions.created_by
-       LEFT JOIN galleries AS host ON host.id = competitions.host_gallery_id
-       WHERE competitions.id = ?`,
-      [id],
-      (err, row) => {
-        if (err) return reject(err);
-        resolve(row || null);
-      },
-    );
-  });
-}
-
-export function listCompetitionsByCreatorId(createdBy) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      `SELECT competitions.*, users.name AS created_by_name,
-              host.title AS host_gallery_title,
-              host.template_image AS host_gallery_image,
-              host.category AS host_gallery_category,
-              host.is_published AS host_gallery_is_published
-       FROM competitions
-       LEFT JOIN users ON users.id = competitions.created_by
-       LEFT JOIN galleries AS host ON host.id = competitions.host_gallery_id
-       WHERE competitions.created_by = ?
-       ORDER BY competitions.created_at DESC`,
-      [createdBy],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
-}
-
-export function updateCompetitionById(id, updates) {
-  return new Promise((resolve, reject) => {
-    const fields = [];
-    const values = [];
-
-    if (typeof updates.title === 'string') {
-      fields.push('title = ?');
-      values.push(updates.title);
-    }
-    if (typeof updates.description === 'string') {
-      fields.push('description = ?');
-      values.push(updates.description);
-    }
-    if (typeof updates.rules === 'string') {
-      fields.push('rules = ?');
-      values.push(updates.rules);
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'coverImage')) {
-      fields.push('cover_image = ?');
-      values.push(updates.coverImage);
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'isPublic')) {
-      fields.push('is_public = ?');
-      values.push(updates.isPublic ? 1 : 0);
-    }
-    if (typeof updates.registrationDeadline === 'string') {
-      fields.push('registration_deadline = ?');
-      values.push(updates.registrationDeadline);
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'votingDeadline')) {
-      fields.push('voting_deadline = ?');
-      values.push(updates.votingDeadline);
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'submissionFieldsJson')) {
-      fields.push('submission_fields_json = ?');
-      values.push(updates.submissionFieldsJson);
-    }
-    if (typeof updates.status === 'string') {
-      fields.push('status = ?');
-      values.push(updates.status);
-    }
-
-    fields.push('updated_at = ?');
-    values.push(new Date().toISOString());
-    values.push(id);
-
-    db.run(`UPDATE competitions SET ${fields.join(', ')} WHERE id = ?`, values, function (err) {
-      if (err) return reject(err);
-      resolve(this.changes || 0);
+    db.get("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'growth_assets'", [], (schemaError, table) => {
+      if (schemaError) return reject(schemaError);
+      if (!table) return resolve([]);
+      db.all(
+        'SELECT content_url FROM growth_assets WHERE owner_id = ? AND content_url IS NOT NULL',
+        [ownerId],
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve((rows || []).map((row) => row.content_url));
+        },
+      );
     });
-  });
-}
-
-export function insertCompetitionEntry(entry) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO competition_entries (id, competition_id, gallery_id, gallery_owner_id, statement, submission_json, assets_json, status, rank, vote_count, submitted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        entry.id,
-        entry.competitionId,
-        entry.galleryId,
-        entry.galleryOwnerId,
-        entry.statement,
-        entry.submissionJson ?? null,
-        entry.assetsJson ?? null,
-        entry.status,
-        entry.rank ?? null,
-        entry.voteCount ?? 0,
-        entry.submittedAt,
-        entry.createdAt,
-        entry.updatedAt,
-      ],
-      (err) => {
-        if (err) return reject(err);
-        resolve();
-      },
-    );
-  });
-}
-
-export function listCompetitionEntriesByCompetitionId(competitionId) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      `SELECT competition_entries.*, galleries.title AS gallery_title, galleries.description AS gallery_description,
-              galleries.template_image AS gallery_template_image, galleries.category AS gallery_category,
-              users.name AS owner_name
-       FROM competition_entries
-       JOIN galleries ON galleries.id = competition_entries.gallery_id
-       LEFT JOIN users ON users.id = competition_entries.gallery_owner_id
-       WHERE competition_entries.competition_id = ?
-       ORDER BY CASE competition_entries.rank IS NULL WHEN 1 THEN 1 ELSE 0 END, competition_entries.rank ASC, competition_entries.vote_count DESC, competition_entries.created_at ASC`,
-      [competitionId],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
-}
-
-export function listCompetitionEntriesByOwnerId(ownerId) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      `SELECT competition_entries.*, competitions.title AS competition_title, competitions.status AS competition_status,
-              competitions.registration_deadline AS competition_registration_deadline,
-              galleries.title AS gallery_title, galleries.template_image AS gallery_template_image
-       FROM competition_entries
-       JOIN competitions ON competitions.id = competition_entries.competition_id
-       JOIN galleries ON galleries.id = competition_entries.gallery_id
-       WHERE competition_entries.gallery_owner_id = ?
-       ORDER BY competition_entries.created_at DESC`,
-      [ownerId],
-      (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
-      },
-    );
-  });
-}
-
-export function getCompetitionEntryByCompetitionAndGallery(competitionId, galleryId) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT * FROM competition_entries WHERE competition_id = ? AND gallery_id = ?',
-      [competitionId, galleryId],
-      (err, row) => {
-        if (err) return reject(err);
-        resolve(row || null);
-      },
-    );
-  });
-}
-
-export function getCompetitionEntryById(id) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      `SELECT competition_entries.*, galleries.title AS gallery_title, galleries.description AS gallery_description,
-              galleries.template_image AS gallery_template_image, galleries.category AS gallery_category,
-              users.name AS owner_name
-       FROM competition_entries
-       JOIN galleries ON galleries.id = competition_entries.gallery_id
-       LEFT JOIN users ON users.id = competition_entries.gallery_owner_id
-       WHERE competition_entries.id = ?`,
-      [id],
-      (err, row) => {
-        if (err) return reject(err);
-        resolve(row || null);
-      },
-    );
-  });
-}
-
-export function updateCompetitionEntryById(id, updates) {
-  return new Promise((resolve, reject) => {
-    const fields = [];
-    const values = [];
-
-    if (typeof updates.statement === 'string') {
-      fields.push('statement = ?');
-      values.push(updates.statement);
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'submissionJson')) {
-      fields.push('submission_json = ?');
-      values.push(updates.submissionJson);
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'assetsJson')) {
-      fields.push('assets_json = ?');
-      values.push(updates.assetsJson);
-    }
-    if (typeof updates.status === 'string') {
-      fields.push('status = ?');
-      values.push(updates.status);
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'rank')) {
-      fields.push('rank = ?');
-      values.push(updates.rank);
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'voteCount')) {
-      fields.push('vote_count = ?');
-      values.push(updates.voteCount);
-    }
-
-    fields.push('updated_at = ?');
-    values.push(new Date().toISOString());
-    values.push(id);
-
-    db.run(`UPDATE competition_entries SET ${fields.join(', ')} WHERE id = ?`, values, function (err) {
-      if (err) return reject(err);
-      resolve(this.changes || 0);
-    });
-  });
-}
-
-export function deleteCompetitionEntryById(id) {
-  return new Promise((resolve, reject) => {
-    db.run('DELETE FROM competition_entries WHERE id = ?', [id], function (err) {
-      if (err) return reject(err);
-      resolve(this.changes || 0);
-    });
-  });
-}
-
-export function insertCompetitionVote(vote) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO competition_votes (id, competition_id, entry_id, voter_user_id, voter_name, voter_email, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [vote.id, vote.competitionId, vote.entryId, vote.voterUserId, vote.voterName, vote.voterEmail, vote.createdAt],
-      (err) => {
-        if (err) return reject(err);
-        resolve();
-      },
-    );
-  });
-}
-
-export async function insertCompetitionVoteAndRefreshCount(vote, database = db) {
-  await runStatement(database, 'BEGIN IMMEDIATE');
-  try {
-    await runStatement(
-      database,
-      'INSERT INTO competition_votes (id, competition_id, entry_id, voter_user_id, voter_name, voter_email, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [vote.id, vote.competitionId, vote.entryId, vote.voterUserId, vote.voterName, vote.voterEmail, vote.createdAt],
-    );
-    await runStatement(
-      database,
-      `UPDATE competition_entries
-       SET vote_count = (SELECT COUNT(*) FROM competition_votes WHERE entry_id = ?),
-           updated_at = ?
-       WHERE id = ?`,
-      [vote.entryId, new Date().toISOString(), vote.entryId],
-    );
-    const entry = await getStatement(database, 'SELECT * FROM competition_entries WHERE id = ?', [vote.entryId]);
-    await runStatement(database, 'COMMIT');
-    return entry;
-  } catch (error) {
-    await runStatement(database, 'ROLLBACK').catch(() => {});
-    throw error;
-  }
-}
-
-export function countCompetitionVotesByEntryId(entryId) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT COUNT(*) AS count FROM competition_votes WHERE entry_id = ?', [entryId], (err, row) => {
-      if (err) return reject(err);
-      resolve(Number(row?.count || 0));
-    });
-  });
-}
-
-export function hasCompetitionVote(competitionId, entryId, voterUserId) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT id FROM competition_votes WHERE competition_id = ? AND entry_id = ? AND voter_user_id = ?',
-      [competitionId, entryId, voterUserId],
-      (err, row) => {
-        if (err) return reject(err);
-        resolve(Boolean(row));
-      },
-    );
   });
 }
 
@@ -1472,6 +790,7 @@ export function getVisitorMemory(userId, galleryId) {
           dwellSecondsByExhibit: JSON.parse(row.dwell_seconds_json || '{}'),
           preferredPersonality: row.preferred_personality || 'xiaobai',
           preferredLanguage: row.preferred_language || 'zh-TW',
+          lastRecommendedExhibitId: row.last_recommended_exhibit_id || null,
           updatedAt: row.updated_at,
         });
       },
@@ -1501,14 +820,16 @@ export function upsertVisitorMemory(memory) {
     db.run(
       `INSERT INTO visitor_memories
        (id, user_id, gallery_id, visited_exhibit_ids_json, engaged_exhibit_ids_json,
-        dwell_seconds_json, preferred_personality, preferred_language, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        dwell_seconds_json, preferred_personality, preferred_language,
+        last_recommended_exhibit_id, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, gallery_id) DO UPDATE SET
         visited_exhibit_ids_json = excluded.visited_exhibit_ids_json,
         engaged_exhibit_ids_json = excluded.engaged_exhibit_ids_json,
         dwell_seconds_json = excluded.dwell_seconds_json,
         preferred_personality = excluded.preferred_personality,
         preferred_language = excluded.preferred_language,
+        last_recommended_exhibit_id = excluded.last_recommended_exhibit_id,
         updated_at = excluded.updated_at`,
       [
         memory.id,
@@ -1519,11 +840,141 @@ export function upsertVisitorMemory(memory) {
         JSON.stringify(memory.dwellSecondsByExhibit || {}),
         memory.preferredPersonality || 'xiaobai',
         memory.preferredLanguage || 'zh-TW',
+        memory.lastRecommendedExhibitId || null,
         now,
       ],
       (err) => {
         if (err) return reject(err);
         resolve();
+      },
+    );
+  });
+}
+
+function parseBuilderSessionRow(row) {
+  if (!row) return null;
+  const versions = JSON.parse(row.versions_json || '[]');
+  return {
+    id: row.id,
+    userId: row.user_id,
+    input: JSON.parse(row.input_json || '{}'),
+    versions,
+    currentVersionId: row.current_version_id,
+    currentSession: versions.find((version) => version.versionId === row.current_version_id) || null,
+    revisionCount: row.revision_count,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function createExhibitionBuilderSessionRecord({ userId, input, session }, database = db) {
+  return new Promise((resolve, reject) => {
+    const now = new Date().toISOString();
+    database.run(
+      `INSERT INTO exhibition_builder_sessions
+       (id, user_id, input_json, versions_json, current_version_id, revision_count, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        session.sessionId,
+        userId,
+        JSON.stringify(input || {}),
+        JSON.stringify([{ ...session, review: session.review || null }]),
+        session.versionId,
+        session.revisionCount || 0,
+        session.status || 'generated',
+        now,
+        now,
+      ],
+      (error) => error ? reject(error) : resolve(),
+    );
+  });
+}
+
+export function getExhibitionBuilderSessionRecord(sessionId, database = db) {
+  return new Promise((resolve, reject) => {
+    database.get(
+      'SELECT * FROM exhibition_builder_sessions WHERE id = ?',
+      [sessionId],
+      (error, row) => {
+        if (error) reject(error);
+        else resolve(parseBuilderSessionRow(row));
+      },
+    );
+  });
+}
+
+export async function saveExhibitionBuilderSessionReview({
+  sessionId,
+  userId,
+  expectedVersionId,
+  reviewResponse,
+}, database = db) {
+  const record = await getExhibitionBuilderSessionRecord(sessionId, database);
+  if (!record || record.userId !== userId || record.currentVersionId !== expectedVersionId) return false;
+
+  const versions = record.versions.map((version) => (
+    version.versionId === expectedVersionId
+      ? {
+          ...version,
+          review: reviewResponse.review || null,
+          reviewSource: reviewResponse.source || null,
+          reviewStatus: reviewResponse.status,
+          reviewMessage: reviewResponse.message || null,
+          reviewErrorCode: reviewResponse.errorCode || null,
+        }
+      : version
+  ));
+
+  return new Promise((resolve, reject) => {
+    database.run(
+      `UPDATE exhibition_builder_sessions
+       SET versions_json = ?, status = ?, updated_at = ?
+       WHERE id = ? AND user_id = ? AND current_version_id = ?`,
+      [
+        JSON.stringify(versions),
+        reviewResponse.status || 'reviewed',
+        new Date().toISOString(),
+        sessionId,
+        userId,
+        expectedVersionId,
+      ],
+      function onReviewSaved(error) {
+        if (error) reject(error);
+        else resolve(this.changes > 0);
+      },
+    );
+  });
+}
+
+export async function appendExhibitionBuilderSessionVersion({
+  sessionId,
+  userId,
+  expectedVersionId,
+  session,
+}, database = db) {
+  const record = await getExhibitionBuilderSessionRecord(sessionId, database);
+  if (!record || record.userId !== userId || record.currentVersionId !== expectedVersionId) return false;
+
+  const versions = [...record.versions, { ...session, review: session.review || null }];
+  return new Promise((resolve, reject) => {
+    database.run(
+      `UPDATE exhibition_builder_sessions
+       SET versions_json = ?, current_version_id = ?, revision_count = ?, status = ?, updated_at = ?
+       WHERE id = ? AND user_id = ? AND current_version_id = ?`,
+      [
+        JSON.stringify(versions),
+        session.versionId,
+        session.revisionCount || 0,
+        session.status || 'revised',
+        new Date().toISOString(),
+        sessionId,
+        userId,
+        expectedVersionId,
+      ],
+      function onVersionAppended(error) {
+        if (error) reject(error);
+        else resolve(this.changes > 0);
       },
     );
   });

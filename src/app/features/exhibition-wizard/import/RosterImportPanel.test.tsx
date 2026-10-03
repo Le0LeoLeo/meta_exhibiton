@@ -1,7 +1,13 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render as baseRender, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactElement } from 'react';
+import { I18nProvider, useI18n } from '@/app/components/I18nProvider';
 
 import { RosterImportPanel } from "./RosterImportPanel";
+
+const render = (ui: ReactElement) => baseRender(ui, { wrapper: I18nProvider });
+beforeEach(() => localStorage.setItem('metaexpo-locale', 'zh-TW'));
+afterEach(() => { cleanup(); localStorage.clear(); });
 
 describe("RosterImportPanel", () => {
   it("reads a CSV, announces the count, previews rows, and imports valid data", async () => {
@@ -36,7 +42,7 @@ describe("RosterImportPanel", () => {
       />,
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent("MISSING_REQUIRED_VALUE");
+    expect(screen.getByRole("alert")).toHaveTextContent("尚未填寫必填資料：作品名稱。");
     expect(screen.getByRole("alert")).toHaveTextContent("第 2 列");
     expect(screen.getByRole("button", { name: "匯入 0 筆資料" })).toBeDisabled();
     expect(onImport).not.toHaveBeenCalled();
@@ -63,5 +69,25 @@ describe("RosterImportPanel", () => {
     expect(onImport).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({ studentCode: "S006" }),
     ]));
+  });
+
+  it('retranslates validation errors without losing imported records on a language change', () => {
+    const onImport = vi.fn();
+    const rows = [['student code', 'title', 'filename'], ['S001', 'Sunrise', 'one.jpg'], ['S001', 'Moonlight', 'two.jpg']];
+    function LocaleControl() {
+      const { setLocale } = useI18n();
+      return <><button onClick={() => setLocale('en')}>English</button><button onClick={() => setLocale('zh-CN')}>简体中文</button></>;
+    }
+    render(<><LocaleControl /><RosterImportPanel spreadsheetRows={rows} onImport={onImport} /></>);
+    expect(screen.getByRole('alert')).toHaveTextContent('學生編號與第 2 列重複。');
+    fireEvent.click(screen.getByRole('button', { name: 'English' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('The student code duplicates row 2. (row 3)');
+    expect(screen.getByText('Sunrise')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import 0 records' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '简体中文' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('学生编号与第 2 行重复。');
+    expect(screen.getByText('Moonlight')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '导入 0 条数据' })).toBeDisabled();
+    expect(onImport).not.toHaveBeenCalled();
   });
 });

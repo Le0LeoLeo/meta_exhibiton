@@ -37,6 +37,28 @@ afterEach(() => {
 });
 
 describe('generateExhibitionScene', () => {
+  it('reports all sixty expanded exhibit IDs rather than the default eight-item metadata', async () => {
+    process.env.QWEN_API_KEY = 'test-key';
+    openAiState.content = JSON.stringify({operationPlan: {schemaVersion: 1, summary: 'Six zones', operations: [
+      {type: 'build-exhibition-zones', id: 'ai-six', zones: ['A','B','C','D','E','F'].map(title => ({title, count: 10})), assetKeys: [], decorate: true},
+    ]}});
+    const {generateExhibitionScene} = await import('./exhibitionSceneService.js');
+    const result = await generateExhibitionScene({editMode: 'complete', prompt: 'Six zones with ten works each', exhibitCount: 8,
+      currentScene: {roomSize: {width: 20, length: 20, height: 6, wallThickness: 0.1}, items: [], floorPlanElements: [], wallMaterialOverrides: {}}});
+    expect(result.source).toBe('qwen');
+    expect(result.exhibition.sections.map(section => section.exhibitIds.length)).toEqual([10,10,10,10,10,10]);
+    expect(result.exhibition.curatorialStatement).toContain('60');
+    expect(result.exhibition.curatorialStatement).toContain('副本');
+    expect(result.exhibition.sections.flatMap(section => section.exhibitIds).every(id => result.scene.items.some(item => item.id === id))).toBe(true);
+  });
+  it('uses built-in captions, keeps signs above frames and leaves the entrance axis clear', async () => {
+    const { generateExhibitionScene, _private } = await import('./exhibitionSceneService.js');
+    const result = await generateExhibitionScene({prompt: 'Concept gallery', exhibitCount: 8});
+    expect(result.scene.items.filter((item) => /^label-/.test(item.id))).toHaveLength(0);
+    expect(result.scene.items.filter((item) => /-intro$/.test(item.id)).every((item) => item.position[1] >= 3.9)).toBe(true);
+    expect(Math.abs(result.scene.items.find((item) => item.type === 'bench').position[0])).toBeGreaterThan(2);
+    expect(_private.buildSystemPrompt()).toContain('cannot create audio');
+  });
   it('returns a usable fallback scene when Qwen API key is missing', async () => {
     const { generateExhibitionScene } = await import('./exhibitionSceneService.js');
 
@@ -289,6 +311,8 @@ describe('assertPersistentScenePayload', () => {
     const { assertPersistentScenePayload } = await import('./exhibitionSceneService.js');
 
     expect(() => assertPersistentScenePayload({
+      roomSize: null,
+      items: [],
       description: 'The browser may generate a blob: URL before upload.',
       note: 'blob: URLs are temporary and must be uploaded first.',
       content: 'https://example.com/persistent-asset.glb',
@@ -318,6 +342,34 @@ function createCurrentScene() {
 }
 
 describe('incremental scene revision', () => {
+  it('uses complete editor commands for an empty scene and only retries a rejected plan once', async () => {
+    process.env.QWEN_API_KEY = 'test-key';
+    const empty = createCurrentScene(); empty.items = [];
+    const content = (operations) => ({ choices: [{ message: { content: JSON.stringify({ exhibition: { title: 'Text exhibit', sections: [] }, operationPlan: { schemaVersion: 1, summary: 'Add a title', operations } }) } }] });
+    openAiState.create.mockResolvedValueOnce(content([{ type: 'edit-item', itemId: 'missing', changes: { title: 'Wrong' } }]))
+      .mockResolvedValueOnce(content([{ type: 'add-editor-item', item: { id: 'ai-title', type: 'text', content: 'Hello', position: [0, 4, -9.65], rotation: [0, 0, 0], scale: [1, 1, 1] } }]));
+    const { generateExhibitionScene } = await import('./exhibitionSceneService.js');
+    const result = await generateExhibitionScene({ prompt: 'Add a title', currentScene: empty, editMode: 'complete' });
+    expect(result.source).toBe('qwen');
+    expect(result.scene.items).toHaveLength(1);
+    expect(result.scene.items[0].content).toBe('Hello');
+    expect(openAiState.create).toHaveBeenCalledTimes(2);
+    const secondPrompt = JSON.parse(openAiState.create.mock.calls[1][0].messages[1].content);
+    expect(secondPrompt.operationFeedback).toContain('Unknown item');
+    expect(secondPrompt.sceneContext.items).toEqual([]);
+  });
+
+  it('preserves the original scene after two rejected complete plans', async () => {
+    process.env.QWEN_API_KEY = 'test-key';
+    openAiState.content = JSON.stringify({ operationPlan: { schemaVersion: 1, summary: 'Delete original', operations: [{ type: 'delete-items', itemIds: ['painting-user-1'] }] } });
+    const { generateExhibitionScene } = await import('./exhibitionSceneService.js');
+    const scene = createCurrentScene();
+    const result = await generateExhibitionScene({ prompt: 'Change frame', currentScene: scene, editMode: 'complete' });
+    expect(result.source).toBe('fallback');
+    expect(result.operations).toEqual([]);
+    expect(result.scene).toEqual(scene);
+    expect(openAiState.create).toHaveBeenCalledTimes(2);
+  });
   it('treats an empty editor snapshot as a new exhibition instead of an incremental revision', async () => {
     const { generateExhibitionScene } = await import('./exhibitionSceneService.js');
     const emptyScene = createCurrentScene();
@@ -384,6 +436,9 @@ describe('incremental scene revision', () => {
     const request = openAiState.create.mock.calls[0][0];
     const userPrompt = request.messages.find((message) => message.role === 'user').content;
     expect(userPrompt).toContain('revise-existing-scene');
+    expect(userPrompt).toContain('arrange-exhibition-sections');
+    expect(userPrompt).toContain('create-exhibition-divider');
+    expect(userPrompt).toContain('usableLength');
     expect(userPrompt).toContain('painting-user-1');
     expect(userPrompt).toContain('embedded-content-omitted');
     expect(userPrompt).not.toContain('SECRET_IMAGE_BYTES');

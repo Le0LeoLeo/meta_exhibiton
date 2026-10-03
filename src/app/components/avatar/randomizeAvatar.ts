@@ -7,6 +7,9 @@ import {
   type AvatarHairColorId,
   type AvatarHairId,
   type AvatarHeadId,
+  type AvatarEyesId,
+  type AvatarEyebrowsId,
+  type AvatarMouthId,
   type AvatarShoesColorId,
   type AvatarShoesId,
   type AvatarSkinColorId,
@@ -14,6 +17,7 @@ import {
   type AvatarTopId,
 } from "@/app/modules/metaverse3d/avatar/avatarManifest";
 import type { AvatarAppearanceV1 } from "@/app/modules/metaverse3d/avatar/avatarAppearance";
+import { DEFAULT_AVATAR_FACIAL_PLACEMENT } from "@/app/modules/metaverse3d/avatar/avatarFacialPlacement";
 
 export type AvatarRandomSource = () => number;
 
@@ -37,6 +41,15 @@ export function randomizeAvatar(
     version: 1,
     body: pickManifestKey<AvatarBodyId>(AVATAR_MANIFEST.nodes.body, random),
     head: pickManifestKey<AvatarHeadId>(AVATAR_MANIFEST.nodes.head, random),
+    eyes: pickManifestKey<AvatarEyesId>(AVATAR_MANIFEST.features.eyes, random),
+    eyebrows: pickManifestKey<AvatarEyebrowsId>(
+      AVATAR_MANIFEST.features.eyebrows,
+      random,
+    ),
+    mouth: pickManifestKey<AvatarMouthId>(
+      AVATAR_MANIFEST.features.mouth,
+      random,
+    ),
     hair: pickManifestKey<AvatarHairId>(AVATAR_MANIFEST.nodes.hair, random),
     top: pickManifestKey<AvatarTopId>(AVATAR_MANIFEST.nodes.top, random),
     bottom: pickManifestKey<AvatarBottomId>(
@@ -51,6 +64,11 @@ export function randomizeAvatar(
       AVATAR_MANIFEST.nodes.accessory,
       random,
     ),
+    facialPlacement: {
+      eyes: { ...DEFAULT_AVATAR_FACIAL_PLACEMENT.eyes },
+      eyebrows: { ...DEFAULT_AVATAR_FACIAL_PLACEMENT.eyebrows },
+      mouth: { ...DEFAULT_AVATAR_FACIAL_PLACEMENT.mouth },
+    },
     colors: {
       skin: pickManifestKey<AvatarSkinColorId>(
         AVATAR_MANIFEST.colors.skin,

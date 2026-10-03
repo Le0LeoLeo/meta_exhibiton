@@ -5,6 +5,7 @@ import { deleteMediaAsset, uploadMediaAsset } from "@/app/api/media";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
+import { useI18n } from "@/app/components/I18nProvider";
 import { RosterImportPanel } from "../import";
 import type { ExhibitionWizardSlotContext } from "../ExhibitionWizard";
 
@@ -14,6 +15,7 @@ type UploadStepProps = ExhibitionWizardSlotContext & {
 };
 
 export function UploadStep({ draft, patch, token, onRequireAuth }: UploadStepProps) {
+  const { t } = useI18n();
   const inputId = useId();
   const [isUploading, setIsUploading] = useState(false);
   const [rosterCount, setRosterCount] = useState(0);
@@ -31,7 +33,7 @@ export function UploadStep({ draft, patch, token, onRequireAuth }: UploadStepPro
       if (persisted && token) await deleteMediaAsset(token, assetId);
       patch({ assets: draft.assets.filter((asset) => asset.id !== assetId) });
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : "無法移除素材");
+      setDeleteError(error instanceof Error && error.message ? error.message : "wizardUploadRemoveFailed");
     } finally {
       setDeletingId(null);
     }
@@ -68,7 +70,7 @@ export function UploadStep({ draft, patch, token, onRequireAuth }: UploadStepPro
         return {
           ...pending[index],
           status: "failed" as const,
-          error: error instanceof Error ? error.message : "上傳失敗",
+          error: error instanceof Error ? error.message : undefined,
         };
       }
     }));
@@ -80,7 +82,7 @@ export function UploadStep({ draft, patch, token, onRequireAuth }: UploadStepPro
   return (
     <div className="space-y-5">
       <div className="space-y-2 rounded-lg border border-border p-4">
-        <Label htmlFor={inputId}>上傳作品</Label>
+        <Label htmlFor={inputId}>{t('wizardUploadLabel')}</Label>
         <Input
           id={inputId}
           type="file"
@@ -94,7 +96,7 @@ export function UploadStep({ draft, patch, token, onRequireAuth }: UploadStepPro
           }}
         />
         <p className="text-xs leading-5 text-muted-foreground">
-          支援 JPEG、PNG及 WebP；系統會檢查檔案內容並移除圖片定位資料。
+          {t('wizardUploadHelp')}
         </p>
         <div className="space-y-2" aria-live="polite">
           {draft.assets.map((asset) => (
@@ -102,7 +104,7 @@ export function UploadStep({ draft, patch, token, onRequireAuth }: UploadStepPro
               <span className="min-w-0 truncate">{asset.fileName}</span>
               <div className="flex shrink-0 items-center gap-2">
                 <span className={asset.status === "failed" ? "text-destructive" : "text-muted-foreground"}>
-                  {asset.status === "uploading" ? "上傳中" : asset.status === "succeeded" ? "已上傳" : asset.status === "failed" ? asset.error : "等待中"}
+                  {asset.status === "uploading" ? t('wizardUploadUploading') : asset.status === "succeeded" ? t('wizardUploadSucceeded') : asset.status === "failed" ? asset.error || t('wizardUploadFailed') : t('wizardUploadPending')}
                 </span>
                 {asset.status !== "uploading" ? (
                   <Button
@@ -111,7 +113,7 @@ export function UploadStep({ draft, patch, token, onRequireAuth }: UploadStepPro
                     variant="ghost"
                     className="min-h-11 min-w-11"
                     disabled={deletingId === asset.id}
-                    aria-label={`移除 ${asset.fileName}`}
+                    aria-label={t('wizardUploadRemove', { fileName: asset.fileName })}
                     onClick={() => void removeAsset(asset.id, asset.status === "succeeded")}
                   >
                     <Trash2 className="size-4" aria-hidden="true" />
@@ -121,7 +123,7 @@ export function UploadStep({ draft, patch, token, onRequireAuth }: UploadStepPro
             </div>
           ))}
         </div>
-        {deleteError ? <p role="alert" className="text-sm text-destructive">{deleteError}</p> : null}
+        {deleteError ? <p role="alert" className="text-sm text-destructive">{deleteError === 'wizardUploadRemoveFailed' ? t(deleteError) : deleteError}</p> : null}
       </div>
 
       <RosterImportPanel
@@ -144,13 +146,13 @@ export function UploadStep({ draft, patch, token, onRequireAuth }: UploadStepPro
       />
       {rosterCount > 0 ? (
         <p className="text-sm text-muted-foreground" aria-live="polite">
-          已匯入 {rosterCount} 筆作品資料，並按檔名配對已上傳素材。
+          {t('wizardUploadImported', { count: rosterCount })}
         </p>
       ) : null}
 
       {!token ? (
         <Button type="button" variant="outline" className="min-h-11 w-full" onClick={onRequireAuth}>
-          登入後上傳作品
+          {t('wizardUploadSignIn')}
         </Button>
       ) : null}
     </div>

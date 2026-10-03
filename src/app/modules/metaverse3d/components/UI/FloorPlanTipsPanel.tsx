@@ -4,7 +4,7 @@ export function FloorPlanTipsPanel() {
   const { t } = useI18n();
 
   return (
-    <details className="rounded-2xl border border-white/14 bg-white/8 p-3 text-xs leading-relaxed text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md">
+    <details className="floorplan-section text-xs leading-relaxed text-slate-200">
       <summary className="cursor-pointer font-semibold text-white">{t("floorPlanWorkflowTitle")}</summary>
       <div className="mt-3 space-y-1">
         <p>{t("floorPlanStep1")}</p>

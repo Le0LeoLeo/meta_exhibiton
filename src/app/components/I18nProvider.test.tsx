@@ -81,12 +81,6 @@ const requiredTraditionalKeys = [
   "registerSuccessDesc",
   "cannotUndo",
   "close",
-  "competitionDescription",
-  "competitionDescriptionPlaceholder",
-  "competitionName",
-  "competitionNamePlaceholder",
-  "competitionRules",
-  "competitionRulesPlaceholder",
   "confirmDelete",
   "confirmPublish",
   "copiedEditShareLink",
@@ -101,12 +95,8 @@ const requiredTraditionalKeys = [
   "enterExhibitionName",
   "exhibitionDescription",
   "exhibitionName",
-  "hostBackend",
   "lastUpdated",
   "noDescriptionYet",
-  "publicCompetition",
-  "publishAsCompetition",
-  "publishAsCompetitionDesc",
   "publishExhibition",
   "publishExhibitionDesc",
   "publishInfo",
@@ -119,7 +109,6 @@ const requiredTraditionalKeys = [
   "thisExhibition",
   "toBePublished",
   "untitledExhibition",
-  "votingDeadlineOptional",
 ] as const;
 
 function LocaleProbe() {
@@ -129,7 +118,7 @@ function LocaleProbe() {
     <div>
       <p>{locale}</p>
       <p>{t("editorAiBuilderPreviewTitle")}</p>
-      <button type="button" onClick={() => setLocale("en")}>
+      <button type="button" onClick={() => setLocale(locale === "en" ? "zh-TW" : "en")}>
         switch
       </button>
     </div>
@@ -168,17 +157,17 @@ describe("I18nProvider", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByText("zh-TW")).toBeInTheDocument();
-    expect(screen.getByText("預覽生成結果")).toBeInTheDocument();
+    expect(screen.getByText("en")).toBeInTheDocument();
+    expect(screen.getByText("Generated preview")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "switch" }));
 
-    expect(screen.getByText("en")).toBeInTheDocument();
-    expect(screen.getByText("Generated preview")).toBeInTheDocument();
+    expect(screen.getByText("zh-TW")).toBeInTheDocument();
+    expect(screen.getByText("預覽生成結果")).toBeInTheDocument();
   });
 
   it("provides Traditional Chinese translations for support and register pages", () => {
-    window.localStorage.clear();
+    window.localStorage.setItem("metaexpo-locale", "zh-TW");
 
     render(
       <I18nProvider>

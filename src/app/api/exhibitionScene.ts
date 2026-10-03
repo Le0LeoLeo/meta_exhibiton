@@ -2,6 +2,10 @@ import type { SceneSnapshot } from "../modules/metaverse3d/store/metaverseStoreT
 import { apiUrl, authHeaders, errorFromResponse, parseJsonSafe } from "./base";
 import { apiFetch, LONG_API_TIMEOUT_MS } from "./request";
 
+// A builder plan may include one bounded correction call; image checks also
+// process multiple room views before calling the provider.
+const BUILDER_API_TIMEOUT_MS = 120_000;
+
 export type ExhibitionSceneStyle =
   | "white-box"
   | "warm-museum"
@@ -10,6 +14,9 @@ export type ExhibitionSceneStyle =
   | "immersive";
 
 export type ExhibitionSceneRequest = {
+  editMode?: 'complete';
+  allowDestructive?: boolean;
+  editorAssets?: BuilderAsset[];
   prompt: string;
   language?: "zh-TW" | "zh-CN" | "en";
   style?: ExhibitionSceneStyle;
@@ -26,6 +33,8 @@ export type ExhibitionSceneRequest = {
     type?: "image" | "text" | "model" | "video";
   }>;
 };
+
+export type BuilderAsset = { key: string; label: string; kind: 'image' | 'video' | 'model'; url: string; assetId?: string; mimeType?: string; previewUrl?: string };
 
 export type ExhibitionSceneResponse = {
   exhibition: {
@@ -54,6 +63,7 @@ export type BuilderReviewIssue = {
   viewId: string;
   message: string;
   suggestedFix: string;
+  resolution?: "automatic" | "manual";
 };
 
 export type BuilderReview = {
@@ -76,6 +86,7 @@ export type BuilderSessionResponse = ExhibitionSceneResponse & {
   operationSummary?: string;
   appliedOperationCount?: number;
   revisionCount: number;
+  restoredFromVersionId?: string;
 };
 
 export type BuilderProviderSource = "qwen" | "fallback";
@@ -87,9 +98,45 @@ export type BuilderReviewResponse = {
   review: BuilderReview | null;
   status: BuilderReviewStatus;
   source: BuilderProviderSource;
-  errorCode?: "VISION_PROVIDER_FAILED" | "INVALID_VISION_RESPONSE";
+  errorCode?: "VISION_PROVIDER_FAILED" | "INVALID_VISION_RESPONSE" | "INVALID_INSPECTION_VIEWS";
   message?: string;
 };
+
+export type BuilderSessionVersion = BuilderSessionResponse & {
+  review?: BuilderReview | null;
+  reviewSource?: BuilderProviderSource | null;
+  reviewStatus?: BuilderReviewStatus;
+  reviewMessage?: string | null;
+  reviewErrorCode?: BuilderReviewResponse["errorCode"] | null;
+};
+
+export type BuilderSessionRestoreResponse = BuilderSessionResponse & {
+  input: ExhibitionSceneRequest;
+  versions: BuilderSessionVersion[];
+  review?: BuilderReview | null;
+  reviewSource?: BuilderProviderSource | null;
+  reviewStatus?: BuilderReviewStatus;
+  reviewMessage?: string | null;
+  reviewErrorCode?: BuilderReviewResponse["errorCode"] | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export class BuilderApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "BuilderApiError";
+  }
+}
+
+function builderErrorFromResponse(res: Response, data: unknown, fallback: string) {
+  const error = errorFromResponse(data, fallback);
+  return new BuilderApiError(error.message, res.status, { cause: error });
+}
 
 export async function requestExhibitionScene(
   token: string,
@@ -108,15 +155,55 @@ export async function requestExhibitionScene(
 export async function requestBuilderSession(
   token: string,
   payload: ExhibitionSceneRequest,
+  signal?: AbortSignal,
 ): Promise<BuilderSessionResponse> {
   const res = await apiFetch(apiUrl("/api/ai/exhibition-builder/start"), {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
+    signal,
+  }, { timeoutMs: BUILDER_API_TIMEOUT_MS });
+  const data = await parseJsonSafe(res);
+  if (!res.ok) throw builderErrorFromResponse(res, data, "AI exhibition builder failed to start");
+  return data as BuilderSessionResponse;
+}
+
+export async function requestBuilderSessionById(
+  token: string,
+  sessionId: string,
+): Promise<BuilderSessionRestoreResponse> {
+  const res = await apiFetch(apiUrl(`/api/ai/exhibition-builder/sessions/${encodeURIComponent(sessionId)}`), {
+    method: "GET",
+    headers: authHeaders(token),
   }, { timeoutMs: LONG_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, "AI exhibition builder failed to start");
-  return data as BuilderSessionResponse;
+  if (!res.ok) throw builderErrorFromResponse(res, data, "AI exhibition builder session failed to load");
+  return data as BuilderSessionRestoreResponse;
+}
+
+export async function requestBuilderVersionRestore(
+  token: string,
+  payload: {
+    sessionId: string;
+    expectedVersionId: string;
+    targetVersionId: string;
+  },
+): Promise<BuilderSessionRestoreResponse> {
+  const res = await apiFetch(
+    apiUrl(`/api/ai/exhibition-builder/sessions/${encodeURIComponent(payload.sessionId)}/restore`),
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({
+        expectedVersionId: payload.expectedVersionId,
+        targetVersionId: payload.targetVersionId,
+      }),
+    },
+    { timeoutMs: LONG_API_TIMEOUT_MS },
+  );
+  const data = await parseJsonSafe(res);
+  if (!res.ok) throw builderErrorFromResponse(res, data, "AI exhibition builder version failed to restore");
+  return data as BuilderSessionRestoreResponse;
 }
 
 export async function requestBuilderReview(
@@ -127,14 +214,16 @@ export async function requestBuilderReview(
     scene: SceneSnapshot;
     screenshots: BuilderScreenshot[];
   },
+  signal?: AbortSignal,
 ): Promise<BuilderReviewResponse> {
   const res = await apiFetch(apiUrl("/api/ai/exhibition-builder/review"), {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  }, { timeoutMs: LONG_API_TIMEOUT_MS });
+    signal,
+  }, { timeoutMs: BUILDER_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, "AI exhibition builder review failed");
+  if (!res.ok) throw builderErrorFromResponse(res, data, "AI exhibition builder review failed");
   return data as BuilderReviewResponse;
 }
 
@@ -145,16 +234,19 @@ export async function requestBuilderRevision(
     versionId: string;
     scene: SceneSnapshot;
     review?: BuilderReview | null;
+    input?: ExhibitionSceneRequest;
     prompt?: string;
     revisionCount?: number;
   },
+  signal?: AbortSignal,
 ): Promise<BuilderSessionResponse> {
   const res = await apiFetch(apiUrl("/api/ai/exhibition-builder/revise"), {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
-  }, { timeoutMs: LONG_API_TIMEOUT_MS });
+    signal,
+  }, { timeoutMs: BUILDER_API_TIMEOUT_MS });
   const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, "AI exhibition builder revision failed");
+  if (!res.ok) throw builderErrorFromResponse(res, data, "AI exhibition builder revision failed");
   return data as BuilderSessionResponse;
 }

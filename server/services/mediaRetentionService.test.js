@@ -32,6 +32,13 @@ describe('parseMediaRetentionDays', () => {
 });
 
 describe('media retention inspection', () => {
+  it('recognizes saved video and model files as present media', async () => {
+    const root = await tempRoot();
+    const names = ['glb', 'gltf', 'stl', 'mp4', 'webm', 'ogg'].map(extension => `11111111-1111-4111-8111-111111111111.${extension}`);
+    await Promise.all(names.map(name => writeFile(path.join(root, name), 'synthetic')));
+    const result = await inspectMediaRetention({ uploadRoot: root, mediaAssets: names.map((name, index) => ({ id: String(index), storage_file_name: name, gallery_id: 'gallery-1' })) });
+    expect(result.missingRows).toEqual([]); expect(result.orphanFiles).toEqual([]);
+  });
   it('reports orphans, missing rows, and old unbound rows without touching files', async () => {
     const root = await tempRoot();
     await writeFile(path.join(root, present), 'present');

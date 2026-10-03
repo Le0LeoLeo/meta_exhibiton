@@ -6,6 +6,7 @@ import {
   DEFAULT_AVATAR_APPEARANCE,
   parseAvatarAppearance,
 } from '../schemas/avatarAppearanceSchema.js';
+import { exhibitWorkContextSchema } from '../schemas/sceneSchema.js';
 import { resolveGalleryAccess } from '../security/galleryAccess.js';
 import { createRateTokenConsumer } from '../security/rateLimit.js';
 import { createMemorySceneStore } from './memorySceneStore.js';
@@ -16,6 +17,7 @@ const CHAT_RATE_LIMIT_PER_SEC = 3;
 const CHAT_MAX_LENGTH = 300;
 const APPEARANCE_MAX_BYTES = 1024;
 const APPEARANCE_RATE_LIMIT_WINDOW_MS = 2000;
+const AVATAR_EMOTES = new Set(['none', 'wave', 'cheer', 'clap', 'bow']);
 const ROOM_ID_MAX_LENGTH = 128;
 const CLIENT_OP_ID_MAX_LENGTH = 128;
 const ITEM_ID_MAX_LENGTH = 256;
@@ -65,6 +67,12 @@ const ITEM_TYPES = new Set([
   'plant',
   'column',
   'neon',
+  'chair',
+  'sofa',
+  'floorlamp',
+  'cabinet',
+  'turntable',
+  'fountain',
 ]);
 const FLOOR_PLAN_TYPES = new Set(['room', 'wall']);
 const WALL_MATERIAL_PRESETS = new Set([
@@ -249,6 +257,19 @@ function isValidMovePayload(payload, roomId, limits) {
     && Math.abs(payload.position.x) <= limits.maxCoordinateAbs
     && Math.abs(payload.position.y) <= limits.maxCoordinateAbs
     && Math.abs(payload.position.z) <= limits.maxCoordinateAbs
+    && (
+      payload.pose === undefined
+      || payload.pose === 'standing'
+      || payload.pose === 'sitting'
+    )
+    && (
+      payload.emote === undefined
+      || AVATAR_EMOTES.has(payload.emote)
+    )
+    && (
+      payload.emoteNonce === undefined
+      || (Number.isSafeInteger(payload.emoteNonce) && payload.emoteNonce >= 0)
+    )
     && !Object.prototype.hasOwnProperty.call(payload, 'appearance')
   );
 }
@@ -277,6 +298,10 @@ function isValidExhibitItem(item) {
     && isFiniteVector3(item.rotation)
     && isFiniteVector3(item.scale)
     && typeof item.content === 'string'
+    && (
+      item.workContext === undefined
+      || exhibitWorkContextSchema.safeParse(item.workContext).success
+    )
     && optionalFieldsMatchType(item, ITEM_OPTIONAL_STRING_FIELDS, 'string')
     && optionalFieldsMatchType(item, ITEM_OPTIONAL_BOOLEAN_FIELDS, 'boolean')
     && optionalNumbersAreNonnegative(
@@ -511,9 +536,11 @@ export async function fetchRoomPlayers(io, roomId, { includeSocketId } = {}) {
 }
 
 export function startMultiplayerServer({
+  host,
   initialPort,
   corsOrigin,
   verifyToken,
+  verifySessionToken = verifyToken,
   getGalleryById,
   getGalleryByShareToken,
   collaboration = null,
@@ -777,7 +804,13 @@ export function startMultiplayerServer({
     }
 
     try {
-      const auth = verifyToken(socket.data.handshakeToken) || null;
+      const auth = await verifySessionToken(socket.data.handshakeToken) || null;
+      if (socket.data.handshakeToken && !auth) {
+        await enqueueMembershipTransition(socket, () => leaveCurrentRoomUnlocked(socket));
+        emitRoomError(socket, 'AUTH_REQUIRED', errorMetadata);
+        socket.disconnect(true);
+        return null;
+      }
       const gallery = await getGalleryById(session.galleryId);
       if (!sessionIsCurrent(socket, session)) {
         return rejectStaleSession(socket, emitStaleError, errorMetadata);
@@ -960,7 +993,12 @@ export function startMultiplayerServer({
       }
 
       try {
-        const currentAuth = verifyToken(socket.data.handshakeToken) || null;
+        const currentAuth = await verifySessionToken(socket.data.handshakeToken) || null;
+        if (socket.data.handshakeToken && !currentAuth) {
+          await denyJoin(socket, roomId, 'AUTH_REQUIRED', () => sequence === joinSequence);
+          socket.disconnect(true);
+          return;
+        }
         socket.data.auth = currentAuth;
         const gallery = await getGalleryById(roomId);
         if (sequence !== joinSequence || !socket.connected) return;
@@ -1040,6 +1078,9 @@ export function startMultiplayerServer({
               id: socket.id,
               position: { x: 0, y: 2.6, z: 5 },
               yaw: 0,
+              pose: 'standing',
+              emote: 'none',
+              emoteNonce: 0,
               lastSeq: 0,
             }),
             nickname,
@@ -1181,6 +1222,11 @@ export function startMultiplayerServer({
         ...currentPlayer,
         position: payload.position,
         yaw: payload.yaw,
+        pose: payload.pose === 'sitting' ? 'sitting' : 'standing',
+        emote: AVATAR_EMOTES.has(payload.emote) ? payload.emote : 'none',
+        emoteNonce: Number.isSafeInteger(payload.emoteNonce)
+          ? payload.emoteNonce
+          : currentPlayer.emoteNonce ?? 0,
         lastSeq: payload.seq,
         updatedAt: Date.now(),
       };
@@ -1192,6 +1238,9 @@ export function startMultiplayerServer({
         t: payload.t,
         position: updated.position,
         yaw: updated.yaw,
+        pose: updated.pose,
+        emote: updated.emote,
+        emoteNonce: updated.emoteNonce,
         updatedAt: updated.updatedAt,
       });
     });
@@ -1590,7 +1639,7 @@ export function startMultiplayerServer({
   }
 
   function listen() {
-    if (!closing) httpServer.listen(currentPort);
+    if (!closing) httpServer.listen(currentPort, host);
   }
 
   httpServer.on('listening', () => {
@@ -1684,6 +1733,15 @@ export function startMultiplayerServer({
     httpServer,
     ready,
     port: () => httpServer.address()?.port,
+    revokeUserSessions: async (userId) => {
+      // fetchSockets also reaches other instances through the Redis adapter.
+      const sockets = await io.fetchSockets();
+      for (const socket of sockets) {
+        if (socket.data.auth?.sub !== userId) continue;
+        socket.emit('room:error', { code: 'AUTH_REQUIRED', message: 'Please sign in again.' });
+        socket.disconnect(true);
+      }
+    },
     checkReadiness: async () => {
       await sceneStore.checkReadiness();
       if (collaboration) await collaboration.checkReadiness();

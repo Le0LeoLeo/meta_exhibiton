@@ -1,5 +1,11 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { CSRF_COOKIE_NAME, parseCookies } from '../auth/sessionCookie.js';
+import {
+  CSRF_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+  clearCsrfCookie,
+  clearSessionCookie,
+  parseCookies,
+} from '../auth/sessionCookie.js';
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -31,7 +37,13 @@ export function createCsrfProtection({ secret, verifyToken }) {
     if (bearer && verifyToken(bearer[1])) return next();
 
     const cookies = parseCookies(req.headers.cookie);
-    if (!cookies.mrei_session) return next();
+    if (!cookies[SESSION_COOKIE_NAME]) return next();
+    // Invalid cookies provide no authentication; let route guards handle the request.
+    if (!verifyToken(cookies[SESSION_COOKIE_NAME])) {
+      clearSessionCookie(res);
+      clearCsrfCookie(res);
+      return next();
+    }
     const headerToken = req.header('x-csrf-token');
     if (
       !headerToken

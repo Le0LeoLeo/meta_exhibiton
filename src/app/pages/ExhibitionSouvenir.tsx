@@ -52,7 +52,7 @@ export default function ExhibitionSouvenir() {
 
   return (
     <main className="bg-background px-4 py-12 text-foreground sm:py-20">
-      <article className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <article className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-border bg-card">
         <div className="grid lg:grid-cols-[1.15fr_1fr]">
           <div className="flex min-h-72 items-center justify-center overflow-hidden bg-secondary lg:min-h-[34rem]">
             {souvenir.favoriteExhibit?.thumbnailUrl ? (

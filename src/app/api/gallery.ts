@@ -13,14 +13,27 @@ export type GallerySummary = {
   shareRole?: 'viewer' | 'editor';
   shareExpiresAt?: string | null;
   isPublished?: boolean;
+  isBox?: boolean;
   publishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  revision: number;
+  quickDraftId?: string | null;
+  reviewAccess?: boolean;
 };
 
 export type GalleryDetail = GallerySummary & {
   sceneJson: string | null;
 };
+
+export class GalleryConflictError extends Error {
+  constructor() {
+    super('This exhibition has changed. Your local changes have been preserved.');
+    this.name = 'GalleryConflictError';
+  }
+}
+
+type GalleryUpdate = Partial<Pick<GalleryDetail, 'title' | 'description' | 'templateTitle' | 'templateImage' | 'category' | 'sceneJson'>> & { expectedRevision: number };
 
 export type GalleryAdminSummary = {
   totalGalleries: number;
@@ -28,6 +41,8 @@ export type GalleryAdminSummary = {
   totalItems: number;
   totalComments: number;
   totalVisitors: number;
+  totalVisits: number;
+  averageVisitSeconds: number;
   totalDwellSeconds: number;
   topGallery: GalleryAdminGallery | null;
 };
@@ -36,10 +51,11 @@ export type GalleryAdminGallery = GallerySummary & {
   itemCount: number;
   commentCount: number;
   visitorCount: number;
+  visitCount: number;
   engagedCount: number;
   totalDwellSeconds: number;
   popularityScore: number;
-  latestActivityAt: string;
+  latestActivityAt: string | null;
 };
 
 export type GalleryAdminItem = {
@@ -54,7 +70,7 @@ export type GalleryAdminItem = {
   engagedCount: number;
   dwellSeconds: number;
   popularityScore: number;
-  latestActivityAt: string;
+  latestActivityAt: string | null;
 };
 
 export type GalleryAdminComment = {
@@ -73,15 +89,13 @@ export type GalleryAdminAnalytics = {
   galleries: GalleryAdminGallery[];
   items: GalleryAdminItem[];
   comments: GalleryAdminComment[];
+  availableGalleries: Array<{ id: string; title: string }>;
+  daily: Array<{ date: string; visitCount: number; visitorCount: number; totalDwellSeconds: number }>;
+  period: { range: GalleryAnalyticsRange; from: string; to: string; timeZone: 'Asia/Hong_Kong' };
+  measurementStartedAt: string | null;
 };
 
-export type GalleryUploadLink = {
-  token: string;
-  galleryId: string;
-  itemId: string;
-  canEditMetadata: boolean;
-  expiresAt: string | null;
-};
+export type GalleryAnalyticsRange = '7d' | '30d' | '90d';
 
 export type GalleryShareAccess = {
   viaShare: true;
@@ -104,19 +118,22 @@ export async function getMyGalleries(token: string): Promise<{ galleries: Galler
   return data as { galleries: GallerySummary[] };
 }
 
-export async function getPublishedGalleries(): Promise<{ galleries: GallerySummary[] }> {
-  const res = await apiFetch(apiUrl('/api/galleries/published'), {
+export async function getPublishedGalleries(options: { after?: string; limit?: number } = {}): Promise<{ galleries: GallerySummary[]; nextCursor?: string | null }> {
+  const query = new URLSearchParams();
+  if (options.after) query.set('after', options.after);
+  if (options.limit !== undefined) query.set('limit', String(options.limit));
+  const res = await apiFetch(apiUrl(`/api/galleries/published${query.size ? `?${query}` : ''}`), {
     headers: { 'Content-Type': 'application/json' },
   });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '載入公開展覽列表失敗');
-  return data as { galleries: GallerySummary[] };
+  return data as { galleries: GallerySummary[]; nextCursor?: string | null };
 }
 
 export async function getPublishedGalleryById(id: string): Promise<{ gallery: GalleryDetail }> {
   const res = await apiFetch(apiUrl(`/api/galleries/published/${encodeURIComponent(id)}`));
   const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, '載入公開展覽失敗');
+  if (!res.ok) throw Object.assign(errorFromResponse(data, '載入公開展覽失敗'), { status: res.status });
   return data as { gallery: GalleryDetail };
 }
 
@@ -146,12 +163,14 @@ export async function getGalleryById(token: string, id: string): Promise<{ galle
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, '載入展覽內容失敗');
+  if (!res.ok) throw Object.assign(errorFromResponse(data, '載入展覽內容失敗'), { status: res.status });
   return data as { gallery: GalleryDetail };
 }
 
-export async function getGalleryAdminAnalytics(token: string): Promise<GalleryAdminAnalytics> {
-  const res = await apiFetch(apiUrl('/api/galleries/admin/analytics'), {
+export async function getGalleryAdminAnalytics(token: string, options: { range?: GalleryAnalyticsRange; galleryId?: string } = {}): Promise<GalleryAdminAnalytics> {
+  const query = new URLSearchParams({ range: options.range ?? '30d' });
+  if (options.galleryId) query.set('galleryId', options.galleryId);
+  const res = await apiFetch(apiUrl(`/api/galleries/admin/analytics?${query}`), {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await parseJsonSafe(res);
@@ -199,7 +218,7 @@ export async function deleteGalleryById(token: string, id: string): Promise<{ ok
 export async function updateGalleryById(
   token: string,
   id: string,
-  payload: Partial<Pick<GalleryDetail, 'title' | 'description' | 'templateTitle' | 'templateImage' | 'category' | 'sceneJson'>>,
+  payload: GalleryUpdate,
 ): Promise<{ gallery: GalleryDetail }> {
   const res = await apiFetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}`), {
     method: 'PATCH',
@@ -207,13 +226,14 @@ export async function updateGalleryById(
     body: JSON.stringify(payload),
   });
   const data = await parseJsonSafe(res);
+  if (res.status === 409 && data?.code === 'GALLERY_CONFLICT') throw new GalleryConflictError();
   if (!res.ok) throw errorFromResponse(data, '儲存展覽失敗');
   return data as { gallery: GalleryDetail };
 }
 
 export async function updateSharedGallery(
   shareToken: string,
-  payload: Partial<Pick<GalleryDetail, 'title' | 'description' | 'templateTitle' | 'templateImage' | 'category' | 'sceneJson'>>,
+  payload: GalleryUpdate,
 ): Promise<{ gallery: GalleryDetail }> {
   const res = await apiFetch(apiUrl('/api/share/galleries'), {
     method: 'PATCH',
@@ -224,6 +244,7 @@ export async function updateSharedGallery(
     body: JSON.stringify(payload),
   });
   const data = await parseJsonSafe(res);
+  if (res.status === 409 && data?.code === 'GALLERY_CONFLICT') throw new GalleryConflictError();
   if (!res.ok) throw errorFromResponse(data, 'Failed to update shared gallery');
   return data as { gallery: GalleryDetail };
 }
@@ -243,74 +264,14 @@ export async function createGalleryShareLink(
   return data as { share: GalleryShareLink };
 }
 
-export async function publishGalleryById(
-  token: string,
-  id: string,
-  competitionEntry?: { competitionId: string; statement: string; assets?: Array<{ name: string; url: string }> },
-): Promise<{ gallery: GalleryDetail }> {
+export async function publishGalleryById(token: string, id: string): Promise<{ gallery: GalleryDetail }> {
   const res = await apiFetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}/publish`), {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ competitionEntry }),
   });
   const data = await parseJsonSafe(res);
   if (!res.ok) throw errorFromResponse(data, '發佈展覽失敗');
   return data as { gallery: GalleryDetail };
-}
-
-export async function createGalleryUploadLink(
-  token: string,
-  id: string,
-  payload: { itemId: string; canEditMetadata?: boolean; expiresInHours?: number },
-): Promise<{ uploadLink: { url: string; token: string; galleryId: string; itemId: string; canEditMetadata: boolean; expiresAt: string | null } }> {
-  const res = await apiFetch(apiUrl(`/api/galleries/${encodeURIComponent(id)}/upload-link`), {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: JSON.stringify(payload),
-  });
-  const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, '建立上傳連結失敗');
-  return data as { uploadLink: { url: string; token: string; galleryId: string; itemId: string; canEditMetadata: boolean; expiresAt: string | null } };
-}
-
-export async function getGalleryUploadLink(token: string): Promise<{ uploadLink: GalleryUploadLink; gallery: GalleryDetail; item?: unknown }> {
-  const res = await apiFetch(apiUrl(`/api/upload-links/${encodeURIComponent(token)}`));
-  const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, '載入上傳連結失敗');
-  return data as { uploadLink: GalleryUploadLink; gallery: GalleryDetail; item?: unknown };
-}
-
-export async function saveGalleryUploadLink(
-  uploadToken: string,
-  payload: {
-    title?: string;
-    artist?: string;
-    description?: string;
-    externalUrl?: string;
-    content?: string;
-    fileName?: string;
-    fileMimeType?: string;
-    videoThumbnailUrl?: string;
-  },
-): Promise<{ gallery: GalleryDetail | null; item: unknown }> {
-  const res = await apiFetch(apiUrl(`/api/upload-links/${encodeURIComponent(uploadToken)}`), {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, '儲存上傳內容失敗');
-  return data as { gallery: GalleryDetail | null; item: unknown };
-}
-
-export async function revokeGalleryUploadLink(token: string, uploadToken: string): Promise<{ ok: true }> {
-  const res = await apiFetch(apiUrl(`/api/upload-links/${encodeURIComponent(uploadToken)}`), {
-    method: 'DELETE',
-    headers: authHeaders(token),
-  });
-  const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, '撤銷上傳連結失敗');
-  return data as { ok: true };
 }
 
 export async function unpublishGalleryById(token: string, id: string): Promise<{ gallery: GalleryDetail }> {

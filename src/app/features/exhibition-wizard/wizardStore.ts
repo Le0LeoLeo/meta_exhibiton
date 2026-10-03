@@ -32,6 +32,8 @@ export type ExhibitionWizardDraft = {
   assets: WizardAsset[];
   style: string;
   layoutStatus: "idle" | "running" | "complete" | "failed";
+  layoutSource?: "qwen" | "fallback";
+  layoutWarnings?: string[];
   aiJobId: string | null;
   previewReady: boolean;
   publishedAt: string | null;
@@ -111,7 +113,14 @@ export function transitionExhibitionWizard(
   now = new Date().toISOString(),
 ): ExhibitionWizardDraft {
   if (event.type === "patch") {
-    return { ...draft, ...event.patch, updatedAt: now };
+    const restartingLayout = event.patch.layoutStatus === "running";
+    return {
+      ...draft, ...event.patch, updatedAt: now,
+      ...(restartingLayout ? {
+        previewReady: false,
+        furthestStep: stepIndex(draft.furthestStep) > stepIndex('layout') ? 'layout' as const : draft.furthestStep,
+      } : {}),
+    };
   }
 
   const currentIndex = stepIndex(draft.currentStep);

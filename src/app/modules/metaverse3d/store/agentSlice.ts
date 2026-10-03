@@ -1,20 +1,12 @@
+import { v4 as uuidv4 } from "uuid";
 import type { MetaverseStoreSlice } from "./baseSlice";
-import type { AgentChatMessage, AgentRecommendation, AgentState } from "../agent/types";
+import type { AgentChatMessage, AgentMode, AgentRecommendation, AgentState } from "../agent/types";
 import { createDefaultAgentTourSession, defaultAgentState } from "./metaverseStoreUtils";
+import { recordAgentDialogue } from '../agent/dialogueState';
 
-let fallbackTourRunCounter = 0;
-
-function createTourRunId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-
-  fallbackTourRunCounter += 1;
-  return `${Date.now()}-${fallbackTourRunCounter}`;
-}
-
-export const createAgentSlice: MetaverseStoreSlice<{
+export interface AgentSlice {
   agent: AgentState;
+  oneTimeExhibitFocus: { sessionId: string; itemId: string } | null;
   agentChat: AgentChatMessage[];
   hasSelectedParticipationMode: boolean;
   allowPointerLock: boolean;
@@ -35,25 +27,46 @@ export const createAgentSlice: MetaverseStoreSlice<{
   markAgentTourExplained: (exhibitId: string) => void;
   setHasSelectedParticipationMode: (value: boolean) => void;
   setAllowPointerLock: (value: boolean) => void;
-}> = (set) => ({
+  clearAgentRecommendation: () => void;
+  closeAgentChat: () => void;
+  openAgentChat: () => void;
+  focusAgentOnExhibitOnce: (itemId: string | null) => void;
+  appendAgentRecommendation: (recommendation: AgentRecommendation | null) => void;
+  setAgentMode: (mode: AgentMode) => void;
+  setAgentFollowUser: (followUser: boolean) => void;
+}
+
+export const createAgentSlice: MetaverseStoreSlice<AgentSlice> = (set) => ({
+  oneTimeExhibitFocus: null,
   agent: defaultAgentState,
   agentChat: [],
   hasSelectedParticipationMode: false,
   allowPointerLock: true,
-  setAgent: (updates) => set((state) => ({ agent: { ...state.agent, ...updates } })),
-  setAgentDialogue: (content) => set((state) => ({ agent: { ...state.agent, currentDialogue: content } })),
-  setAgentCurrentDialogue: (content) => set((state) => ({ agent: { ...state.agent, currentDialogue: content } })),
+  setAgent: (updates) => set((state) => ({
+    agent: {
+      ...state.agent,
+      ...updates,
+      ...(updates.participationMode !== undefined && updates.participationMode !== state.agent.participationMode
+        ? { isAnswering: false, answerSource: null, pendingQuestion: "" }
+        : {}),
+    },
+    ...(updates.memory?.sessionId && updates.memory.sessionId !== state.agent.memory.sessionId
+      ? { oneTimeExhibitFocus: null }
+      : {}),
+    ...(updates.isChatOpen === false ? { oneTimeExhibitFocus: null } : {}),
+  })),
+  setAgentDialogue: (content) => set((state) => recordAgentDialogue(state, content)),
+  setAgentCurrentDialogue: (content) => set((state) => recordAgentDialogue(state, content)),
   pushAgentMessage: (message) =>
     set((state) => ({
-      agentChat: [
-        ...state.agentChat,
-        { ...message, id: crypto.randomUUID(), createdAt: Date.now() },
-      ].slice(-20),
+      agentChat: [...state.agentChat, { ...message, id: uuidv4(), createdAt: Date.now() }].slice(-20),
     })),
   setAgentNearbyExhibit: (id) => set((state) => ({ agent: { ...state.agent, nearbyExhibitId: id } })),
   setAgentActiveExhibit: (item) => set((state) => ({ agent: { ...state.agent, activeExhibit: item } })),
   setAgentRecommendedExhibit: (recommendation) =>
     set((state) => ({ agent: { ...state.agent, recommendedExhibit: recommendation } })),
+  clearAgentRecommendation: () =>
+    set((state) => ({ agent: { ...state.agent, recommendedExhibit: null } })),
   trackAgentDwell: (id, deltaSeconds) =>
     set((state) => ({
       agent: {
@@ -89,7 +102,7 @@ export const createAgentSlice: MetaverseStoreSlice<{
           isChatOpen: true,
           activeExhibit: null,
           tourSession: {
-            tourRunId: createTourRunId(),
+            tourRunId: uuidv4(),
             status: "running",
             routeExhibitIds: route,
             currentStopIndex: 0,
@@ -183,6 +196,7 @@ export const createAgentSlice: MetaverseStoreSlice<{
         mode: "idle",
         followUser: false,
         isAnswering: false,
+        answerSource: null,
         pendingQuestion: "",
         tourSession: createDefaultAgentTourSession(),
       },
@@ -228,4 +242,20 @@ export const createAgentSlice: MetaverseStoreSlice<{
     }),
   setHasSelectedParticipationMode: (value) => set({ hasSelectedParticipationMode: value }),
   setAllowPointerLock: (value) => set({ allowPointerLock: value }),
+  closeAgentChat: () => set((state) => ({ agent: { ...state.agent, isChatOpen: false }, oneTimeExhibitFocus: null })),
+  openAgentChat: () => set((state) => ({ agent: { ...state.agent, isChatOpen: true, enabled: true } })),
+  focusAgentOnExhibitOnce: (itemId) => set((state) => ({
+    oneTimeExhibitFocus: itemId ? { sessionId: state.agent.memory.sessionId, itemId } : null,
+  })),
+  appendAgentRecommendation: (recommendation) =>
+    set((state) => ({
+      agent: {
+        ...state.agent,
+        recommendedExhibit: recommendation,
+        currentDialogue: recommendation ? `下一站推薦：${recommendation.title}。${recommendation.reason}` : state.agent.currentDialogue,
+      },
+    })),
+  setAgentMode: (mode) => set((state) => ({ agent: { ...state.agent, mode } })),
+  setAgentFollowUser: (followUser) =>
+    set((state) => ({ agent: { ...state.agent, followUser, mode: followUser ? "follow" : "idle" } })),
 });

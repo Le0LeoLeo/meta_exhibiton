@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { planImageMetadataSanitization } from './mediaMetadataService.js';
+import { planSceneMedia } from './sceneMediaFormat.js';
 
 export const DEFAULT_MEDIA_UPLOAD_MAX_BYTES = 15 * 1024 * 1024;
 export const DEFAULT_MEDIA_UPLOAD_ROOT = path.resolve('server/uploads/media');
@@ -44,12 +45,14 @@ export async function ingestMediaUpload(payload, options = {}) {
 
   let plan;
   try {
-    plan = await planImageMetadataSanitization(input, payload?.mimeType, {
+    plan = options.allowSceneMedia && !String(payload?.mimeType).startsWith('image/')
+      ? planSceneMedia(input, payload?.mimeType, payload?.fileName)
+      : await planImageMetadataSanitization(input, payload?.mimeType, {
       maxPixels: options.maxPixels,
       maxDimension: options.maxDimension,
     });
   } catch {
-    throw uploadError('unsupported image or MIME type mismatch', 'INVALID_UPLOAD', 400);
+    throw uploadError('unsupported media or MIME type mismatch; models must be self-contained GLB, glTF or STL', 'INVALID_UPLOAD', 400);
   }
 
   if (plan.buffer.length > maxBytes) {
@@ -79,7 +82,31 @@ export async function ingestMediaUpload(payload, options = {}) {
     originalFileName: safeOriginalFileName(payload?.fileName),
     mimeType: plan.mimeType,
     size: plan.buffer.length,
-    metadataSanitized: true,
+    width: plan.width,
+    height: plan.height,
+    metadataSanitized: plan.metadataSanitized ?? true,
     url: `/uploads/media/${fileName}`,
   };
+}
+
+// Call only after authorizing the stored asset. Dependencies use the same
+// storage root and database as the caller; existing files are never rewritten.
+export async function ensureMediaAssetDimensions(asset, { readMediaFile, updateMediaAssetDimensions }) {
+  if (Number.isInteger(asset.width) && asset.width > 0
+    && Number.isInteger(asset.height) && asset.height > 0) {
+    return asset;
+  }
+
+  let plan;
+  try {
+    const bytes = await readMediaFile(asset.storage_file_name);
+    plan = await planImageMetadataSanitization(bytes, asset.mime_type);
+  } catch {
+    throw uploadError('stored media dimensions could not be decoded', 'MEDIA_DIMENSIONS_UNAVAILABLE', 422);
+  }
+  const changed = await updateMediaAssetDimensions(asset.id, plan.width, plan.height);
+  if (changed !== 1) {
+    throw uploadError('media asset no longer exists', 'MEDIA_NOT_FOUND', 404);
+  }
+  return { ...asset, width: plan.width, height: plan.height };
 }

@@ -1,4 +1,4 @@
-export type CuratorIntent = "warm-memory" | "professional-gallery" | "competition-showcase";
+export type CuratorIntent = "warm-memory" | "professional-gallery";
 
 export const curatorIntentOptions: Array<{ value: CuratorIntent; label: string; summary: string }> = [
   {
@@ -11,15 +11,11 @@ export const curatorIntentOptions: Array<{ value: CuratorIntent; label: string; 
     label: "\u5c08\u696d\u5c55\u89bd",
     summary: "\u4ee5\u6e05\u6670\u5206\u5340\u3001\u7cbe\u6e96\u8aaa\u660e\u8207\u7a69\u5b9a\u52d5\u7dda\u5448\u73fe\u3002",
   },
-  {
-    value: "competition-showcase",
-    label: "\u6bd4\u8cfd\u5448\u73fe",
-    summary: "\u7a81\u51fa\u4f5c\u54c1\u4eae\u9ede\u3001\u5b8c\u6210\u5ea6\u8207\u8a55\u5be9\u53ef\u5feb\u901f\u7406\u89e3\u7684\u91cd\u9ede\u3002",
-  },
 ];
 
 export const aiCuratorCopy = {
   title: "\u0041\u0049 \u7b56\u5c55\u52a9\u624b",
+  scope: "目前依你輸入的主題與偏好產生策展文字草稿；不會讀取或分析現有展品的內容。",
   signInError: "\u8acb\u5148\u767b\u5165\u518d\u4f7f\u7528 AI \u7b56\u5c55\u3002",
   failed: "\u0041\u0049 \u7b56\u5c55\u751f\u6210\u5931\u6557",
   unchangedError: "\u9019\u6b21\u6c92\u6709\u6210\u529f\u751f\u6210\u8a08\u5283\u3002\u4f60\u7684\u5c55\u5834\u4ecd\u7136\u4fdd\u6301\u539f\u72c0\uff0c\u53ef\u4ee5\u7a0d\u5f8c\u91cd\u8a66\u3002",
@@ -41,14 +37,14 @@ export const aiCuratorCopy = {
   applyMode: "\u5957\u7528\u65b9\u5f0f",
   replace: "\u91cd\u5efa\u5c55\u5ef3",
   preserveExisting: "\u4fdd\u7559\u73fe\u6709\u5c55\u54c1",
-  generating: "\u6b63\u5728\u6574\u7406\u4f60\u7684\u7b56\u5c55\u65b9\u5411\uff0c\u5148\u4e0d\u6703\u6539\u52d5\u76ee\u524d\u5c55\u5834\u3002",
+  generating: "正在依主題整理策展文字草稿，目前不會改動展場。",
   generate: "\u751f\u6210\u7b56\u5c55\u65b9\u6848",
   preview: "\u7b56\u5c55\u9810\u89bd",
   intentSummary: "\u7b56\u5c55\u65b9\u5411",
-  replaceWarning: "\u6703\u4ee5\u9019\u4efd AI \u8349\u7a3f\u91cd\u6574\u76ee\u524d\u5c55\u5834\u3002\u82e5\u6709\u5df2\u4e0a\u50b3\u4f5c\u54c1\uff0c\u8acb\u5148\u78ba\u8a8d\u662f\u5426\u8981\u6539\u7528\u300c\u4fdd\u7559\u73fe\u6709\u5c55\u54c1\u300d\u3002",
-  preserveWarning: "\u6703\u5148\u4fdd\u7559\u4f60\u73fe\u6709\u7684\u5c55\u54c1\u8cc7\u6599\uff0c\u518d\u6839\u64da\u65b0\u7684\u7b56\u5c55\u65b9\u5411\u6574\u7406\u5c55\u793a\u4f4d\u7f6e\u548c\u8aaa\u660e\u3002",
-  preserveDetail: "\u6703\u4fdd\u7559\uff1a\u5df2\u4e0a\u50b3\u5a92\u9ad4\u3001\u73fe\u6709\u5c55\u54c1\u8cc7\u6599\u3002",
-  changeDetail: "\u6703\u6574\u7406\uff1a\u5c55\u5340\u7bc0\u594f\u3001\u6587\u5b57\u8aaa\u660e\u3001\u71c8\u5149\u8207\u5c55\u793a\u4f4d\u7f6e\u3002",
+  replaceWarning: "重建展廳會用 AI 草稿的文字物件取代目前場景物件；現有展品將從場景移除。請先保存副本，或改選「保留現有展品」。",
+  preserveWarning: "保留現有展品及原來位置，另外加入 AI 草稿的展區文字、示例展品文字和燈光；請檢查是否與現有展品重疊。",
+  preserveDetail: "保留：現有展品、已上傳媒體的引用及目前位置。",
+  changeDetail: "新增：標題、展區與示例展品文字及燈光。AI 不會自動重排現有作品。",
   confirmHint: "\u78ba\u8a8d\u5f8c\u624d\u6703\u5957\u7528\u5230\u76ee\u524d\u7de8\u8f2f\u5668\uff0c\u4f60\u4ecd\u53ef\u4ee5\u9010\u4ef6\u8abf\u6574\u3002",
   confirmApply: "\u78ba\u8a8d\u5957\u7528",
   applyToScene: "\u5957\u7528\u5230\u5c55\u5ef3",
@@ -57,7 +53,7 @@ export const aiCuratorCopy = {
 };
 
 export function formatGeneratedCounts(sectionCount: number, exhibitCount: number) {
-  return `${sectionCount} \u500b\u5c55\u5340 / ${exhibitCount} \u4ef6\u5c55\u54c1`;
+  return `${sectionCount} 個展區 / ${exhibitCount} 則示例展品文字`;
 }
 
 export function getCuratorIntentLabel(intent: CuratorIntent) {

@@ -7,15 +7,15 @@ interface ThemeContextValue {
   toggleTheme: () => void;
 }
 
-const ThemeContext = createContext<ThemeContextValue>({ theme: 'dark', toggleTheme: () => {} });
+const ThemeContext = createContext<ThemeContextValue>({ theme: 'light', toggleTheme: () => {} });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('metaexpo-theme') as Theme | null;
-      if (stored) return stored;
+      if (stored === 'light' || stored === 'dark') return stored;
     }
-    return 'dark';
+    return 'light';
   });
 
   useEffect(() => {

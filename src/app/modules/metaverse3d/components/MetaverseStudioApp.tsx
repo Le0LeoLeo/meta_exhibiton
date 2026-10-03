@@ -1,10 +1,10 @@
-import { CanvasContainer } from "./components/CanvasContainer";
-import { EditUI } from "./components/UI/EditUI";
-import { ViewUI } from "./components/UI/ViewUI";
-import { FloorPlanUI } from "./components/UI/FloorPlanUI";
-import { MultiplayerBridge } from "./components/Multiplayer/MultiplayerBridge";
-import { AgentChatPanel } from "./components/UI/AgentChatPanel";
-import { useStore } from "./store/useStore";
+import { CanvasContainer } from "./CanvasContainer";
+import { EditUI } from "./UI/EditUI";
+import { ViewUI } from "./UI/ViewUI";
+import { FloorPlanUI } from "./UI/FloorPlanUI";
+import { MultiplayerBridge } from "./Multiplayer/MultiplayerBridge";
+import { AgentChatPanel } from "./UI/AgentChatPanel";
+import { useStore } from "../store/useStore";
 
 export default function MetaverseStudioApp() {
   const isAgentChatOpen = useStore((state) => state.agent.isChatOpen);

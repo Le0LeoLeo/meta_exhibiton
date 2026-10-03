@@ -10,17 +10,45 @@ export function getUserByEmail(email, database) {
   });
 }
 
+export function getUserByGoogleSubject(subject, database) {
+  return new Promise((resolve, reject) => {
+    database.get('SELECT * FROM users WHERE google_subject = ?', [subject], (err, row) => {
+      if (err) return reject(err);
+      resolve(row || null);
+    });
+  });
+}
+
 export function insertUser(user, database) {
   return new Promise((resolve, reject) => {
     database.run(
-      'INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
-      [user.id, user.email, user.name, user.passwordHash, user.createdAt],
+      `INSERT INTO users
+       (id, email, name, password_hash, google_subject, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        user.id,
+        user.email,
+        user.name,
+        user.passwordHash,
+        user.googleSubject || null,
+        user.createdAt,
+      ],
       (err) => {
         if (err) return reject(err);
         resolve();
       },
     );
   });
+}
+
+export function linkGoogleSubject(id, subject, database) {
+  return runStatement(
+    database,
+    `UPDATE users
+     SET google_subject = ?
+     WHERE id = ? AND (google_subject IS NULL OR google_subject = ?)`,
+    [subject, id, subject],
+  );
 }
 
 export function getUserById(id, database) {
@@ -51,7 +79,7 @@ export function updateUserAvatarAppearance(id, appearanceJson, database) {
 
 export function updateUserPasswordHash(id, passwordHash, database) {
   return new Promise((resolve, reject) => {
-    database.run('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, id], (err) => {
+    database.run('UPDATE users SET password_hash = ?, session_version = session_version + 1 WHERE id = ?', [passwordHash, id], (err) => {
       if (err) return reject(err);
       resolve();
     });

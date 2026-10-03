@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SceneSnapshot } from "../modules/metaverse3d/store/metaverseStoreTypes";
 import {
+  requestBuilderSessionById,
+  requestBuilderVersionRestore,
   requestBuilderRevision,
   requestBuilderReview,
   requestBuilderSession,
@@ -8,16 +10,25 @@ import {
 } from "./exhibitionScene";
 
 describe("exhibition scene API", () => {
+  it("allows a bounded model correction to finish after the old one-minute deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', vi.fn((_url, init) => new Promise<Response>((resolve, reject) => {
+        init.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+        setTimeout(() => resolve(Response.json({source: 'qwen'})), 90000);
+      })));
+      const result = requestBuilderSession('test', {prompt: 'Six zones'});
+      await vi.advanceTimersByTimeAsync(90000);
+      await expect(result).resolves.toMatchObject({source: 'qwen'});
+    } finally { vi.useRealTimers(); }
+  });
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({
         exhibition: { title: "AI 展覽", curatorialStatement: "", sections: [] },
         scene: { roomSize: {}, items: [], floorPlanElements: [], wallMaterialOverrides: {} },
         warnings: [],
         source: "fallback",
-      }),
-    }));
+    })));
   });
 
   it("posts the AI builder request with auth headers", async () => {
@@ -66,6 +77,65 @@ describe("exhibition scene API", () => {
         }),
       }),
     );
+  });
+
+  it("forwards caller cancellation to a builder agent request", async () => {
+    const controller = new AbortController();
+    controller.abort("cancel builder run");
+
+    await expect(requestBuilderSession("jwt-token", { prompt: "Macau memory" }, controller.signal)).rejects.toMatchObject({ code: 'REQUEST_ABORTED' });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    expect(init?.signal?.aborted).toBe(true);
+  });
+
+  it("restores a persisted builder agent session by id", async () => {
+    await requestBuilderSessionById("jwt-token", "builder 1");
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toEqual(expect.stringContaining("/api/ai/exhibition-builder/sessions/builder%201"));
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer jwt-token");
+    expect(fetch).toHaveBeenCalledWith(
+      url,
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("restores a historical builder version with an optimistic current-version guard", async () => {
+    await requestBuilderVersionRestore("jwt-token", {
+      sessionId: "builder 1",
+      expectedVersionId: "version-3",
+      targetVersionId: "version-1",
+    });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toEqual(expect.stringContaining("/api/ai/exhibition-builder/sessions/builder%201/restore"));
+    expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer jwt-token");
+    expect(fetch).toHaveBeenCalledWith(
+      url,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          expectedVersionId: "version-3",
+          targetVersionId: "version-1",
+        }),
+      }),
+    );
+  });
+
+  it("preserves the HTTP status when a builder version is stale", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ message: "builder session version is stale" }, { status: 409 }));
+
+    await expect(requestBuilderVersionRestore("jwt-token", {
+      sessionId: "builder-1",
+      expectedVersionId: "version-1",
+      targetVersionId: "version-0",
+    })).rejects.toMatchObject({
+      name: "BuilderApiError",
+      message: "builder session version is stale",
+      status: 409,
+    });
   });
 
   it("submits screenshots for builder agent review", async () => {
