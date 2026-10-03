@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import { fileURLToPath } from 'node:url';
 import { readFile, writeFile } from 'node:fs/promises';
 
-const source = fileURLToPath(new URL('../../exports/paidea-brand/paidea-logo-v1.png', import.meta.url));
+const source = fileURLToPath(new URL('../design/brand/paidea-logo-v1.png', import.meta.url));
 const destination = fileURLToPath(new URL('../public/brand/', import.meta.url));
 const { data, info } = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
 function bounds(predicate) {
