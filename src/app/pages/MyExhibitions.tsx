@@ -85,6 +85,8 @@ export default function MyExhibitions() {
   const isMobile = useMobileDevice();
   const navigate = useNavigate();
   const { t, locale } = useI18n();
+  // English needs spaces around the quoted title; Chinese corner brackets do not.
+  const quote = (text: string) => (locale === 'en' ? ` “${text}” ` : `「${text}」`);
   const [items, setItems] = useState<GallerySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +184,7 @@ export default function MyExhibitions() {
       });
       setCreateOpen(false);
       toast.success(t('createdNewExhibition'), {
-        description: `「${title}」${t('addedToMyList')}`,
+        description: `${quote(title)}${t('addedToMyList')}`.trim(),
       });
       navigate(
         `/virtual-gallery/create?exhibitionId=${encodeURIComponent(result.gallery.id)}`,
@@ -228,7 +230,7 @@ export default function MyExhibitions() {
         prev.map((item) => (item.id === gallery.id ? result.gallery : item)),
       );
       toast.success(t('updatedExhibitionInfo'), {
-        description: `「${title}」`,
+        description: `${quote(title)}`.trim(),
       });
       handleCancelInlineEdit();
     } catch (err) {
@@ -257,7 +259,7 @@ export default function MyExhibitions() {
       setItems((prev) => prev.filter((g) => g.id !== deleteGallery.id));
       setDeleteOpen(false);
       toast.success(t('deletedExhibition'), {
-        description: `「${deleteGallery.title}」`,
+        description: `${quote(deleteGallery.title)}`.trim(),
       });
       setDeleteGallery(null);
     } catch (err) {
@@ -284,7 +286,7 @@ export default function MyExhibitions() {
           prev.map((item) => (item.id === gallery.id ? result.gallery : item)),
         );
         toast.success(t('unpublishedExhibition'), {
-          description: `「${gallery.title}」${t('removedFromPublicExhibitions')}`,
+          description: `${quote(gallery.title)}${t('removedFromPublicExhibitions')}`.trim(),
         });
       } catch (err) {
         toast.error(t('unpublishFailed'), {
@@ -317,7 +319,7 @@ export default function MyExhibitions() {
       );
       setPublishOpen(false);
       toast.success(t('publishedExhibition'), {
-        description: `「${publishGallery.title}」${t('nowPubliclyViewable')}`,
+        description: `${quote(publishGallery.title)}${t('nowPubliclyViewable')}`.trim(),
       });
     } catch (err) {
       toast.error(t('publishFailed'), {
@@ -513,8 +515,8 @@ export default function MyExhibitions() {
                         )}
                         <p className="mt-3 flex items-center gap-1 text-sm text-muted-foreground">
                           <Calendar className="size-4" />
-                          {t('lastUpdated')}：
-                          {new Date(item.updatedAt).toLocaleString('zh-Hant')}
+                          {t('lastUpdated')}{locale === 'en' ? ': ' : '：'}
+                          {new Date(item.updatedAt).toLocaleString(locale)}
                         </p>
                       </div>
                     </div>
@@ -664,8 +666,7 @@ export default function MyExhibitions() {
             <DialogHeader>
               <DialogTitle>{t('deleteExhibition')}</DialogTitle>
               <DialogDescription>
-                {t('deleteExhibitionConfirm')}「
-                {deleteGallery?.title || t('thisExhibition')}」{t('cannotUndo')}
+                {t('deleteExhibitionConfirm')}{quote(deleteGallery?.title || t('thisExhibition'))}{t('cannotUndo')}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>

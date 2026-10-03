@@ -33,6 +33,9 @@ export function AgentChatPanel() {
   const [shownError, setShownError] = useState<string | null>(null);
   const responseSource = agent.replySource;
   const requestRef = useRef<AbortController | null>(null);
+  // The work a visitor explicitly asked about stays the subject of follow-up questions
+  // until they open or walk up to another work.
+  const followUpFocusRef = useRef<{ sessionId: string; itemId: string } | null>(null);
   useEffect(() => () => requestRef.current?.abort(), [agent.memory.sessionId, agent.participationMode, agent.tourSession.tourRunId, agent.tourSession.currentStopIndex]);
   const playerPosition = useLocalPlayerStore((state) => state.position);
   const viewingItem = useStore((state) => state.viewingItem);
@@ -100,10 +103,15 @@ export function AgentChatPanel() {
       && snapshot.items.some((item) => item.id === requestedOneTimeFocus.itemId)
       ? requestedOneTimeFocus.itemId
       : null;
-    const explicitExhibitId = exhibitIdOverride
-      ?? validOneTimeFocusId
-      ?? snapshot.viewingItem?.id
-      ?? null;
+    const followUpFocus = followUpFocusRef.current;
+    const followUpFocusId = followUpFocus && followUpFocus.sessionId === initial.memory.sessionId
+      && snapshot.items.some((item) => item.id === followUpFocus.itemId)
+      && !resolveVisitorFocus(snapshot.items, [position.x, position.y, position.z], null)
+      ? followUpFocus.itemId
+      : null;
+    const pickedExhibitId = exhibitIdOverride ?? validOneTimeFocusId ?? snapshot.viewingItem?.id ?? null;
+    const explicitExhibitId = pickedExhibitId ?? followUpFocusId;
+    followUpFocusRef.current = pickedExhibitId ? { sessionId: initial.memory.sessionId, itemId: pickedExhibitId } : followUpFocusId ? followUpFocus : null;
     const observedExhibit = resolveVisitorFocus(snapshot.items, [position.x, position.y, position.z], explicitExhibitId);
     const payload = buildVisitorAwareRequest({
       question, agent: { ...initial, preferredLanguage: initial.preferredLanguage || locale }, items: snapshot.items,

@@ -188,6 +188,22 @@ describe("AgentChatPanel guided tour", () => {
     expect(vi.mocked(requestAgentReply).mock.calls[1][1].exhibit?.id).toBe(nearby.id);
   });
 
+  it('keeps the asked-about work for follow-up questions when no other work is nearby', async () => {
+    const selected = makeItem({ id: 'selected-work', title: 'Selected work', position: [20, 1.5, 0] });
+    resetPanelState([selected]);
+    useLocalPlayerStore.setState({ position: { x: 0, y: 1.6, z: 0 } });
+    useStore.setState({ oneTimeExhibitFocus: { sessionId: 'session-1', itemId: selected.id } });
+    render(<AgentChatPanel />);
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'First question' } });
+    fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
+    await waitFor(() => expect(requestAgentReply).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Follow-up question' } });
+    fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
+    await waitFor(() => expect(requestAgentReply).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(requestAgentReply).mock.calls[1][1].exhibit?.id).toBe(selected.id);
+  });
+
   it('starts a full route with more than eight works', () => {
     renderPanel(Array.from({ length: 12 }, (_, i) => makeItem({ id: `art-${i}`, position: [i, 1.5, 0] })));
     fireEvent.click(screen.getByRole('button', { name: 'Start tour' }));

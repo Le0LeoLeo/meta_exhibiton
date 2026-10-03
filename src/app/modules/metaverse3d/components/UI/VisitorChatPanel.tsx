@@ -29,6 +29,13 @@ export function VisitorChatPanel({ open, onOpenChange }: { open: boolean; onOpen
 
   useEffect(() => {
     if (!open) return;
+    // Defer past other panels' focus handling (e.g. the AI guide) in the same click.
+    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     setSeenCount(messages.length);
     const log = logRef.current;
     if (log) log.scrollTop = log.scrollHeight;
@@ -53,7 +60,7 @@ export function VisitorChatPanel({ open, onOpenChange }: { open: boolean; onOpen
     return (
       <button
         type="button"
-        onClick={() => { onOpenChange(true); window.setTimeout(() => inputRef.current?.focus(), 0); }}
+        onClick={() => onOpenChange(true)}
         aria-label={t("visitorChatOpen")}
         className={`pointer-events-auto absolute left-[max(1rem,env(safe-area-inset-left))] ${position} inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/15 bg-slate-950/80 px-3 text-sm font-semibold text-white shadow-xl backdrop-blur-md hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300`}
       >

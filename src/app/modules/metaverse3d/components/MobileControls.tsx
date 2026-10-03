@@ -3,6 +3,7 @@ import { Move, MoveHorizontal } from "lucide-react";
 import { clampJoystick, type PlayerInputState } from "../input/playerInput";
 import { useTouchControls } from "../input/useTouchControls";
 import { useI18n } from "../../../components/I18nProvider";
+import { localizeInteractionPrompt } from "../items/interactionPromptKeys";
 import type { ItemInteractionDescriptor } from "../interaction/itemInteraction";
 
 type MobileControlsProps = {
@@ -129,7 +130,7 @@ function TouchControls({ input, nearbyInteraction }: MobileControlsProps) {
           type="button"
           className="pointer-events-auto absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] min-h-12 max-w-[calc(50%-1rem)] rounded-2xl bg-white px-4 py-2 text-sm font-medium text-slate-950 shadow-xl"
           onClick={() => { input.current.interactRequested = true; }}
-        >{nearbyInteraction.prompt}</button>
+        >{localizeInteractionPrompt(nearbyInteraction.prompt, t)}</button>
       )}
     </div>
   );
