@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Globe, LogOut, Menu, UserCircle2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ThemeToggle } from './ThemeToggle';
+import { BrandLogo } from './BrandLogo';
 import { clearAuth, loadAuth, subscribeAuth, type AuthUser } from '../api/auth';
 import { toast } from 'sonner';
 import { useI18n } from './I18nProvider';
@@ -71,8 +72,7 @@ export function Navigation() {
       <div className="home-navigation-inner mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="home-navigation-row flex h-16 items-center justify-between gap-4">
           <Link to="/" aria-label="Paidea" className="group flex min-w-0 items-center gap-2 text-left text-base font-semibold tracking-tight text-foreground">
-            <img src="/brand/metaexb-icon-v1.png" alt="" width={48} height={48} className="home-brand-icon size-12 shrink-0 rounded-lg bg-[#a82e23] object-contain" />
-            <span className="home-brand">Paidea</span>
+            <BrandLogo />
           </Link>
 
           <div className="hidden items-center gap-2 xl:flex">

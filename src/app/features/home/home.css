@@ -9,6 +9,9 @@
   .home-navigation-row>div:last-child { justify-self: end; }
 }
 .home-brand { font: 700 33px/1 Georgia,"Times New Roman",serif; letter-spacing: -1px; white-space: nowrap; color: var(--foreground); }
+.paidea-logo { width: 160px; vertical-align: middle; }
+@media (max-width: 650px) { .home-navigation .paidea-logo { width: 120px; } }
+@media (max-width: 360px) { .home-navigation .paidea-logo { width: 92px; } }
 .home-navigation .home-nav-create { border-radius: 0; background: var(--home-red); color: #fff; box-shadow: none; }
 .home-navigation button:not(.home-nav-create),.home-navigation a { border-radius: 0; }
 .museum-home { background: var(--background); color: var(--foreground); }
