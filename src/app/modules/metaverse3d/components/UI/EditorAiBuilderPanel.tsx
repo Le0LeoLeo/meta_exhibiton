@@ -3,6 +3,8 @@ import { ArrowUp, History, Plus, X, ChevronDown, Bot } from "lucide-react";
 import { useI18n } from "../../../../components/I18nProvider";
 import type { ExhibitionSceneStyle } from "../../../../api/exhibitionScene";
 import type { useEditorAiBuilder } from "./useEditorAiBuilder";
+import { describeBuilderWarning } from "../../aiBuilder/describeBuilderWarning";
+import { useStore } from "../../store/useStore";
 
 function formatScoreDelta(delta: number) {
   return delta >= 0 ? `+${delta}` : String(delta);
@@ -300,7 +302,7 @@ export function EditorAiBuilderPanel({ builder, glassInputClass, onClose }: { on
               <p className="text-[11px] font-semibold text-amber-50">{t('editorAiBuilderPreviewWarnings')}</p>
               <ul className="mt-1 space-y-1 text-[11px] leading-relaxed text-white/75">
                 {aiBuilderPreview.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
+                  <li key={warning}>{describeBuilderWarning(warning, [...aiBuilderPreview.scene.items, ...useStore.getState().items])}</li>
                 ))}
               </ul>
             </div>
