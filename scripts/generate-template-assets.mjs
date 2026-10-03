@@ -46,7 +46,7 @@ for (const [theme, colors] of Object.entries(palettes)) {
         `<g stroke="#b9c9cf" stroke-width="1">${grid}</g><path d="${profile}" fill="${bg}" stroke="${ink}" stroke-width="3"/>${wheels}<path d="M275 275V590M750 275V590M100 493H900M350 340L635 340M350 325V355M635 325V355" stroke="${accent}" stroke-width="2" fill="none"/><path d="M332 410L392 351Q476 320 560 350L644 402Z" fill="none" stroke="${ink}" stroke-width="2"/>`,
       ][index] + `<text x="100" y="730" font-family="sans-serif" font-size="20" letter-spacing="4" fill="${ink}">${labels[index]}</text>`;
     }
-    await writeFile(new URL(`${theme}-${index + 1}.svg`, directory), `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800" viewBox="0 0 1000 800"><rect width="1000" height="800" fill="${bg}"/><text x="80" y="80" font-family="sans-serif" font-size="18" letter-spacing="5" fill="${ink}">METAEXB / ${theme.toUpperCase()} STUDIES</text>${drawing}</svg>`);
+    await writeFile(new URL(`${theme}-${index + 1}.svg`, directory), `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800" viewBox="0 0 1000 800"><rect width="1000" height="800" fill="${bg}"/><text x="80" y="80" font-family="sans-serif" font-size="18" letter-spacing="5" fill="${ink}">PAIDEA / ${theme.toUpperCase()} STUDIES</text>${drawing}</svg>`);
   }
 }
 

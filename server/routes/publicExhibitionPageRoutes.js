@@ -25,9 +25,9 @@ export function exhibitionHtml(shell, metadata) {
   const title = escape(metadata.title);
   const description = escape(metadata.description);
   const url = escape(metadata.url); const image = escape(metadata.image);
-  return shell.replace(/<title>[^<]*<\/title>/i, `<title>${title} · MetaEXB</title>`)
+  return shell.replace(/<title>[^<]*<\/title>/i, `<title>${title} · Paidea</title>`)
     .replace('</head>', `<meta name="description" content="${description}"><link rel="canonical" href="${url}">
-<meta property="og:type" content="website"><meta property="og:site_name" content="MetaEXB"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${url}"><meta property="og:image" content="${image}"><meta property="og:image:alt" content="${title}">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Paidea"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${url}"><meta property="og:image" content="${image}"><meta property="og:image:alt" content="${title}">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${image}"></head>`);
 }
 

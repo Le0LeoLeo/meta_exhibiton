@@ -80,7 +80,7 @@ export default function Login() {
   return (
     <div className="museum-auth bg-background text-foreground">
       <div className="museum-auth-layout">
-        <aside className="museum-auth-aside"><p className="home-eyebrow">META EXB</p><h2>{t('homeTitle')}<br />{t('homeTitleEnd')}</h2><p>{t('homeFooter')}</p><Link to="/demo" className="home-text-link">{t('entryDemoAction')} →</Link></aside>
+        <aside className="museum-auth-aside"><p className="home-eyebrow">PAIDEA</p><h2>{t('homeTitle')}<br />{t('homeTitleEnd')}</h2><p>{t('homeFooter')}</p><Link to="/demo" className="home-text-link">{t('entryDemoAction')} →</Link></aside>
         <motion.div className="museum-auth-form" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div className="rounded-md border border-border bg-card p-6 text-foreground">
             <motion.div className="mb-6 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>

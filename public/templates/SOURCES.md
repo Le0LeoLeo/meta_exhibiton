@@ -1,6 +1,6 @@
 # Template assets
 
-The art, circuit, fashion silhouette and car design SVG studies and all four GLB models are original MetaEXB template examples, reproducible with scripts/generate-template-assets.mjs. They are editable starting material, not third-party products or historical objects.
+The art, circuit, fashion silhouette and car design SVG studies and all four GLB models are original Paidea template examples, reproducible with scripts/generate-template-assets.mjs. They are editable starting material, not third-party products or historical objects.
 
 The history template reuses bundled Met Open Access public-domain images documented in docs/demo-artwork-sources.md.
 

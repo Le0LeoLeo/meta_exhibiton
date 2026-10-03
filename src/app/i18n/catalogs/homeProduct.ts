@@ -1,7 +1,7 @@
 export const homeProductZhTW = {
-  homeProductBrand: 'META EXB · AI for Education',
+  homeProductBrand: 'Paidea · AI for Education',
   homeProductIntro: '以 3D 學習展覽呈現學生作品與過程，透過 Multiplayer 共學，並用 Agent 探問創作者提供的背景。',
-  homeSeoTitle: 'META EXB · AI 教育應用｜AI 反思、教師評閱與 3D 學習展覽',
+  homeSeoTitle: 'Paidea · AI 教育應用｜AI 反思、教師評閱與 3D 學習展覽',
   homeSeoDescription: '以 AI 輔助反思、教師評閱與展覽探究為核心：學生整理作品與佐證，核對 AI 建議，再透過班級工作台與 3D 學習展覽交流成果。',
   homeProductTitle: '讓作品過程可見，讓同學一起探索。',
   homeProductCaption: '以平台 3D 畫廊模板建立的學習展覽示例',
@@ -27,9 +27,9 @@ export const homeProductZhTW = {
 };
 
 export const homeProductZhCN: Record<keyof typeof homeProductZhTW, string> = {
-  homeProductBrand: 'META EXB · AI for Education',
+  homeProductBrand: 'Paidea · AI for Education',
   homeProductIntro: '用 3D 学习展览呈现学生作品与过程，通过 Multiplayer 共学，并用 Agent 探问创作者提供的背景。',
-  homeSeoTitle: 'META EXB · AI 教育应用｜AI 反思、教师评阅与 3D 学习展览',
+  homeSeoTitle: 'Paidea · AI 教育应用｜AI 反思、教师评阅与 3D 学习展览',
   homeSeoDescription: '以 AI 辅助反思、教师评阅和展览探究为核心：学生整理作品与佐证，核对 AI 建议，再通过班级工作台和 3D 学习展览交流成果。',
   homeProductTitle: '让作品过程可见，让同学一起探索。',
   homeProductCaption: '以平台 3D 画廊模板建立的学习展览示例',
@@ -55,9 +55,9 @@ export const homeProductZhCN: Record<keyof typeof homeProductZhTW, string> = {
 };
 
 export const homeProductEn: Record<keyof typeof homeProductZhTW, string> = {
-  homeProductBrand: 'META EXB · AI for Education',
+  homeProductBrand: 'Paidea · AI for Education',
   homeProductIntro: 'Present student work and process in 3D learning exhibitions, explore together through Multiplayer, and ask the Agent about creator-provided context.',
-  homeSeoTitle: 'META EXB · AI for Education | AI Reflection, Teacher Review & 3D Learning Exhibitions',
+  homeSeoTitle: 'Paidea · AI for Education | AI Reflection, Teacher Review & 3D Learning Exhibitions',
   homeSeoDescription: 'AI-assisted reflection, teacher review and exhibit inquiry: students organise work and evidence, check AI suggestions, and share their learning through a class workspace and 3D learning exhibitions.',
   homeProductTitle: 'Show the process. Explore together.',
   homeProductCaption: 'A learning exhibition example built with a 3D gallery template',

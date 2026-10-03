@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router';
 import { useI18n } from './I18nProvider';
 
-const siteTitle = 'MetaRealm Expo Intelligence · MREI 元境智展';
+const siteTitle = 'Paidea';
 
 export function PageMetadata() {
   const { pathname } = useLocation();

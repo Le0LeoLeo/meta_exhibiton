@@ -70,9 +70,9 @@ export function Navigation() {
     <nav className={`sticky top-0 z-50 border-b border-border bg-card/90 shadow-[0_1px_0_rgba(255,255,255,0.65)] backdrop-blur-md dark:bg-card/90 home-navigation`}>
       <div className="home-navigation-inner mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="home-navigation-row flex h-16 items-center justify-between gap-4">
-          <Link to="/" aria-label="META EXB" className="group flex min-w-0 items-center gap-2 text-left text-base font-semibold tracking-tight text-foreground">
+          <Link to="/" aria-label="Paidea" className="group flex min-w-0 items-center gap-2 text-left text-base font-semibold tracking-tight text-foreground">
             <img src="/brand/metaexb-icon-v1.png" alt="" width={48} height={48} className="home-brand-icon size-12 shrink-0 rounded-lg bg-[#a82e23] object-contain" />
-            <span className="home-brand">META EXB</span>
+            <span className="home-brand">Paidea</span>
           </Link>
 
           <div className="hidden items-center gap-2 xl:flex">

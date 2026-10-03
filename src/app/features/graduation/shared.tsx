@@ -57,7 +57,7 @@ export function GraduationShell({ title, description, children }: { title: strin
   const c = useGraduationCopy();
   return <div className="mx-auto max-w-6xl space-y-7 px-4 py-10 sm:px-6 sm:py-14">
     <header className="museum-workspace-heading space-y-4">
-      <div className="flex items-center gap-2 text-sm font-medium text-primary"><GraduationCap className="size-5" aria-hidden="true" />MetaEXB · {c.workflow}</div>
+      <div className="flex items-center gap-2 text-sm font-medium text-primary"><GraduationCap className="size-5" aria-hidden="true" />Paidea · {c.workflow}</div>
       <h1 className="break-words text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
       {description && <p className="max-w-3xl whitespace-pre-wrap break-words text-muted-foreground">{description}</p>}
       <nav aria-label={c.title} className="flex flex-wrap gap-4 text-sm underline underline-offset-4">

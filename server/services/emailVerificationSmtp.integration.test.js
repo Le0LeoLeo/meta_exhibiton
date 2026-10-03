@@ -62,7 +62,7 @@ it('delivers through authenticated TLS SMTP and verifies the received single-use
     await service.sendPasswordReset({ id: 'mail-user', email: 'recipient@example.invalid' }, 'a'.repeat(43), 'en');
     expect(received.replace(/=\r?\n/g, '').replace(/=3D/g, '=')).toContain('/reset-password#token=' + 'a'.repeat(43));
     await service.sendPasswordChanged({ id: 'mail-user', email: 'recipient@example.invalid' }, 'en');
-    expect(received).toContain('Your MREI password was changed');
+    expect(received).toContain('Your Paidea password was changed');
   } finally {
     await new Promise(resolve => smtp.close(resolve));
     await new Promise(resolve => db.close(resolve));

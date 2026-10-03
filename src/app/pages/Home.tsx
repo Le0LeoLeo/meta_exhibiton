@@ -78,7 +78,7 @@ export default function Home() {
       </div>
     </section>
     <section data-museum-reveal className="home-product home-use-cases" aria-labelledby="home-use-cases-title">
-      <p className="home-eyebrow">META EXB / SPACES</p>
+      <p className="home-eyebrow">PAIDEA / SPACES</p>
       <h2 id="home-use-cases-title">{t('homeUseCasesTitle')}</h2>
       <p className="home-product-summary">{t('homeUseCasesIntro')}</p>
       <div className="home-product-grid">
@@ -90,14 +90,14 @@ export default function Home() {
       <div className="home-product-links"><Link to="/virtual-gallery">{t('homeChooseSpace')}<ArrowRight size={18} aria-hidden="true"/></Link></div>
     </section>
     <section data-museum-reveal className="home-demo-collection" aria-labelledby="home-demo-title">
-      <p className="home-eyebrow">META EXB / COLLECTION</p><h2 id="home-demo-title">{t('demoCollectionTitle')}</h2>
+      <p className="home-eyebrow">PAIDEA / COLLECTION</p><h2 id="home-demo-title">{t('demoCollectionTitle')}</h2>
       <p className="home-demo-intro">{t('demoCollectionIntro')}</p>
       <div className="home-demo-grid">{demoExhibitions.map(demo => <Link key={demo.id} className="home-demo-card" to={demo.id === 'classics' ? '/demo' : `/demo?exhibition=${demo.id}`}>
         <div className="home-demo-cover"><ExhibitionCover src={`/demo/met-${demo.cover}.jpg`} title={t(demo.title)}/></div>
         <h3>{t(demo.title)}<ArrowUpRight size={18} aria-hidden="true"/></h3><p>{t(demo.description)}</p><p>{t('demoExhibitCount', { count: demo.artworks.length })}</p>
       </Link>)}</div>
     </section>
-    <section data-museum-reveal className="home-create" aria-labelledby="home-create-title"><GalleryAtmosphere variant="pigment"/><p className="home-eyebrow">META EXB / CREATE</p><h2 id="home-create-title">{t('homeCreateTitle')}</h2><p>{t('homeCreateIntro')}</p><div className="home-actions"><Link className="home-button" to="/virtual-gallery/quick-create" onClick={() => recordJourney('create_start')}>{t('homeCreateShort')}<ArrowRight size={18} aria-hidden="true"/></Link><QuickStartTutorial/></div><ol className="home-create-steps">{['homeStep1', 'homeStep2', 'homeStep3'].map((key, i) => <li key={key}><span aria-hidden="true">0{i + 1}</span>{t(key)}</li>)}</ol></section>
+    <section data-museum-reveal className="home-create" aria-labelledby="home-create-title"><GalleryAtmosphere variant="pigment"/><p className="home-eyebrow">PAIDEA / CREATE</p><h2 id="home-create-title">{t('homeCreateTitle')}</h2><p>{t('homeCreateIntro')}</p><div className="home-actions"><Link className="home-button" to="/virtual-gallery/quick-create" onClick={() => recordJourney('create_start')}>{t('homeCreateShort')}<ArrowRight size={18} aria-hidden="true"/></Link><QuickStartTutorial/></div><ol className="home-create-steps">{['homeStep1', 'homeStep2', 'homeStep3'].map((key, i) => <li key={key}><span aria-hidden="true">0{i + 1}</span>{t(key)}</li>)}</ol></section>
   <JourneyConsent />
 </div>;
 }

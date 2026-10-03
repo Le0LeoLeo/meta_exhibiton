@@ -45,19 +45,19 @@ export function createEmailVerificationService({ database, env = process.env, cr
     async sendPasswordReset(user, token, locale) {
       const url = `${origin.origin}/reset-password#token=${token}`;
       const messages = locale === 'en'
-        ? ['Reset your MREI password', `Open this link to choose a new password:\n\n${url}\n\nThis link expires in 30 minutes and can be used once. If you did not request it, ignore this message. Your password has not changed.`]
+        ? ['Reset your Paidea password', `Open this link to choose a new password:\n\n${url}\n\nThis link expires in 30 minutes and can be used once. If you did not request it, ignore this message. Your password has not changed.`]
         : locale === 'zh-CN'
-          ? ['重设你的 MREI 密码', `请打开以下链接设置新密码：\n\n${url}\n\n链接于 30 分钟后失效，仅可使用一次。若你没有提出此要求，请忽略此邮件。你的密码尚未更改。`]
-          : ['重設你的 MREI 密碼', `請開啟以下連結設定新密碼：\n\n${url}\n\n連結於 30 分鐘後失效，僅可使用一次。若你沒有提出此要求，請忽略此郵件。你的密碼尚未更改。`];
+          ? ['重设你的 Paidea 密码', `请打开以下链接设置新密码：\n\n${url}\n\n链接于 30 分钟后失效，仅可使用一次。若你没有提出此要求，请忽略此邮件。你的密码尚未更改。`]
+          : ['重設你的 Paidea 密碼', `請開啟以下連結設定新密碼：\n\n${url}\n\n連結於 30 分鐘後失效，僅可使用一次。若你沒有提出此要求，請忽略此郵件。你的密碼尚未更改。`];
       const result = await transport.sendMail({ from: env.SMTP_FROM, to: user.email, subject: messages[0], text: messages[1], disableFileAccess: true, disableUrlAccess: true });
       if (!result.accepted?.length) throw new Error('Reset mail not accepted');
     },
     async sendPasswordChanged(user, locale) {
       const messages = locale === 'en'
-        ? ['Your MREI password was changed', 'Your password was reset and previous sessions were revoked. If this was not you, open the MREI sign-in page and reset your password immediately.']
+        ? ['Your Paidea password was changed', 'Your password was reset and previous sessions were revoked. If this was not you, open the Paidea sign-in page and reset your password immediately.']
         : locale === 'zh-CN'
-          ? ['你的 MREI 密码已更改', '你的密码已重设，旧登录已撤销。若不是你操作，请立即前往 MREI 登录页重新设置密码。']
-          : ['你的 MREI 密碼已更改', '你的密碼已重設，舊登入已撤銷。若不是你操作，請立即前往 MREI 登入頁重新設定密碼。'];
+          ? ['你的 Paidea 密码已更改', '你的密码已重设，旧登录已撤销。若不是你操作，请立即前往 Paidea 登录页重新设置密码。']
+          : ['你的 Paidea 密碼已更改', '你的密碼已重設，舊登入已撤銷。若不是你操作，請立即前往 Paidea 登入頁重新設定密碼。'];
       const result = await transport.sendMail({ from: env.SMTP_FROM, to: user.email, subject: messages[0], text: messages[1], disableFileAccess: true, disableUrlAccess: true });
       if (!result.accepted?.length) throw new Error('Password notification not accepted');
     },
@@ -73,10 +73,10 @@ export function createEmailVerificationService({ database, env = process.env, cr
       const english = locale === 'en';
       try {
         const result = await transport.sendMail({ from: env.SMTP_FROM, to: user.email,
-          subject: english ? 'Verify your MREI email address' : '驗證你的 MREI 元境智展電子郵件',
+          subject: english ? 'Verify your Paidea email address' : '驗證你的 Paidea電子郵件',
           text: english
-            ? `Confirm your email address to sign in to MREI:\n\n${url}\n\nThis link expires in 30 minutes and can be used once. If you did not request this, ignore this message.`
-            : `請開啟以下連結並確認電子郵件，完成後即可登入 MREI 元境智展：\n\n${url}\n\n連結於 30 分鐘後失效，僅可使用一次。若你沒有提出此要求，請忽略此郵件。`,
+            ? `Confirm your email address to sign in to Paidea:\n\n${url}\n\nThis link expires in 30 minutes and can be used once. If you did not request this, ignore this message.`
+            : `請開啟以下連結並確認電子郵件，完成後即可登入 Paidea：\n\n${url}\n\n連結於 30 分鐘後失效，僅可使用一次。若你沒有提出此要求，請忽略此郵件。`,
           disableFileAccess: true, disableUrlAccess: true,
         });
         if (!result.accepted?.length) throw new Error('Mail not accepted');

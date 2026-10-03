@@ -23,7 +23,7 @@ export default function CompetitionDemo() {
   return <main lang="en" className="mx-auto max-w-5xl px-4 py-10 text-foreground sm:px-6 lg:py-16">
     <header className="mb-10 max-w-3xl">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-curator-brass">AI for Education · learning prototype</p>
-      <h1 className="mb-4 text-4xl font-semibold sm:text-5xl">MetaEXB Learn</h1>
+      <h1 className="mb-4 text-4xl font-semibold sm:text-5xl">Paidea</h1>
       <p className="text-lg leading-relaxed text-muted-foreground">A guided practice in turning a learning experience into a clear reflection, checking what the evidence supports, and making a student’s own decision about any AI suggestion.</p>
       <p className="mt-4 rounded-md border border-border bg-secondary p-4 text-sm leading-relaxed">The practice examples below are fictional, not live AI output. Open the workspace to try AI suggestions with your own permitted material.</p>
     </header>

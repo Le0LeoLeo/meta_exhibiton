@@ -38,7 +38,7 @@ function study(room: RoomSize, theme: string, title: string, index: number, side
     imageAspectRatio: photo ? 4 / 3 : 1.25, frameStyle: photo ? 'modern' : 'floating',
     frameColor: '#343735', frameThickness: 0.045, frameDepth: 0.055,
     frameMatEnabled: photo, frameMatColor: '#f4f1eb', frameMatWidth: 0.14, frameGlassEnabled: false,
-    artist: photo ? 'Unsplash · 攝影範例' : 'MetaEXB · 原創設計範例',
+    artist: photo ? 'Unsplash · 攝影範例' : 'Paidea · 原創設計範例',
     description: photo ? `${title}：從光線、構圖與空間層次觀察這張照片。可替換為自己的攝影作品。` : `${title}：主題設計習作，可替換圖片、標題與作品說明，建立自己的策展敘事。`,
   });
 }

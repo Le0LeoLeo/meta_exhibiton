@@ -8,7 +8,7 @@ import Home from '@/app/pages/Home';
 export function renderHome() {
   return renderToStaticMarkup(<StaticRouter location="/"><I18nProvider>
     <div className="museum-shell museum-pages">
-      <header className="home-navigation"><a className="home-brand inline-flex min-h-16 items-center px-6" href="/">META EXB</a></header>
+      <header className="home-navigation"><a className="home-brand inline-flex min-h-16 items-center px-6" href="/">Paidea</a></header>
       <main><Home /></main><Footer />
     </div>
   </I18nProvider></StaticRouter>);
