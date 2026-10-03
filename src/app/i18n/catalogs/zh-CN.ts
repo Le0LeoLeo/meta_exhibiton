@@ -286,6 +286,7 @@ export const zhCN = {
   demoClassTitle: "跨越世界的浪：班级探究展",
   demoClassDescription: "一个示范班级展览。六位学生各自研究一件版画或画作，撰写展品说明，并分享他们的做法、根据反馈所作的修改和学到的东西。",
   demoClassBadge: "示范班级展 · 免登录参观",
+  demoMoreGalleries: "其他示范展厅",
   demoOfficial: "官方示范 · 免登录参观",
   demoTitle: "世界名作小展",
   demoDescription: "从北斋的海浪、梵高的笔触到欧洲肖像与神话场景，透过十一件馆藏作品探索线条、色彩与叙事。",

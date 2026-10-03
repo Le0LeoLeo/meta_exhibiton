@@ -92,10 +92,11 @@ export default function Home() {
     <section data-museum-reveal className="home-demo-collection" aria-labelledby="home-demo-title">
       <p className="home-eyebrow">PAIDEA / COLLECTION</p><h2 id="home-demo-title">{t('demoCollectionTitle')}</h2>
       <p className="home-demo-intro">{t('demoCollectionIntro')}</p>
-      <div className="home-demo-grid">{demoExhibitions.map(demo => <Link key={demo.id} className="home-demo-card" to={demo.id === demoExhibitions[0].id ? '/demo' : `/demo?exhibition=${demo.id}`}>
+      <div className="home-demo-grid home-demo-grid--single">{demoExhibitions.slice(0, 1).map(demo => <Link key={demo.id} className="home-demo-card" to="/demo">
         <div className="home-demo-cover"><ExhibitionCover src={`/demo/met-${demo.cover}.jpg`} title={t(demo.title)}/></div>
         <h3>{t(demo.title)}<ArrowUpRight size={18} aria-hidden="true"/></h3><p>{t(demo.description)}</p><p>{t('demoExhibitCount', { count: demo.artworks.length })}</p>
       </Link>)}</div>
+      <p className="home-demo-more">{t('demoMoreGalleries')}: {demoExhibitions.slice(1).map((demo, i) => <span key={demo.id}>{i > 0 && ' · '}<Link to={`/demo?exhibition=${demo.id}`}>{t(demo.title)}</Link></span>)}</p>
     </section>
     <section data-museum-reveal className="home-create" aria-labelledby="home-create-title"><GalleryAtmosphere variant="pigment"/><p className="home-eyebrow">PAIDEA / CREATE</p><h2 id="home-create-title">{t('homeCreateTitle')}</h2><p>{t('homeCreateIntro')}</p><div className="home-actions"><Link className="home-button" to="/virtual-gallery/quick-create" onClick={() => recordJourney('create_start')}>{t('homeCreateShort')}<ArrowRight size={18} aria-hidden="true"/></Link><QuickStartTutorial/></div><ol className="home-create-steps">{['homeStep1', 'homeStep2', 'homeStep3'].map((key, i) => <li key={key}><span aria-hidden="true">0{i + 1}</span>{t(key)}</li>)}</ol></section>
   <JourneyConsent />

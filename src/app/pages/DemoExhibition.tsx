@@ -45,9 +45,7 @@ function DemoExhibitionContent({ exhibition, initialIndex }: { exhibition: typeo
         <p className="mt-6 text-sm font-semibold text-muted-foreground">{t(classCopy ? 'demoClassBadge' : 'demoOfficial')} · {t('demoExhibitCount', { count: scene.items.length })}</p>
         <h1 className="mt-2 text-3xl font-semibold">{t(exhibition.title)}</h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">{t(exhibition.description)}</p>
-        <nav className="mt-5 flex flex-wrap gap-2" aria-label={t('demoCollectionTitle')}>
-          {demoExhibitions.map(demo => <Button key={demo.id} asChild variant={demo.id === exhibition.id ? 'default' : 'outline'}><Link to={demo.id === demoExhibitions[0].id ? '/demo' : `/demo?exhibition=${demo.id}`} aria-current={demo.id === exhibition.id ? 'page' : undefined}>{t(demo.title)}</Link></Button>)}
-        </nav>
+        {exhibition.id !== demoExhibitions[0].id && <Button asChild variant="outline" className="mt-5"><Link to="/demo"><ArrowLeft className="mr-2 size-4" />{t(demoExhibitions[0].title)}</Link></Button>}
         {classCopy && <div className="mt-5 rounded-lg border-l-4 border-primary bg-card p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">{classCopy.inquiryLabel}</p>
           <p className="mt-1 text-lg font-semibold">{classCopy.inquiry}</p>
@@ -84,6 +82,10 @@ function DemoExhibitionContent({ exhibition, initialIndex }: { exhibition: typeo
           {scene.items.map((item, itemIndex) => <button key={item.id} type="button" aria-pressed={index === itemIndex} onClick={() => setIndex(itemIndex)} className={`rounded-lg border p-2 text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring ${index === itemIndex ? 'border-primary bg-secondary' : 'border-border bg-card'}`}><img loading="lazy" src={item.content} alt="" className="aspect-[3/2] w-full rounded object-contain" /><span className="mt-2 block text-sm font-medium">{item.title}</span></button>)}
         </div>
         <p className="mt-5 text-xs leading-6 text-muted-foreground">{t('demoReadOnly')}</p>
+        <nav className="mt-8 border-t border-border pt-4 text-sm text-muted-foreground" aria-label={t('demoMoreGalleries')}>
+          <span className="mr-2">{t('demoMoreGalleries')}:</span>
+          {demoExhibitions.slice(1).map((demo, i) => <span key={demo.id}>{i > 0 && ' · '}<Link to={`/demo?exhibition=${demo.id}`} aria-current={demo.id === exhibition.id ? 'page' : undefined} className="underline underline-offset-4 hover:text-foreground">{t(demo.title)}</Link></span>)}
+        </nav>
       </div>
     </div>
   );

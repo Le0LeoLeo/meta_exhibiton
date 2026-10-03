@@ -286,6 +286,7 @@ export const en = {
   demoClassTitle: "Waves Across the World: a class inquiry",
   demoClassDescription: "A sample class exhibition. Six students each researched one print or painting, wrote its label and shared how they worked, what changed after feedback, and what they learned.",
   demoClassBadge: "Sample class exhibition · No sign-in required",
+  demoMoreGalleries: "More sample galleries",
   demoOfficial: "Official demo · No sign-in required",
   demoTitle: "A small gallery of masterpieces",
   demoDescription: "Explore line, colour and storytelling through eleven collection works, from Hokusai’s waves and Van Gogh’s brushwork to European portraits and mythological scenes.",

@@ -77,7 +77,7 @@ export const homeZhTW = {
   demoExhibitCount: "{count} 件展品",
 
   demoCollectionTitle: "學習示範展覽",
-  demoCollectionIntro: "這些展覽以館藏名作作為觀察與提問練習素材，並非學生作品。可免登入參觀 3D 空間與作品資料。",
+  demoCollectionIntro: "看看一個班級如何把探究成果做成 3D 展覽：每件作品都附有學生的說明、學習過程、來源和同學留言。學生為虛構人物，作品為公有領域館藏，可免登入參觀。",
   demoGardenTitle: "印象・花園",
   demoGardenDescription: "走進馬奈的花園，細看梵谷的玫瑰與麥田。從人物、花朵到遠景，感受筆觸與色彩的不同節奏。",
   demoLandscapeTitle: "浮世・山水",
@@ -198,7 +198,7 @@ export const homeZhCN: typeof homeZhTW = {
   demoExhibitCount: "{count} 件展品",
 
   demoCollectionTitle: "学习示范展览",
-  demoCollectionIntro: "这些展览以馆藏名作为观察与提问练习素材，并非学生作品。可免登录参观 3D 空间与作品资料。",
+  demoCollectionIntro: "看看一个班级如何把探究成果做成 3D 展览：每件作品都附有学生的说明、学习过程、来源和同学留言。学生为虚构人物，作品为公有领域馆藏，可免登录参观。",
   demoGardenTitle: "印象・花园",
   demoGardenDescription: "走进马奈的花园，细看梵高的玫瑰与麦田。从人物、花朵到远景，感受笔触与色彩的不同节奏。",
   demoLandscapeTitle: "浮世・山水",
@@ -319,7 +319,7 @@ export const homeEn: typeof homeZhTW = {
   demoExhibitCount: "{count} artworks",
 
   demoCollectionTitle: "Sample learning exhibitions",
-  demoCollectionIntro: "Use collection artworks to practise close observation and thoughtful questions. These are learning samples, not student work; explore the 3D spaces and artwork context without signing in.",
+  demoCollectionIntro: "See how a class turns an inquiry into a 3D exhibition: each work comes with the student’s label, learning process, sources and classmates’ comments. The students are fictional and the artworks are public-domain collection images; no sign-in needed.",
   demoGardenTitle: "Impressions · In the Garden",
   demoGardenDescription: "Enter Manet’s garden and explore Van Gogh’s roses and wheat field. Follow the changing rhythms of brushwork and colour, from figures and flowers to open landscapes.",
   demoLandscapeTitle: "Floating World · Land and Sea",
