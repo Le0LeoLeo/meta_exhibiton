@@ -9,11 +9,16 @@ import { useI18n } from '../components/I18nProvider';
 const topics = ['all', 'create', 'manage', 'view'] as const;
 const questions = [
   { id: 'start', topic: 'create', path: '/virtual-gallery' },
+  { id: 'context', topic: 'create', path: '/resources#guide-build' },
   { id: 'media', topic: 'create', path: '/virtual-gallery/my-exhibitions' },
   { id: 'save', topic: 'create', path: '/virtual-gallery/my-exhibitions' },
+  { id: 'builder', topic: 'create', path: '/resources#guide-layout' },
   { id: 'share', topic: 'manage', path: '/virtual-gallery/my-exhibitions' },
   { id: 'edit', topic: 'manage', path: '/virtual-gallery/my-exhibitions' },
   { id: 'privacy', topic: 'manage', path: '/privacy' },
+  { id: 'chat', topic: 'view', path: '/resources#guide-visit' },
+  { id: 'agent', topic: 'view', path: '/resources#guide-ask' },
+  { id: 'view2d', topic: 'view', path: '/exhibitions' },
   { id: 'device', topic: 'view', path: '/demo' },
   { id: 'load', topic: 'view', path: '/demo' },
   { id: 'login', topic: 'manage', path: '/login' },

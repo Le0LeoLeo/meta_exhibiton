@@ -14,7 +14,7 @@ describe('solutions and support journeys', () => {
   it('combines topic and text filters and resets an empty result', () => {
     renderPage(<Support />);
     fireEvent.click(screen.getByRole('button', { name: '建立展覽' }));
-    expect(screen.getByRole('status')).toHaveTextContent('3');
+    expect(screen.getByRole('status')).toHaveTextContent('5');
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'QR Code' } });
     expect(screen.getByRole('status')).toHaveTextContent('0');
     fireEvent.click(screen.getByRole('button', { name: '全部問題' }));
@@ -23,7 +23,7 @@ describe('solutions and support journeys', () => {
     expect(screen.getByRole('link', { name: '前往分享管理' })).toHaveAttribute('href', '/virtual-gallery/my-exhibitions');
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'unmatched-query' } });
     fireEvent.click(screen.getAllByRole('button', { name: dictionaries['zh-TW'].supportClearSearch }).at(-1)!);
-    expect(screen.getByRole('status')).toHaveTextContent('9');
+    expect(screen.getByRole('status')).toHaveTextContent('14');
     expect(screen.getByRole('textbox')).toHaveValue('');
   });
 

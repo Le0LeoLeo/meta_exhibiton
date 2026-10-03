@@ -1,10 +1,19 @@
 import { Button } from '../components/ui/button';
-import { Link } from 'react-router';
+import { useEffect } from 'react';
+import { Link, useLocation } from 'react-router';
 import { useI18n } from '../components/I18nProvider';
 import EducationGuide from './EducationGuide';
+import UsageGuide from './UsageGuide';
 
 export default function Resources() {
   const { t } = useI18n();
+  const { hash } = useLocation();
+  // Links from Support jump straight to one guide.
+  useEffect(() => {
+    if (!hash.startsWith('#guide-')) return;
+    const frame = requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView());
+    return () => cancelAnimationFrame(frame);
+  }, [hash]);
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
@@ -18,6 +27,7 @@ export default function Resources() {
       </div>
 
       <div className="py-12">
+        <UsageGuide />
         <EducationGuide />
       </div>
 
