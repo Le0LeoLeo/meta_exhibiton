@@ -13,7 +13,8 @@ class GalleryBoundary extends Component<{ children: ReactNode; fallback: ReactNo
 
 export function Gallery3D() {
   const { t } = useI18n();
-  const scene = useMemo(() => createDemoScene(t), [t]);
+  // This widget is labelled as the masterpiece gallery, not the default class sample.
+  const scene = useMemo(() => createDemoScene(t, 'classics'), [t]);
   const [index, setIndex] = useState(1);
   const [supported] = useState(() => typeof document !== 'undefined' && canCreateWebGLContext(document));
   const selected = scene.items[index];

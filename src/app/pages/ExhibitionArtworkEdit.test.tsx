@@ -13,7 +13,7 @@ vi.mock('@/app/hooks/useMobileDevice', () => ({ useMobileDevice: () => true }));
 vi.mock('@/app/api/gallery', async importOriginal => ({ ...await importOriginal<typeof import('@/app/api/gallery')>(), getGalleryById: vi.fn(), updateGalleryById: vi.fn() }));
 vi.mock('@/app/api/media', () => ({ uploadMediaAsset: vi.fn(), bindMediaAssets: vi.fn() }));
 
-const baseScene = { ...createDemoScene(key => key), customSetting: { retained: true } };
+const baseScene = { ...createDemoScene(key => key, 'classics'), customSetting: { retained: true } };
 const originalScene = () => structuredClone(baseScene);
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const originalGallery = () => ({ id: 'existing-gallery', ownerId: 'owner', title: 'Existing show', description: 'Keep description', isPublished: true, revision: 7, sceneJson: JSON.stringify(originalScene()) });
