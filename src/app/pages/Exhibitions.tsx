@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { Button } from '../components/ui/button';
 import { getPublishedGalleries, type ExhibitionSummary } from '../api/exhibitions';
 import { loadAuth } from '../api/auth';
+import { localizeTemplateDescription } from '@/app/utils/templateDescription';
 import { useI18n } from '../components/I18nProvider';
 
 export default function Exhibitions() {
@@ -122,7 +123,7 @@ export default function Exhibitions() {
                     <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="size-3" />{t('view')}</span>
                   </div>
                   <h3 className="mb-2 text-base font-medium text-card-foreground">{gallery.title}</h3>
-                  <p className="line-clamp-2 text-sm text-muted-foreground">{gallery.description || t('noExhibitionDescription')}</p>
+                  <p className="line-clamp-2 text-sm text-muted-foreground">{localizeTemplateDescription(gallery.description, locale) || t('noExhibitionDescription')}</p>
                   <div className="museum-exhibition-meta">
                     <span>{gallery.ownerName || t('anonymousCurator')}</span>
                     <span className="inline-flex items-center gap-1"><CalendarDays className="size-3" />{new Date(gallery.publishedAt || gallery.updatedAt).toLocaleDateString(locale)}</span>
