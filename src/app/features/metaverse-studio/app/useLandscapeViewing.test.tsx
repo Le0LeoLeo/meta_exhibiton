@@ -1,6 +1,6 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useLandscapeViewing } from "./useLandscapeViewing";
+import { LANDSCAPE_REQUEST_TIMEOUT_MS, useLandscapeViewing } from "./useLandscapeViewing";
 
 let fullscreen: Element | null;
 const lock = vi.fn<() => Promise<void>>();
@@ -155,5 +155,20 @@ describe("mobile landscape viewing", () => {
     await act(async () => result.current.requestLandscape());
     expect(enterFullscreen).not.toHaveBeenCalled();
     expect(lock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to manual rotation when the browser never settles the lock", async () => {
+    vi.useFakeTimers();
+    try {
+      lock.mockImplementation(() => new Promise<void>(() => {}));
+      const { result } = renderHook(() => useLandscapeViewing(true));
+      await act(async () => { result.current.requestLandscape(); await Promise.resolve(); });
+      expect(result.current.status).toBe("requesting");
+      await act(async () => { await vi.advanceTimersByTimeAsync(LANDSCAPE_REQUEST_TIMEOUT_MS + 10); });
+      expect(result.current.status).toBe("manual");
+      expect(exitFullscreen).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

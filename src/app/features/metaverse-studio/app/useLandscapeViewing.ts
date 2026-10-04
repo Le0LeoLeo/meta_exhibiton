@@ -5,6 +5,18 @@ type LockableOrientation = ScreenOrientation & {
 };
 type LandscapeStatus = "ready" | "requesting" | "locked" | "manual";
 const MOBILE_QUERY = "(pointer: coarse)";
+// Some browsers and in-app webviews never settle these promises; fall back to manual rotation.
+export const LANDSCAPE_REQUEST_TIMEOUT_MS = 4000;
+
+function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("Timed out")), ms);
+    promise.then(
+      (value) => { window.clearTimeout(timer); resolve(value); },
+      (reason) => { window.clearTimeout(timer); reject(reason); },
+    );
+  });
+}
 
 function subscribeMobile(onChange: () => void) {
   const query = window.matchMedia?.(MOBILE_QUERY);
@@ -60,13 +72,13 @@ export function useLandscapeViewing(enabled: boolean) {
         // Use the document root to keep the page's exit and 2D buttons accessible.
         if (!document.fullscreenElement && root.requestFullscreen) {
           try {
-            await root.requestFullscreen();
+            await settleWithin(root.requestFullscreen(), LANDSCAPE_REQUEST_TIMEOUT_MS);
             ownsFullscreen = document.fullscreenElement === root;
           } catch { /* Installed apps may allow locking without fullscreen. */ }
         }
         if (!active) { await exitOwnedFullscreen(); return; }
         lockRequested = true;
-        await orientation.lock("landscape");
+        await settleWithin(orientation.lock("landscape"), LANDSCAPE_REQUEST_TIMEOUT_MS);
         if (!active) { unlock(); await exitOwnedFullscreen(); return; }
         if (!lockRequested) { setStatus("ready"); return; }
         setStatus("locked");

@@ -13,6 +13,26 @@ export const GUIDE_SPEECH_RATE = 1.02;
 export const GUIDE_SPEECH_PITCH = 1;
 export const AGENT_TOUR_STOP_DISTANCE = 1.15;
 
+// The guide should walk beside the visitor, never park in the middle of their view.
+const FOLLOW_VIEW_CONE = Math.cos((50 * Math.PI) / 180);
+const FOLLOW_SIDE_ANGLE = (60 * Math.PI) / 180;
+
+/**
+ * Direction (unit, XZ plane) from the player to where a following agent should stand.
+ * Keeps the agent's current side but moves it out of the visitor's forward view cone.
+ * Yaw follows the camera convention: forward = (-sin yaw, 0, -cos yaw).
+ */
+export function resolveFollowDirection(playerPos: THREE.Vector3, agentPos: THREE.Vector3, playerYaw: number | undefined) {
+  const direction = agentPos.clone().sub(playerPos).setY(0);
+  if (direction.lengthSq() > 0.0001) direction.normalize(); else direction.set(-0.75, 0, -0.55).normalize();
+  if (playerYaw === undefined || !Number.isFinite(playerYaw)) return direction;
+  const forward = new THREE.Vector3(-Math.sin(playerYaw), 0, -Math.cos(playerYaw));
+  if (direction.dot(forward) < FOLLOW_VIEW_CONE) return direction;
+  // y of (forward × direction) tells which side the agent is on; default to the left.
+  const side = forward.x * direction.z - forward.z * direction.x > 0 ? -1 : 1;
+  return forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), side * FOLLOW_SIDE_ANGLE).normalize();
+}
+
 export function shouldPreserveMode(currentMode: string, nextMode: string) {
   return currentMode === nextMode;
 }

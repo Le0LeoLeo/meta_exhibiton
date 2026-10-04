@@ -92,6 +92,7 @@ export function useAgentBehavior({
       agent,
       current,
       playerPos,
+      playerYaw: useLocalPlayerStore.getState().yaw,
       nearbyExhibits,
       tourExhibits,
       roomBounds,
