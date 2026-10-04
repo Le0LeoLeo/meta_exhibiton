@@ -82,7 +82,7 @@ export function RouteErrorPage({
         aria-labelledby="route-error-heading"
         className="w-full max-w-lg rounded-3xl border border-border bg-card p-8 text-center text-card-foreground shadow-sm"
       >
-        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-rose-500">
+        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-primary">
           {chunkFailure ? '↻' : '500'}
         </p>
         <h1

@@ -335,7 +335,7 @@ export default function VirtualGallery() {
                 className={`absolute left-0 top-0 w-full overflow-hidden rounded-lg border bg-card text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary ${active ? 'border-curator-brass/70' : 'border-border hover:border-curator-brass/50'}`}
                 style={{ zIndex: 10 - Math.abs(offset) }}
                 initial={false}
-                animate={{ x: `${offset * 104}%`, opacity: Math.abs(offset) > 2 ? 0 : active ? 1 : 0.8 }}
+                animate={{ x: `${offset * 104}%`, opacity: Math.abs(offset) > 2 ? 0 : active ? 1 : 0.92 }}
                 transition={{ duration: reduceMotion ? 0 : 0.4, ease: [0.22, 1, 0.36, 1] }}
               >
                 <ImageWithFallback src={template.image} alt="" className="aspect-video w-full bg-secondary object-contain" />
