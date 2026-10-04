@@ -77,11 +77,11 @@ export default function QuickExhibitionCreate() {
         <Link to="/virtual-gallery/my-exhibitions" className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />{t('quickExhibitionBack')}</Link>
         <header className="space-y-3"><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t('journeyTitle')}</h1><p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">{t('journeySubtitle')}</p></header>
         {!editorManaged && <div className="space-y-3">
-          <ol aria-label={t('createSteps')} className="grid gap-2 text-sm sm:grid-cols-3">
+          <ol aria-label={t('createSteps')} className="grid grid-cols-3 gap-2 text-xs leading-snug sm:text-sm">
             {['journeyUpload', 'journeyTemplate', 'journeyPreview'].map((step, index) => {
               const current = index === activeStep;
               const complete = published || index < activeStep;
-              return <li key={step} aria-current={current ? 'step' : undefined} className={`flex min-h-12 items-center justify-between gap-2 rounded-lg border px-3 py-3 ${current ? 'border-primary bg-primary/5 font-semibold text-foreground' : 'border-border bg-card text-muted-foreground'}`}>
+              return <li key={step} aria-current={current ? 'step' : undefined} className={`flex min-h-12 items-center justify-between gap-1 rounded-lg border px-2 py-2 sm:gap-2 sm:px-3 sm:py-3 ${current ? 'border-primary bg-primary/5 font-semibold text-foreground' : 'border-border bg-card text-muted-foreground'}`}>
                 <span>{t(step)}</span>{complete && <><Check className="size-4 shrink-0" aria-hidden="true" /><span className="sr-only">{t('uxStepDone')}</span></>}
               </li>;
             })}
