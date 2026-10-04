@@ -1510,6 +1510,8 @@ export const zhTW = {
     visitorChatReadOnly: '你可以閱讀聊天，但不能傳送訊息。',
     visitorChatLateJoin: '你加入前的訊息不會顯示。',
     visitorChatYou: '你',
+    multiplayerGuestName: '訪客 {tag}',
+    multiplayerGuestNameNoTag: '訪客',
     viewUnsupportedVideo: '您的瀏覽器不支援影片播放。',
     viewUnsupportedFile: '此檔案類型無法直接預覽',
     viewDownloadFile: '下載檔案',

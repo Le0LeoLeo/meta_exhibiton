@@ -1454,6 +1454,8 @@ export const zhCN = {
     visitorChatReadOnly: '你可以阅读聊天，但不能发送消息。',
     visitorChatLateJoin: '你加入前的消息不会显示。',
     visitorChatYou: '你',
+    multiplayerGuestName: '访客 {tag}',
+    multiplayerGuestNameNoTag: '访客',
     viewUnsupportedVideo: '您的浏览器不支持视频播放。',
     viewUnsupportedFile: '此文件类型无法直接预览',
     viewDownloadFile: '下载文件',

@@ -4,6 +4,7 @@ import { useI18n } from "../../../../components/I18nProvider";
 import { useTouchControls } from "../../input/useTouchControls";
 import { useMultiplayerStore } from "../../network/multiplayerStore";
 import { CHAT_ROLES, emitChatMessage } from "../../network/socketClient";
+import { displayNickname } from "../../network/displayNickname";
 
 const MAX_LENGTH = 300;
 
@@ -93,7 +94,7 @@ export function VisitorChatPanel({ open, onOpenChange }: { open: boolean; onOpen
           ? <p className="text-white/70">{t(canSend ? "visitorChatEmpty" : "visitorChatEmptyReadOnly")}</p>
           : visible.map((msg) => (
             <p key={msg.id} className="break-words leading-snug">
-              <span className={`font-semibold ${msg.by === selfId ? "text-cyan-300" : "text-amber-200"}`}>{msg.by === selfId ? t("visitorChatYou") : msg.nickname}</span>
+              <span className={`font-semibold ${msg.by === selfId ? "text-cyan-300" : "text-amber-200"}`}>{msg.by === selfId ? t("visitorChatYou") : displayNickname(msg.nickname, msg.by, t)}</span>
               <span className="ml-1.5 text-[11px] text-white/50">{new Date(msg.createdAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}</span>
               <span className="block text-white/90">{msg.message}</span>
             </p>

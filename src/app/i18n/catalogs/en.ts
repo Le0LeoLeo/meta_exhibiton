@@ -1453,6 +1453,8 @@ export const en = {
     visitorChatReadOnly: 'You can read this chat but not send messages.',
     visitorChatLateJoin: 'Messages sent before you joined are not shown.',
     visitorChatYou: 'You',
+    multiplayerGuestName: 'Guest {tag}',
+    multiplayerGuestNameNoTag: 'Guest',
     viewUnsupportedVideo: 'Your browser does not support video playback.',
     viewUnsupportedFile: 'This file type cannot be previewed directly.',
     viewDownloadFile: 'Download File',
