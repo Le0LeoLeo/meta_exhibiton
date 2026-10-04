@@ -33,11 +33,13 @@ export function PublicProjectCard({ project, token }: { project: PublicProject; 
     ? `/exhibitions/${encodeURIComponent(project.galleryId)}?graduation=${encodeURIComponent(token)}&project=${encodeURIComponent(project.id)}`
     : undefined;
   const threeLabel = locale === 'en' ? 'Explore skills in 3D' : locale === 'zh-CN' ? '以 3D 探索能力' : '以 3D 探索能力';
+  const skillsHeading = locale === 'en' ? 'Student skills and evidence' : locale === 'zh-CN' ? '学生能力与佐证' : '學生能力與佐證';
+  const noPublicSource = locale === 'en' ? 'Student account; no public source attached.' : locale === 'zh-CN' ? '学生自述；未附公开佐证。' : '學生自述；未附公開佐證。';
   return <article id={`project-${project.id}`} className="scroll-mt-24 space-y-5 rounded-md border border-border bg-card p-5 sm:p-7">
     <h2 className="break-words text-2xl font-semibold">{project.title}</h2><ProjectDetails project={project} publicView galleryHref={galleryHref} />
     {publicSkills.length > 0 && galleryHref && <Button type="button" variant="outline" asChild><Link to={galleryHref}>{threeLabel}</Link></Button>}
     {publicSkills.length > 0 && <section className="space-y-4 border-t border-border pt-4" aria-label="Student skills">
-      <h3 className="text-lg font-semibold">Student skills and evidence</h3>
+      <h3 className="text-lg font-semibold">{skillsHeading}</h3>
       {publicSkills.map((skill) => <div key={skill.id} className="space-y-2 rounded-lg border border-border p-4">
         <h4 className="font-semibold">{skill.title}</h4>
         <p className="whitespace-pre-wrap text-sm">{skill.summary || skill.actions}</p>
@@ -45,7 +47,7 @@ export function PublicProjectCard({ project, token }: { project: PublicProject; 
         {skill.evidence.length > 0 ? <ul className="list-disc space-y-1 pl-5 text-sm">{skill.evidence.map((source) => <li key={source.id}>
           {source.kind === 'link' && source.url && /^https?:\/\//i.test(source.url) ? <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">{source.label}</a> : <span>{source.label}: {source.content}</span>}
           <span className="text-muted-foreground"> · {source.source}</span>
-        </li>)}</ul> : <p className="text-xs text-muted-foreground">Student account; no public source attached.</p>}
+        </li>)}</ul> : <p className="text-xs text-muted-foreground">{noPublicSource}</p>}
       </div>)}
     </section>}
     {!!project.reviews?.length && <section className="space-y-3 border-t border-border pt-4"><h3 className="font-semibold">{c.publicReviews}</h3>{project.reviews.map((review) => <blockquote key={review.id} className="border-l-2 border-primary pl-4 text-sm">

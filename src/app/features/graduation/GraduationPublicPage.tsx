@@ -1,4 +1,5 @@
 import { useParams } from 'react-router';
+import { formatDateTime } from '@/app/utils/formatDate';
 import { exportGraduationData, type GraduationRelease } from '@/app/api/graduation';
 import { Button } from '@/app/components/ui/button';
 import { PublicLinkUnavailable } from '@/app/components/PublicLinkUnavailable';
@@ -19,7 +20,7 @@ export default function GraduationPublicPage() {
   return <GraduationShell title={release?.title || c.releaseTitle} description={release?.description} showWorkspaceNav={false}>
     {resource.loading && <p role="status" className="py-4 text-muted-foreground">{c.loading}</p>}
     {release && <>
-      <div className="space-y-3 rounded-xl border border-border bg-secondary/40 p-4"><p className="text-sm font-medium">{c.version} {release.version} · {new Date(release.createdAt).toLocaleString()}</p><p className="text-sm text-muted-foreground">{c.archiveNote}</p><Button variant="outline" onClick={() => exportGraduationData(release, `graduation-release-v${release.version}.json`)}>{c.export}</Button></div>
+      <div className="space-y-3 rounded-xl border border-border bg-secondary/40 p-4"><p className="text-sm font-medium">{c.version} {release.version} · {formatDateTime(release.createdAt)}</p><p className="text-sm text-muted-foreground">{c.archiveNote}</p><Button variant="outline" onClick={() => exportGraduationData(release, `graduation-release-v${release.version}.json`)}>{c.export}</Button></div>
       <nav aria-label={t.contents} className="space-y-3 rounded-md border border-border p-4"><h2 className="font-semibold">{t.contents}</h2><Field label={t.search}><input type="search" className={inputClass} value={query} onChange={(e) => setQuery(e.target.value)} /></Field><ul className="grid gap-2 sm:grid-cols-2">{release.projects.filter((p) => matching.has(p.id)).map((p) => <li key={p.id}><a href={`#project-${p.id}`} className="inline-flex min-h-11 items-center break-words text-sm text-primary underline">{p.title} · {p.authorName}</a></li>)}</ul>{matching.size === 0 && <p role="status">{t.noMatch}</p>}</nav>
       <div className="space-y-6">{release.groups?.length ? release.groups.filter((g) => g.projectIds.some((id) => matching.has(id))).map((group, index) => <section key={index} className="space-y-5"><h2 className="break-words text-2xl font-semibold">{group.title}</h2><p className="whitespace-pre-wrap break-words text-muted-foreground">{group.rationale}</p>{group.guide && <p className="whitespace-pre-wrap break-words leading-relaxed">{group.guide}</p>}{group.projectIds.filter((id) => matching.has(id)).map((id) => { const project = release.projects.find((p) => p.id === id); return project ? <PublicProjectCard key={id} project={project} token={token} /> : null; })}</section>) : release.projects.filter((p) => matching.has(p.id)).map((project) => <PublicProjectCard key={project.id} project={project} token={token} />)}</div>
     </>}

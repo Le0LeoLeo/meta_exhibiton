@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { formatDate } from '@/app/utils/formatDate';
 import { exportGraduationData, graduationRequest, type GraduationProject } from '@/app/api/graduation';
 import { Button } from '@/app/components/ui/button';
 import { useGraduationCopy } from './copy';
@@ -25,7 +26,7 @@ export default function GraduationPortfolio() {
       {!!resource.value.releases?.length && <section className={panelClass}>
         <h2 className="text-xl font-semibold">{c.releaseTitle}</h2><p className="text-sm text-muted-foreground">{c.projectVisibilityHelp}</p>
         <ul className="space-y-4">{resource.value.releases.map((release) => <li key={release.id} className="space-y-3 border-t border-border pt-3">
-          <p className="break-words font-medium">{release.title} · {c.version} {release.version} · {new Date(release.createdAt).toLocaleDateString()}</p>
+          <p className="break-words font-medium">{release.title} · {c.version} {release.version} · {formatDate(release.createdAt)}</p>
           {release.withdrawnAt ? <p className="text-sm text-muted-foreground">{c.releasePausedHelp}</p> : release.projects.some((project) => !project.withdrawnAt) && <Link className="inline-flex min-h-11 items-center text-primary underline" to={`/graduation/public/${release.token}`}>{c.viewRelease}</Link>}
           {release.projects.map((project) => <div key={project.id} className="flex flex-wrap items-center gap-3 text-sm">
             <span className="break-words">{project.title}{project.withdrawnAt ? ` · ${c.projectWithdrawn}` : ''}</span>

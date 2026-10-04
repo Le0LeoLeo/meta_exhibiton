@@ -61,3 +61,16 @@ describe('teaching improvements', () => {
   });
 });
 
+
+describe('student next step', () => {
+  it.each([
+    [undefined, 'Complete required fields, save and submit.'],
+    ['submitted', "Submitted for review. Wait for your teacher's feedback."],
+    ['returned', 'Your teacher returned your work.'],
+    ['approved', 'Approved. Your project will be included'],
+  ] as const)('follows the project status %s', (status, expected) => {
+    const data = { class: { role: 'student' }, projects: status ? [{ status }] : [] } as unknown as ClassDetail;
+    render(<TeachingProgress data={data} filter="all" onFilter={vi.fn()} />);
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent?.includes(expected) === true)).toBeVisible();
+  });
+});

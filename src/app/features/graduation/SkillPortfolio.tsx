@@ -74,6 +74,10 @@ const copy = {
   },
 } as const;
 
+export function skillStatusLabel(status: SkillCard['status'], locale: keyof typeof copy) {
+  return copy[locale][status];
+}
+
 export function SkillPortfolio({ projectId, teacher, guided = false, readOnly = false, project, onContinue, onBack, combinedReview = false, onSkillsLoaded }: {
   projectId: string; teacher: boolean; guided?: boolean; readOnly?: boolean; project?: GraduationProject; onContinue?: () => void; onBack?: () => void; combinedReview?: boolean; onSkillsLoaded?: (projectId: string, projectRevision: number | undefined, skills: SkillCard[]) => void;
 }) {
