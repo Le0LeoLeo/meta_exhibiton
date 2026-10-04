@@ -883,6 +883,7 @@ export const zhCN = {
     foldersMissing: "此文件夹已不存在，已显示最上层展览。",
     manageExhibitionsDesc: '编辑名称、描述、发布状态与分享连结。',
     noExhibitionsYet: '目前还没有任何展览。',
+    myExhibitionsEmptyHint: '上传几张图片就能创建你的第一个展览。发布之前都只是私人草稿。',
     blankExhibition: '空白展览',
     loadMyExhibitionsFailed: '载入我的展览失败',
     cannotLoadMyExhibitions: '无法载入我的展览',

@@ -882,6 +882,7 @@ export const en = {
     foldersMissing: "This folder no longer exists. Showing the top level.",
     manageExhibitionsDesc: 'Edit name, description, publish status, and share link.',
     noExhibitionsYet: 'No exhibitions yet.',
+    myExhibitionsEmptyHint: 'Upload a few images to create your first exhibition. It stays a private draft until you publish it.',
     blankExhibition: 'Blank Gallery',
     loadMyExhibitionsFailed: 'Failed to load exhibitions',
     cannotLoadMyExhibitions: 'Could not load your exhibitions',
