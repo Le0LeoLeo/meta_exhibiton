@@ -31,7 +31,7 @@ export function ExhibitWorkContextDisplay({ item, headingId = 'exhibit-work-cont
           {workContext.sources.map((source, index) => <li key={`${source.label}-${index}`} className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-700 dark:bg-stone-950">
             <p className="text-sm font-medium text-stone-900 dark:text-white">{source.label}</p>
             {source.excerpt && <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-stone-700 dark:text-stone-300">{source.excerpt}</p>}
-            {source.url && <a href={source.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center gap-1 text-sm font-medium text-indigo-700 underline underline-offset-2 dark:text-indigo-300">
+            {source.url && <a href={source.url} target="_blank" rel="noopener noreferrer" aria-label={`${t('workContextOpenSource')}: ${source.label}`} className="mt-2 inline-flex min-h-10 items-center gap-1 text-sm font-medium text-indigo-700 underline underline-offset-2 dark:text-indigo-300">
               {t('workContextOpenSource')}<ExternalLink aria-hidden="true" className="size-3.5" />
             </a>}
           </li>)}

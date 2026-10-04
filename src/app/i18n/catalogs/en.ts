@@ -1536,7 +1536,7 @@ export const en = {
     agentConfirm: 'Confirm',
     agentConfirmAria: 'Confirm viewing mode selection',
     agentSelectHint: 'Select a mode first, then confirm.',
-    agentAppearanceTitle: 'Agent Appearance',
+    agentAppearanceTitle: 'Guide style',
     agentPersonalityXiaobaiLabel: 'Xiaobai',
     agentPersonalityXiaobaiTone: 'Warm & Simple',
     agentPersonalityXiaobaiDesc: 'Introduces exhibits in a simple, warm tone — perfect for first-time visitors or those who want a quick overview.',

@@ -1537,7 +1537,7 @@ export const zhCN = {
     agentConfirm: '确定',
     agentConfirmAria: '确定选择观展模式',
     agentSelectHint: '先选择一个模式，再按确定。',
-    agentAppearanceTitle: 'Agent 外观',
+    agentAppearanceTitle: '导览风格',
     agentPersonalityXiaobaiLabel: '小白',
     agentPersonalityXiaobaiTone: '亲切入门',
     agentPersonalityXiaobaiDesc: '用简单、温暖的语气介绍展品，适合第一次参观或想快速理解重点的观众。',

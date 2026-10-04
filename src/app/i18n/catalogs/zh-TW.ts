@@ -1593,7 +1593,7 @@ export const zhTW = {
     agentConfirm: '確定',
     agentConfirmAria: '確定選擇觀展模式',
     agentSelectHint: '先選擇一個模式，再按確定。',
-    agentAppearanceTitle: 'Agent 外觀',
+    agentAppearanceTitle: '導覽風格',
     agentPersonalityXiaobaiLabel: '小白',
     agentPersonalityXiaobaiTone: '親切入門',
     agentPersonalityXiaobaiDesc: '用簡單、溫暖的語氣介紹展品，適合第一次參觀或想快速理解重點的觀眾。',
