@@ -6,7 +6,7 @@ import {
   resolveItemDefaultScale,
   resolveItemPlacementY,
 } from "../items/itemBehaviorRegistry";
-import { dictionaries, type Locale } from "@/app/i18n/catalogs";
+import { getLoadedDictionary, LOCALES, type Locale } from "@/app/i18n/catalogs";
 
 function getDefaultItemScale(type: ExhibitItem["type"], roomSize: RoomSize): [number, number, number] {
   return [...resolveItemDefaultScale(type, roomSize)];
@@ -15,17 +15,17 @@ function getDefaultItemScale(type: ExhibitItem["type"], roomSize: RoomSize): [nu
 // The store has no i18n context; I18nProvider mirrors the active locale onto <html lang>.
 function currentLocale(): Locale | null {
   const lang = typeof document === "undefined" ? "" : document.documentElement.lang;
-  return lang in dictionaries ? (lang as Locale) : null;
+  return (LOCALES as readonly string[]).includes(lang) ? (lang as Locale) : null;
 }
 
 function getDefaultArtworkTitle(): string {
   const locale = currentLocale();
-  return locale ? dictionaries[locale].editorNewArtworkTitle : "新作品";
+  return (locale && getLoadedDictionary(locale)?.editorNewArtworkTitle) || "新作品";
 }
 
 function getDefaultItemContent(type: ExhibitItem["type"]): string {
   const locale = type === "text" ? currentLocale() : null;
-  return locale ? dictionaries[locale].exhibition2dTextTitle : getItemBehavior(type).defaultContent;
+  return (locale && getLoadedDictionary(locale)?.exhibition2dTextTitle) || getItemBehavior(type).defaultContent;
 }
 
 export function createDefaultItem(type: ExhibitItem["type"], roomSize: RoomSize, options?: AddItemOptions): ExhibitItem {
