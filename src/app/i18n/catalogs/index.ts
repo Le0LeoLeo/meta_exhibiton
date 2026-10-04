@@ -1,20 +1,21 @@
-import { paintingZhTW, paintingZhCN, paintingEn } from './painting';
-import { journeyZhTW, journeyZhCN, journeyEn } from './journey';
-import { flowSimplificationZhTW, flowSimplificationZhCN, flowSimplificationEn } from './flowSimplification';
-import { aiEducationMainZhTW, aiEducationMainZhCN, aiEducationMainEn } from './aiEducationMain';
+import { paintingEn } from './painting';
+import { journeyEn } from './journey';
+import { flowSimplificationEn } from './flowSimplification';
+import { aiEducationMainEn } from './aiEducationMain';
 import { en } from './en';
-import { visitorGuidanceEn, visitorGuidanceZhTW, visitorGuidanceZhCN } from './visitorGuidance';
-import { homeProductEn, homeProductZhTW, homeProductZhCN } from './homeProduct';
-import { creationUxEn, creationUxZhTW, creationUxZhCN } from './creationUx';
-import { discoveryEn, discoveryZhTW, discoveryZhCN } from './discovery';
-import { reliabilityEn, reliabilityZhTW, reliabilityZhCN } from './reliability';
+import { visitorGuidanceEn } from './visitorGuidance';
+import { homeProductEn } from './homeProduct';
+import { creationUxEn } from './creationUx';
+import { discoveryEn } from './discovery';
+import { reliabilityEn } from './reliability';
 import type { zhCN } from './zh-CN';
 import type { zhTW } from './zh-TW';
-import { homeZhTW, homeZhCN, homeEn } from './home';
-import { workContextEn, workContextZhCN, workContextZhTW } from './workContext';
-import { agentUiEn, agentUiZhCN, agentUiZhTW } from './agentUi';
-import { exhibitionWizardEn, exhibitionWizardZhCN, exhibitionWizardZhTW } from './exhibitionWizard';
-import { wizardImportEn, wizardImportZhCN, wizardImportZhTW } from './wizardImport';
+import type { homeZhTW } from './home.zh-TW';
+import { homeEn } from './home';
+import { workContextEn } from './workContext';
+import { agentUiEn } from './agentUi';
+import { exhibitionWizardEn } from './exhibitionWizard';
+import { wizardImportEn } from './wizardImport';
 import { templateDescriptions, type TemplateDescriptionKey } from './templateDescriptions';
 
 export type Locale = 'zh-TW' | 'zh-CN' | 'en';
@@ -25,7 +26,8 @@ export const LOCALES: readonly Locale[] = ['zh-TW', 'zh-CN', 'en'];
 
 // English ships in the main bundle: it is the fallback for missing keys, the default before a
 // provider mounts, and the language of the prerendered home page. The large Chinese catalogs are
-// split into their own chunks and loaded on demand (see loadDictionary).
+// split into their own chunks and loaded on demand (see loadDictionary): each feature catalog keeps
+// English in foo.ts and Chinese in foo.zh-TW.ts / foo.zh-CN.ts, gathered by locale.<locale>.ts.
 const englishDictionary: Dictionary = { ...paintingEn, ...en, ...templateDescriptions.en, ...homeEn, ...reliabilityEn, ...discoveryEn, ...creationUxEn, ...homeProductEn, ...visitorGuidanceEn, ...journeyEn, ...workContextEn, ...agentUiEn, ...exhibitionWizardEn, ...wizardImportEn, ...flowSimplificationEn, ...aiEducationMainEn };
 
 /**
@@ -37,12 +39,8 @@ export const dictionaries = { en: englishDictionary } as Record<Locale, Dictiona
 const pending: Partial<Record<Locale, Promise<Dictionary>>> = {};
 
 async function buildDictionary(locale: Exclude<Locale, 'en'>): Promise<Dictionary> {
-  if (locale === 'zh-TW') {
-    const { zhTW } = await import('./zh-TW');
-    return { ...paintingZhTW, ...zhTW, ...templateDescriptions['zh-TW'], ...homeZhTW, ...reliabilityZhTW, ...discoveryZhTW, ...creationUxZhTW, ...homeProductZhTW, ...visitorGuidanceZhTW, ...journeyZhTW, ...workContextZhTW, ...agentUiZhTW, ...exhibitionWizardZhTW, ...wizardImportZhTW, ...flowSimplificationZhTW, ...aiEducationMainZhTW };
-  }
-  const { zhCN } = await import('./zh-CN');
-  return { ...paintingZhCN, ...zhCN, ...templateDescriptions['zh-CN'], ...homeZhCN, ...reliabilityZhCN, ...discoveryZhCN, ...creationUxZhCN, ...homeProductZhCN, ...visitorGuidanceZhCN, ...journeyZhCN, ...workContextZhCN, ...agentUiZhCN, ...exhibitionWizardZhCN, ...wizardImportZhCN, ...flowSimplificationZhCN, ...aiEducationMainZhCN };
+  const { dictionary } = locale === 'zh-TW' ? await import('./locale.zh-TW') : await import('./locale.zh-CN');
+  return dictionary;
 }
 
 export function getLoadedDictionary(locale: Locale): Dictionary | undefined {

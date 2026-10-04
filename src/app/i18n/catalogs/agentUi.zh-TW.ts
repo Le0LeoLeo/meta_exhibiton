@@ -1,0 +1,18 @@
+export const agentUiZhTW = {
+  'agentUi.statusThinking': '思考中…',
+  'agentUi.statusFollowing': '跟隨中',
+  'agentUi.statusExplaining': '講解中',
+  'agentUi.statusWandering': '自由參觀',
+  'agentUi.statusTouring': '帶領導覽',
+  'agentUi.statusWaiting': '待命中',
+  'agentUi.openChatHint': '開啟對話，一起聊聊展覽中的作品。',
+  'agentUi.lastQuestion': '你剛才問我：{question}',
+  'agentUi.guideStyleLearning': '背景與學習',
+  'agentUi.guideStyleStorytelling': '故事導覽',
+  'agentUi.guideStyleWarm': '溫暖對話',
+  'agentUi.tourStatusIdle': '尚未開始',
+  'agentUi.tourStatusRunning': '進行中',
+  'agentUi.tourStatusPaused': '已暫停',
+  'agentUi.tourStatusArrived': '已抵達此站',
+  'agentUi.tourStatusComplete': '已完成',
+};
