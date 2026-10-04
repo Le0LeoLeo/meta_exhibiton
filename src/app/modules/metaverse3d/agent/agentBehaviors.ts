@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { AgentState } from "./types";
 import type { ExhibitItem } from "../types";
-import { AGENT_FOLLOW_COMFORT_DISTANCE, AGENT_GUIDE_STOP_DISTANCE, AGENT_GUIDE_TRIGGER_DISTANCE, AGENT_GROUND_Y, AGENT_STOP_DISTANCE, AGENT_TOUR_STOP_DISTANCE, AGENT_WANDER_POINT_REACHED, AGENT_SPEED, shouldPreserveMode, resolveAgentStep } from "./movementHelpers";
+import { resolveFollowDirection, AGENT_FOLLOW_COMFORT_DISTANCE, AGENT_GUIDE_STOP_DISTANCE, AGENT_GUIDE_TRIGGER_DISTANCE, AGENT_GROUND_Y, AGENT_STOP_DISTANCE, AGENT_TOUR_STOP_DISTANCE, AGENT_WANDER_POINT_REACHED, AGENT_SPEED, shouldPreserveMode, resolveAgentStep } from "./movementHelpers";
 import { buildRouteViaDoors, requestAutoGuideAnswer, findClosestExhibit, toExhibitData } from "./behaviorHelpers";
 import { getAgentResponse } from "./response";
 import type { AgentRecommendation } from "./types";
@@ -13,6 +13,8 @@ export type AgentBehaviorContext = {
   agent: AgentState;
   current: THREE.Vector3;
   playerPos: THREE.Vector3;
+  /** Camera yaw of the local player, used to keep a following guide out of the centre of view. */
+  playerYaw?: number;
   nearbyExhibits: ReturnType<typeof toExhibitData>;
   tourExhibits: ReturnType<typeof toExhibitData>;
   roomBounds: ReturnType<typeof import("./behaviorHelpers").buildRoomBounds>;
@@ -152,8 +154,7 @@ export function runAgentBehaviors(ctx: AgentBehaviorContext) {
     nextActiveExhibit = playerNearestExhibit;
     refs.guideTimerRef.current = agentToExhibitDistance <= AGENT_GUIDE_STOP_DISTANCE ? refs.guideTimerRef.current + deltaSeconds : 0;
   } else if (agent.followUser) {
-    const offsetDirection = current.clone().sub(playerPos);
-    if (offsetDirection.lengthSq() > 0.0001) offsetDirection.normalize(); else offsetDirection.set(-0.75, 0, -0.55).normalize();
+    const offsetDirection = resolveFollowDirection(playerPos, current, ctx.playerYaw);
     target.copy(playerPos.clone().addScaledVector(offsetDirection, AGENT_FOLLOW_COMFORT_DISTANCE));
     nextMode = distanceToPlayer > AGENT_STOP_DISTANCE ? "follow" : "idle";
     nextActiveExhibit = null;
