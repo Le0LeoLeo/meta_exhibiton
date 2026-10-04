@@ -38,7 +38,10 @@ export type ImportedSceneSnapshot = Partial<Omit<SceneSnapshot, "roomSize">> & {
   roomSize?: Partial<RoomSize>;
 };
 
-export type AddItemOptions = Partial<Pick<ExhibitItem, 'position' | 'rotation' | 'scale' | 'content' | 'modelOffset' | 'title'>>;
+export type AddItemOptions = Partial<Pick<ExhibitItem, 'position' | 'rotation' | 'scale' | 'content' | 'modelOffset' | 'title'>> & {
+  /** Set false for companion items (e.g. auto light strips) so the user's new item stays selected. */
+  select?: boolean;
+};
 
 export interface BaseMetaverseActions {
   setMode: (mode: AppMode) => void;

@@ -350,6 +350,7 @@ export const zhTW = {
     exhibition2dPlayVideo: '播放影片',
     exhibition2dEmpty: '此展覽目前沒有可在 2D 模式顯示的作品。',
     exhibition2dTextTitle: '展覽文字',
+    editorNewArtworkTitle: '新作品',
     exhibition2dArtworkTitle: '作品 {number}',
     exhibition2dAltSeparator: '。',
     noDescriptionYet: '尚未填寫展覽描述',

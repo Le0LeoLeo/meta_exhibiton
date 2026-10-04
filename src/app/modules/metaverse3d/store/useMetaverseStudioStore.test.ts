@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { ExhibitItem } from "../types";
 import { defaultGalleryScene } from "./defaultGalleryScene";
@@ -600,5 +600,41 @@ describe("useMetaverseStudioStore editor arrangement actions", () => {
     expect(state.items.filter((item) => item.type === "painting")).toHaveLength(2);
     expect(state.selectedItemIds).toHaveLength(1);
     expect(state.selectedItemIds[0]).not.toBe("partition-1");
+  });
+});
+
+describe("useMetaverseStudioStore new item defaults", () => {
+  const originalLang = document.documentElement.lang;
+
+  beforeEach(() => {
+    useMetaverseStudioStore.setState(useMetaverseStudioStore.getInitialState(), true);
+    useMetaverseStudioStore.setState({ items: [], undoStack: [], redoStack: [] });
+  });
+
+  afterEach(() => { document.documentElement.lang = originalLang; });
+
+  it("keeps the user's new item selected when a companion light strip is added", () => {
+    const store = useMetaverseStudioStore.getState();
+    store.addItem("text");
+    const textId = useMetaverseStudioStore.getState().selectedItemId;
+    store.addItem("lightstrip", { select: false });
+
+    const state = useMetaverseStudioStore.getState();
+    expect(state.items).toHaveLength(2);
+    expect(state.selectedItemId).toBe(textId);
+    expect(state.selectedItemIds).toEqual([textId]);
+  });
+
+  it("uses the interface language for placeholder text and leaves artwork filler empty", () => {
+    document.documentElement.lang = "en";
+    const store = useMetaverseStudioStore.getState();
+    store.addItem("text");
+    store.addItem("painting");
+
+    const [text, painting] = useMetaverseStudioStore.getState().items;
+    expect(text.content).toBe("Exhibition text");
+    expect(painting.title).toBe("New artwork");
+    expect(painting.artist).toBe("");
+    expect(painting.description).toBe("");
   });
 });

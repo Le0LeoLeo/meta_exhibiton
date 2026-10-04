@@ -196,7 +196,7 @@ export function Room({ sceneOverride = null }: { sceneOverride?: SceneSnapshot |
       if (pendingPlacement.autoTopLightstrip) {
         const lightPlacement = createAutoTopLightstripPlacement(pendingPlacement.type, position, rotation);
         if (lightPlacement) {
-          addItem("lightstrip", lightPlacement);
+          addItem("lightstrip", { ...lightPlacement, select: false });
         }
       }
     });
@@ -471,7 +471,7 @@ export function Room({ sceneOverride = null }: { sceneOverride?: SceneSnapshot |
         addItem(pendingPlacement.type, { position, rotation: resolved.rotation });
         if (pendingPlacement.autoTopLightstrip) {
           const lightPlacement = createAutoTopLightstripPlacement(pendingPlacement.type, position, resolved.rotation);
-          if (lightPlacement) addItem("lightstrip", lightPlacement);
+          if (lightPlacement) addItem("lightstrip", { ...lightPlacement, select: false });
         }
       });
 
@@ -684,7 +684,7 @@ export function Room({ sceneOverride = null }: { sceneOverride?: SceneSnapshot |
                   addItem(pendingPlacement.type, { ...pendingPlacement.itemDefaults, position: next.position, rotation: next.rotation });
                   if (pendingPlacement.autoTopLightstrip) {
                     const lightPlacement = createAutoTopLightstripPlacement(pendingPlacement.type, next.position, next.rotation);
-                    if (lightPlacement) addItem("lightstrip", lightPlacement);
+                    if (lightPlacement) addItem("lightstrip", { ...lightPlacement, select: false });
                   }
                   setPendingPlacement(null);
                   setSelectedWallSegmentId(null);
