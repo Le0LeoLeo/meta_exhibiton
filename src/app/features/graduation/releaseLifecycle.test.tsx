@@ -100,7 +100,7 @@ describe('published graduation lifecycle controls', () => {
     </Routes></MemoryRouter></I18nProvider>);
     expect(await screen.findByRole('heading', { name: 'Published class' })).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Change locale' }));
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('找不到這份內容'));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('此連結無法使用'));
     expect(screen.queryByRole('heading', { name: 'Published class' })).not.toBeInTheDocument();
     expect(screen.queryByText('My frozen project')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '下載作品資料' })).not.toBeInTheDocument();

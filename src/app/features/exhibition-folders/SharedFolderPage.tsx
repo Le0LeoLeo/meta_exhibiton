@@ -7,12 +7,13 @@ import { folderPath } from './ExhibitionFolders';
 import { Button } from '@/app/components/ui/button';
 import { useI18n } from '@/app/components/I18nProvider';
 import { SharedGalleryScene } from './SharedGalleryScene';
+import { localizeTemplateDescription } from '@/app/utils/templateDescription';
 import type { SceneSnapshot } from '@/app/modules/metaverse3d/store/metaverseStoreTypes';
 
 export default function SharedFolderPage() {
   const { token = '' } = useParams();
   const [params, setParams] = useSearchParams();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const folderId = params.get('folder'); const galleryId = params.get('gallery');
   const [data, setData] = useState<SharedFolder | null>(null);
   const [gallery, setGallery] = useState<(SharedFolderGallery & { scene: SceneSnapshot }) | null>(null);
@@ -55,7 +56,7 @@ export default function SharedFolderPage() {
         </nav>
         {gallery ? <>
           <Button variant="outline" onClick={() => open(data.folder.id)}><ArrowLeft className="size-4" />{t('folderShareBack')}</Button>
-          {gallery.description && <p className="whitespace-pre-wrap break-words text-muted-foreground">{gallery.description}</p>}
+          {gallery.description && <p className="whitespace-pre-wrap break-words text-muted-foreground">{localizeTemplateDescription(gallery.description, locale)}</p>}
           <Button variant="outline" onClick={() => setView3d(!view3d)}><Eye className="size-4" />{t(view3d ? 'folderSharePictures' : 'folderShare3D')}</Button>
           {view3d ? <SharedGalleryScene scene={gallery.scene} /> : <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{gallery.scene.items.filter(item => item.type === 'painting').map(item => <article key={item.id} className="overflow-hidden rounded-xl border border-border bg-card"><img src={item.content} alt={item.title ?? ''} referrerPolicy="no-referrer" loading="lazy" className="aspect-[4/3] w-full bg-secondary/30 object-contain" /><div className="space-y-2 p-4"><h2 className="break-words font-medium">{item.title}</h2><p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{item.description}</p></div></article>)}</div>}
         </> : <>

@@ -12,6 +12,7 @@ import { GalleryVisitFocusContext, useGalleryVisit } from '../features/gallery-a
 import { useLocalPlayerStore } from '../modules/metaverse3d/network/localPlayerStore';
 import { graduationRequest, type GraduationRelease, type PublicProject } from '../api/graduation';
 import { GraduationRoomSkills } from '../features/graduation/GraduationRoomSkills';
+import { localizeTemplateDescription } from '@/app/utils/templateDescription';
 import { cvRequest, type CvPublic } from '../api/cv';
 
 const MetaverseStudioApp = lazy(() => import('../features/metaverse-studio'));
@@ -76,7 +77,7 @@ export default function ExhibitionView() {
   const navigate = useNavigate();
   const params = useParams();
   const [searchParams] = useSearchParams();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const exhibitionId = (params.exhibitionId || '').trim();
   const graduationToken = searchParams.get('graduation');
   const graduationProjectId = searchParams.get('project');
@@ -321,7 +322,7 @@ export default function ExhibitionView() {
         </Button>
         <Exhibition2DView
           title={gallery.title}
-          description={gallery.description}
+          description={localizeTemplateDescription(gallery.description, locale)}
           exhibits={sceneToExhibits(sceneSnapshot, {
             textTitle: t('exhibition2dTextTitle'),
             artworkTitle: (number) => t('exhibition2dArtworkTitle', { number }),
@@ -375,7 +376,7 @@ export default function ExhibitionView() {
         </Button>
         <div className="pointer-events-none rounded-md border border-border bg-card/85 p-4 text-foreground backdrop-blur-md dark:border-border dark:bg-card/70 dark:text-foreground">
           <p className="text-lg font-medium">{gallery.title}</p>
-          <p className="mt-2 hidden text-sm leading-6 text-muted-foreground dark:text-muted-foreground sm:block">{gallery.description || t('viewDefaultDescription')}</p>
+          <p className="mt-2 hidden text-sm leading-6 text-muted-foreground dark:text-muted-foreground sm:block">{localizeTemplateDescription(gallery.description, locale) || t('viewDefaultDescription')}</p>
           <div className="mt-3 hidden items-center gap-3 text-xs text-muted-foreground dark:text-muted-foreground sm:flex">
             <span className="inline-flex items-center gap-1"><UserRound className="size-3" />{gallery.ownerName || t('anonymousCurator')}</span>
             <span className="inline-flex items-center gap-1"><CalendarDays className="size-3" />{new Date(gallery.publishedAt || gallery.updatedAt).toLocaleDateString('zh-TW')}</span>

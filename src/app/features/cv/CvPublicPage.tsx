@@ -2,26 +2,28 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { cvRequest, type CvPublic } from '@/app/api/cv';
 import { useI18n } from '@/app/components/I18nProvider';
+import { PublicLinkUnavailable } from '@/app/components/PublicLinkUnavailable';
 
 export default function CvPublicPage() {
   const { token = '' } = useParams();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const [data, setData] = useState<CvPublic | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => { let active = true; setData(null); setError('');
+  const [error, setError] = useState<{ status?: number } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => { let active = true; setData(null); setError(null);
     void cvRequest<CvPublic>(`/public/${encodeURIComponent(token)}`).then((result) => { if (active) setData(result); })
-      .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : String(reason)); });
+      .catch((reason: unknown) => { if (active) setError({ status: (reason as { status?: number } | null)?.status }); });
     return () => { active = false; };
-  }, [token]);
-  const c = locale === 'en' ? { title: 'Skills CV', self: 'Self-reported; sources are listed separately.', room: 'Explore in the original 3D room', empty: 'No public source attached.', missing: 'This CV is unavailable.' }
+  }, [token, attempt]);
+  const c = locale === 'en' ? { title: 'Skills CV', self: 'Self-reported; sources are listed separately.', room: 'Explore in the original 3D room', empty: 'No public source attached.', missing: 'This CV is unavailable' }
     : locale === 'zh-CN' ? { title: '能力履历', self: '内容由本人陈述；佐证来源逐项列出。', room: '进入原有 3D 展室', empty: '未附公开佐证。', missing: '此履历暂不可用。' }
       : { title: '能力履歷', self: '內容由本人陳述；佐證來源逐項列出。', room: '進入原有 3D 展室', empty: '未附公開佐證。', missing: '此履歷暫不可用。' };
   const details = locale === 'en' ? { context: 'Situation', role: 'My contribution', actions: 'What I did', outcome: 'Result', reflection: 'Reflection' }
     : locale === 'zh-CN' ? { context: '情境', role: '我的贡献', actions: '我做了什么', outcome: '结果', reflection: '反思' }
       : { context: '情境', role: '我的貢獻', actions: '我做了甚麼', outcome: '結果', reflection: '反思' };
   return <div className="mx-auto max-w-4xl space-y-7 px-4 py-10 sm:px-6">
-    {error && <p role="alert">{c.missing}</p>}
-    {!data && !error && <p role="status">Loading…</p>}
+    {error && <PublicLinkUnavailable status={error.status} title={c.missing} onRetry={() => setAttempt((n) => n + 1)} />}
+    {!data && !error && <p role="status" className="text-muted-foreground">{t('publicLinkLoading')}</p>}
     {data && <>
       <header className="space-y-3"><p className="text-sm font-semibold uppercase tracking-wide text-primary">{c.title}</p><h1 className="text-3xl font-semibold">{data.profile.name}</h1>
         {data.profile.headline && <p className="text-xl">{data.profile.headline}</p>}
