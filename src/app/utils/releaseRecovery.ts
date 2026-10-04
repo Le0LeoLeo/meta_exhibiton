@@ -31,3 +31,22 @@ export function downloadRecoveryScene(scene: string) {
   document.body.appendChild(link); link.click(); link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
+const AUTO_RELOAD_KEY = 'paidea:chunk-auto-reload';
+const AUTO_RELOAD_WINDOW_MS = 30_000;
+/**
+ * Reload once when a stale chunk fails to load and no unsaved scene is at risk.
+ * A per-URL timestamp in sessionStorage prevents reload loops if the chunk is truly gone.
+ */
+export function tryAutoReloadForChunkError(reload: () => void, now = Date.now()) {
+  if (hasRecoveryScene()) return false;
+  const target = window.location.pathname + window.location.search;
+  try {
+    const previous = JSON.parse(window.sessionStorage.getItem(AUTO_RELOAD_KEY) ?? 'null') as { target?: string; at?: number } | null;
+    if (previous?.target === target && typeof previous.at === 'number' && now - previous.at < AUTO_RELOAD_WINDOW_MS) return false;
+    window.sessionStorage.setItem(AUTO_RELOAD_KEY, JSON.stringify({ target, at: now }));
+  } catch {
+    return false;
+  }
+  reload();
+  return true;
+}

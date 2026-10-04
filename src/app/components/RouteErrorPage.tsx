@@ -4,7 +4,7 @@ import { useRouteError } from 'react-router';
 import { useI18n, type Locale } from './I18nProvider';
 import { Button } from './ui/button';
 import { RecoveryActions } from './ReleaseRecovery';
-import { isChunkLoadError } from '@/app/utils/releaseRecovery';
+import { isChunkLoadError, tryAutoReloadForChunkError } from '@/app/utils/releaseRecovery';
 
 type RouteErrorCopy = {
   heading: string;
@@ -50,6 +50,8 @@ function createErrorReference() {
   return `ERR-${timestamp}-${suffix}`;
 }
 
+const reloadWindow = () => window.location.reload();
+
 type RouteErrorPageProps = {
   errorReference?: string;
   reloadPage?: () => void;
@@ -58,7 +60,7 @@ type RouteErrorPageProps = {
 
 export function RouteErrorPage({
   errorReference,
-  reloadPage = () => window.location.reload(),
+  reloadPage = reloadWindow,
   reportError = reportRouteError,
 }: RouteErrorPageProps = {}) {
   const error = useRouteError();
@@ -69,28 +71,30 @@ export function RouteErrorPage({
 
   useEffect(() => {
     reportError(error, reference);
-    if (chunkFailure) window.dispatchEvent(new Event('metaexb:recovery-handled'));
-  }, [error, reference, reportError, chunkFailure]);
+    if (!chunkFailure) return;
+    window.dispatchEvent(new Event('metaexb:recovery-handled'));
+    tryAutoReloadForChunkError(reloadPage);
+  }, [error, reference, reportError, chunkFailure, reloadPage]);
 
   return (
-    <main className="flex min-h-[60vh] items-center justify-center bg-white px-6 py-16 dark:bg-stone-950">
+    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-16 text-foreground">
       <section
         aria-labelledby="route-error-heading"
-        className="w-full max-w-lg rounded-3xl border border-stone-200 bg-white p-8 text-center shadow-sm dark:border-stone-800 dark:bg-stone-900"
+        className="w-full max-w-lg rounded-3xl border border-border bg-card p-8 text-center text-card-foreground shadow-sm"
       >
         <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-rose-500">
           {chunkFailure ? '↻' : '500'}
         </p>
         <h1
           id="route-error-heading"
-          className="text-2xl font-semibold text-stone-900 dark:text-white"
+          className="text-2xl font-semibold"
         >
           {chunkFailure ? t('updateTitle') : messages.heading}
         </h1>
-        <p className="mt-3 text-sm leading-6 text-stone-600 dark:text-stone-300">
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
           {chunkFailure ? t('updateMessage') : messages.message}
         </p>
-        <p className="mt-4 text-xs text-stone-500 dark:text-stone-400">
+        <p className="mt-4 text-xs text-muted-foreground">
           {messages.reference}: <code>{reference}</code>
         </p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
