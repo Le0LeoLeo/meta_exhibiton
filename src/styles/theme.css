@@ -1,5 +1,11 @@
 @custom-variant dark (&:is(.dark *));
 
+/* English pages: proportional curly quotes (see "Latin Quotes" in fonts.css). */
+:root:lang(en) {
+  --font-sans-ui: "Latin Quotes", "Noto Sans TC", -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
+  --font-serif-cjk: "Latin Quotes Serif", "Source Han Serif TC", "Source Han Serif", "Noto Serif TC", "Noto Serif CJK TC", "思源宋體", "思源宋体", "Songti TC", "SimSun", serif;
+}
+
 :root {
   --font-size: 16px;
   --home-red: #a82e23;
