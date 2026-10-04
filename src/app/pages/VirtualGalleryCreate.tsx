@@ -550,7 +550,7 @@ function VirtualGalleryCreateContent({ mobileReadOnly }: { mobileReadOnly: boole
         await prepareRecovery(result.gallery.id, host);
         if (!cancelled && sessionGenerationRef.current === sessionGeneration) setMultiplayerEnabled(!result.gallery.isBox && !reviewOnly);
 
-        toast.success(notificationCopy.current('vgcToastLoadSuccess'), { description: `「${result.gallery.title}」` });
+        toast.success(notificationCopy.current('vgcToastLoadSuccess'), { description: result.gallery.title });
       } catch (err) {
         if (cancelled || sessionGenerationRef.current !== sessionGeneration) return;
         const message = err instanceof Error ? err.message : notificationCopy.current('vgcToastLoadFailed');
@@ -604,7 +604,7 @@ function VirtualGalleryCreateContent({ mobileReadOnly }: { mobileReadOnly: boole
       const scene = stripMediaAccessTokensFromScene(exportScene());
       const sceneJson = JSON.stringify(scene);
       const thumbnail = captureCanvasThumbnail();
-      const createdAtLabel = new Date().toLocaleString('zh-TW', {
+      const createdAtLabel = new Date().toLocaleString(locale, {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -645,7 +645,7 @@ function VirtualGalleryCreateContent({ mobileReadOnly }: { mobileReadOnly: boole
       if (new URLSearchParams(location.search).get('mode') === 'advanced') nextParams.set('mode', 'advanced');
       navigate(`/virtual-gallery/create?${nextParams}`, { replace: true });
       broadcastGallerySync(result.gallery.id);
-      toast.success(t('vgcToastAutoCreate'), { description: `「${result.gallery.title}」` });
+      toast.success(t('vgcToastAutoCreate'), { description: result.gallery.title });
       return result.gallery.id;
     } catch (err) {
       const message = err instanceof Error ? err.message : t('vgcToastAutoCreateFailed');
@@ -654,7 +654,7 @@ function VirtualGalleryCreateContent({ mobileReadOnly }: { mobileReadOnly: boole
     } finally {
       setIsCreatingGallery(false);
     }
-  }, [activeTemplateTitle, broadcastGallerySync, captureCanvasThumbnail, currentGalleryId, exhibitionId, exportScene, galleryShareToken, isCreatingGallery, isLoading, loadedTitle, location.pathname, location.search, navigate, sceneRouteReady, setMultiplayerEnabled, setMultiplayerIsHost, setMultiplayerRoomId, setMultiplayerShareToken, t]);
+  }, [activeTemplateTitle, broadcastGallerySync, captureCanvasThumbnail, currentGalleryId, exhibitionId, exportScene, galleryShareToken, isCreatingGallery, isLoading, loadedTitle, location.pathname, location.search, navigate, sceneRouteReady, setMultiplayerEnabled, setMultiplayerIsHost, setMultiplayerRoomId, setMultiplayerShareToken, t, locale]);
 
   const performPersistScene = useCallback(async (opts?: { silent?: boolean; galleryId?: string }) => {
     if (isLoading || loadError || !sceneRouteReady) return false;

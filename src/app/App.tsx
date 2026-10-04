@@ -14,7 +14,7 @@ export default function App() {
         <AuthSessionProvider>
           <RouterProvider router={router} />
           <ReleaseRecovery />
-          <Toaster position="top-right" richColors />
+          <Toaster position="bottom-right" richColors />
         </AuthSessionProvider>
       </I18nProvider>
     </ThemeProvider></MotionConfig>

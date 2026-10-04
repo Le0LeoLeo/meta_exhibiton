@@ -6,13 +6,26 @@ import {
   resolveItemDefaultScale,
   resolveItemPlacementY,
 } from "../items/itemBehaviorRegistry";
+import { dictionaries, type Locale } from "@/app/i18n/catalogs";
 
 function getDefaultItemScale(type: ExhibitItem["type"], roomSize: RoomSize): [number, number, number] {
   return [...resolveItemDefaultScale(type, roomSize)];
 }
 
+// The store has no i18n context; I18nProvider mirrors the active locale onto <html lang>.
+function currentLocale(): Locale | null {
+  const lang = typeof document === "undefined" ? "" : document.documentElement.lang;
+  return lang in dictionaries ? (lang as Locale) : null;
+}
+
+function getDefaultArtworkTitle(): string {
+  const locale = currentLocale();
+  return locale ? dictionaries[locale].editorNewArtworkTitle : "新作品";
+}
+
 function getDefaultItemContent(type: ExhibitItem["type"]): string {
-  return getItemBehavior(type).defaultContent;
+  const locale = type === "text" ? currentLocale() : null;
+  return locale ? dictionaries[locale].exhibition2dTextTitle : getItemBehavior(type).defaultContent;
 }
 
 export function createDefaultItem(type: ExhibitItem["type"], roomSize: RoomSize, options?: AddItemOptions): ExhibitItem {
@@ -24,9 +37,10 @@ export function createDefaultItem(type: ExhibitItem["type"], roomSize: RoomSize,
     scale: options?.scale ? [...options.scale] : getDefaultItemScale(type, roomSize),
     content: options?.content ?? getDefaultItemContent(type),
     modelOffset: options?.modelOffset ? [...options.modelOffset] : undefined,
-    title: options?.title ?? (type === "painting" ? "新作品" : undefined),
-    artist: type === "painting" ? "未知作者" : undefined,
-    description: type === "painting" ? "作品描述。" : undefined,
+    title: options?.title ?? (type === "painting" ? getDefaultArtworkTitle() : undefined),
+    // Left empty so visitors never see filler text; the viewer hides a missing artist.
+    artist: type === "painting" ? "" : undefined,
+    description: type === "painting" ? "" : undefined,
     externalUrl: type === "painting" ? "" : undefined,
     frameWidth: type === "painting" ? 2 : undefined,
     frameHeight: type === "painting" ? 1.5 : undefined,

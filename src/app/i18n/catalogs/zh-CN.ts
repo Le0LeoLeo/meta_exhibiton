@@ -361,6 +361,7 @@ export const zhCN = {
     exhibition2dPlayVideo: '播放视频',
     exhibition2dEmpty: '此展览目前没有可在 2D 模式显示的作品。',
     exhibition2dTextTitle: '展览文字',
+    editorNewArtworkTitle: '新作品',
     exhibition2dArtworkTitle: '作品 {number}',
     exhibition2dAltSeparator: '。',
     githubRegister: 'GitHub 注册',

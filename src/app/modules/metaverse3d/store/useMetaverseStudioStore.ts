@@ -284,8 +284,7 @@ export const useMetaverseStudioStore = create<AppState>()(
           const nextItems = [...state.items, newItem];
           return withHistory(state, {
             items: nextItems,
-            selectedItemId: newItem.id,
-            selectedItemIds: [newItem.id],
+            ...(options?.select === false ? {} : { selectedItemId: newItem.id, selectedItemIds: [newItem.id] }),
             ...(state.mode === "edit"
               ? createSyncedFloorPlan({
                   ...state,
