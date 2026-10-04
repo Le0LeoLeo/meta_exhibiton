@@ -425,6 +425,12 @@ export default function MyExhibitions() {
             </div>
           ) : error ? (
             <div className="p-8 text-destructive">{error}</div>
+          ) : sortedItems.length === 0 ? (
+            <div className="space-y-3 p-8">
+              <p className="font-medium text-foreground">{t('noExhibitionsYet')}</p>
+              <p className="text-sm text-muted-foreground">{t('myExhibitionsEmptyHint')}</p>
+              <Button asChild><Link to="/virtual-gallery/quick-create">{t('quickExhibitionCreateAction')}</Link></Button>
+            </div>
           ) : (
             <ExhibitionFolders items={sortedItems}>{(folderItems, folderControls) => (
             <div className="divide-y divide-border">

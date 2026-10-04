@@ -941,6 +941,7 @@ export const zhTW = {
     foldersMissing: "此資料夾已不存在，已顯示最上層展覽。",
     manageExhibitionsDesc: '編輯名稱、描述、發布狀態與分享連結。',
     noExhibitionsYet: '目前還沒有任何展覽。',
+    myExhibitionsEmptyHint: '上傳幾張圖片就能建立你的第一個展覽。發布之前都只是私人草稿。',
     blankExhibition: '空白展覽',
     loadMyExhibitionsFailed: '載入我的展覽失敗',
     cannotLoadMyExhibitions: '無法載入我的展覽',

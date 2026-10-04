@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getGalleryAdminAnalytics, deleteGalleryComment, type GalleryAdminAnalytics } from '../api/client';
 import ExhibitionAdmin from './ExhibitionAdmin';
@@ -59,5 +59,21 @@ describe('exhibition analytics', () => {
     mount(); fireEvent.click(await screen.findByRole('button', { name: 'eaDelete' }));
     await waitFor(() => expect(getGalleryAdminAnalytics).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByText('A comment')).not.toBeInTheDocument());
+  });
+});
+
+describe('exhibition analytics without exhibitions', () => {
+  it('shows a create prompt instead of a page of zero metrics', async () => {
+    vi.mocked(getGalleryAdminAnalytics).mockResolvedValue({ ...result(0), galleries: [], availableGalleries: [], daily: [] });
+    render(<MemoryRouter initialEntries={['/admin/exhibitions']}><Routes>
+      <Route path="/admin/exhibitions" element={<ExhibitionAdmin />} />
+      <Route path="/virtual-gallery/quick-create" element={<h1>Quick create</h1>} />
+    </Routes></MemoryRouter>);
+
+    expect(await screen.findByText('eaNoDataTitle')).toBeInTheDocument();
+    expect(screen.queryByText('eaVisits')).not.toBeInTheDocument();
+    expect(screen.queryByText('eaMeasurementTitle')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'eaCreateExhibition' }));
+    expect(await screen.findByRole('heading', { name: 'Quick create' })).toBeInTheDocument();
   });
 });

@@ -50,9 +50,11 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 export function ErrorNotice({ error }: { error: string }) {
   return error ? <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">{error}</p> : null;
 }
-export function ResourceNotice({ loading, error, reload }: { loading: boolean; error: string; reload: () => void }) {
+export function ResourceNotice({ loading, error, errorStatus, reload }: { loading: boolean; error: string; errorStatus?: number; reload: () => void }) {
   const c = useGraduationCopy();
-  return <>{loading && <p role="status" className="py-4 text-muted-foreground">{c.loading}</p>}<ErrorNotice error={error} />{error && <Button variant="outline" onClick={reload}>{c.retry}</Button>}</>;
+  const missing = errorStatus === 403 || errorStatus === 404 || errorStatus === 410;
+  return <>{loading && <p role="status" className="py-4 text-muted-foreground">{c.loading}</p>}<ErrorNotice error={error} />
+    {error && (missing ? <Button asChild variant="outline"><Link to="/graduation">{c.workspace}</Link></Button> : <Button variant="outline" onClick={reload}>{c.retry}</Button>)}</>;
 }
 export function GraduationShell({ title, description, children, showWorkspaceNav = true }: { title: string; description?: string; children: ReactNode; showWorkspaceNav?: boolean }) {
   const c = useGraduationCopy();

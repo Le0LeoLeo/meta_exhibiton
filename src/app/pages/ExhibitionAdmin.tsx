@@ -116,6 +116,7 @@ export default function ExhibitionAdmin() {
       </header>
       {loading ? <div role="status" className={`${panel} flex min-h-48 items-center justify-center`}><Loader2 aria-hidden="true" className="mr-2 size-5 animate-spin" />{t('eaLoading')}</div>
         : failed ? <div role="alert" className={panel}><p>{t('eaLoadFailed')}</p><p className={muted}>{t('eaRetryLater')}</p><Button className="mt-3" onClick={() => setRefresh(value => value + 1)}>{t('eaRefresh')}</Button></div>
+        : analytics && analytics.availableGalleries.length === 0 ? <section className={panel}><h2 className="text-lg font-semibold">{t('eaNoDataTitle')}</h2><p className={muted}>{t('eaNoDataDesc')}</p><Button className="mt-4" onClick={() => navigate('/virtual-gallery/quick-create')}><PlusCircle className="mr-2 size-4" />{t('eaCreateExhibition')}</Button></section>
         : analytics && <>
           <p className={muted}>{dateOnly(analytics.period.from)} – {dateOnly(analytics.period.to)} · {t('eaHongKongTime')}</p>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -128,7 +129,6 @@ export default function ExhibitionAdmin() {
             <h2 className="font-semibold">{t('eaMeasurementTitle')}</h2><p className={muted}>{t('eaMeasurementDetails')}</p>
             <p className={muted}>{analytics.measurementStartedAt ? t('eaMeasurementSince').replace('{date}', date(analytics.measurementStartedAt)) : t('eaMeasurementPending')}</p>
           </div>
-          {analytics.availableGalleries.length === 0 ? <section className={panel}><h2 className="text-lg font-semibold">{t('eaNoDataTitle')}</h2><p className={muted}>{t('eaNoDataDesc')}</p><Button className="mt-4" onClick={() => navigate('/virtual-gallery/create')}><PlusCircle className="mr-2 size-4" />{t('eaCreateExhibition')}</Button></section> : <>
             {analytics.summary.totalVisits === 0 && <p className={panel}>{t('eaNoVisits')}</p>}
             <DailyTrend daily={analytics.daily} t={t} number={number} />
             <div className="grid gap-5 lg:grid-cols-2">
@@ -146,7 +146,6 @@ export default function ExhibitionAdmin() {
                 <Button variant="outline" className="text-red-600 dark:text-red-300" disabled={deletingCommentId === comment.id} onClick={() => void handleDeleteComment(comment)}>{deletingCommentId === comment.id ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Trash2 className="mr-2 size-4" />}{t('eaDelete')}</Button>
               </article>)}{analytics.comments.length === 0 && <p className={muted}>{t('eaNoComments')}</p>}</div>
             </section>
-          </>}
         </>}
     </div>
   </div>;
