@@ -6,9 +6,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as createClient } from 'socket.io-client';
 
 import { defaultGalleryScene } from '../../src/app/modules/metaverse3d/store/defaultGalleryScene.ts';
+import { createImportedSceneSnapshot } from '../../src/app/modules/metaverse3d/store/metaverseStoreHistoryHelpers.ts';
 import {
   fetchRoomPlayers,
   startMultiplayerServer,
+  withPersistedRoomDefaults,
 } from './socketServer.js';
 import { createMemorySceneStore } from './memorySceneStore.js';
 import { DEFAULT_AVATAR_APPEARANCE } from '../schemas/avatarAppearanceSchema.js';
@@ -2246,6 +2248,53 @@ describe('multiplayer room authorization', () => {
       version: 1,
       scene: { items: [{ id: 'persisted-item' }] },
     });
+  });
+
+  it('fills room settings missing from an older persisted scene', async () => {
+    const server = await startServer({
+      getGalleryById: async (id) => (
+        id === PUBLIC_GALLERY.id
+          ? { ...PUBLIC_GALLERY, scene_json: JSON.stringify({
+            roomSize: { width: 14, length: 9, height: 5, wallThickness: 0.2 },
+            items: [makeValidItem('older-item')], floorPlanElements: [], wallMaterialOverrides: {},
+          }) }
+          : null
+      ),
+    });
+    const viewer = await connect(server);
+    const synced = waitForEvent(viewer, 'scene:synced');
+
+    await join(viewer);
+
+    await expect(synced).resolves.toMatchObject({
+      version: 1,
+      scene: {
+        roomSize: { width: 14, length: 9, height: 5, wallThickness: 0.2, wallMaterialPreset: 'paint', wallTextureUrl: '/textures/wall-paint.svg' },
+        items: [{ id: 'older-item' }],
+      },
+    });
+  });
+
+  it('still rejects a persisted scene with an invalid room setting', async () => {
+    const server = await startServer({
+      getGalleryById: async (id) => (
+        id === PUBLIC_GALLERY.id
+          ? { ...PUBLIC_GALLERY, scene_json: JSON.stringify(makeValidScene({ roomSize: { ...VALID_ROOM_SIZE, wallMaterialPreset: 'marble' } })) }
+          : null
+      ),
+    });
+    const viewer = await connect(server);
+    const synced = waitForEvent(viewer, 'scene:synced', 300);
+
+    await join(viewer);
+
+    await expect(synced).rejects.toThrow('timed out waiting for scene:synced');
+  });
+
+  it('uses the same room defaults as the editor import', () => {
+    const roomSize = { width: 14, length: 9, height: 5, wallThickness: 0.2 };
+    const editor = createImportedSceneSnapshot({ roomSize, items: [], floorPlanElements: [], wallMaterialOverrides: {} });
+    expect(withPersistedRoomDefaults({ roomSize }).roomSize).toEqual(editor.roomSize);
   });
 
   it('rejects a stale scene replacement and returns the authoritative snapshot', async () => {

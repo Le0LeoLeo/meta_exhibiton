@@ -223,6 +223,38 @@ function optionalNumbersAreNonnegative(value, fields) {
   ));
 }
 
+// Same room defaults the editor applies on import (createImportedSceneSnapshot),
+// so saves that predate a room setting still load with the room the editor shows.
+const PERSISTED_ROOM_DEFAULTS = Object.freeze({
+  width: 20,
+  length: 20,
+  height: 6,
+  wallThickness: 0.1,
+  wallColor: '#dbe7ff',
+  wallMaterialPreset: 'paint',
+  wallTextureUrl: '/textures/wall-paint.svg',
+  wallTextureTiling: 3,
+  wallRoughness: 0.35,
+  wallMetalness: 0.08,
+  wallBumpScale: 0.04,
+  wallEnvIntensity: 0.9,
+  wallOpacity: 0.98,
+  wallTransmission: 0,
+  wallIor: 1.45,
+  floorColor: '#0f172a',
+  floorTextureUrl: '/textures/wall-concrete.svg',
+  floorTextureTiling: 2.5,
+  floorRoughness: 0.55,
+  floorMetalness: 0.18,
+  environmentBrightness: 0.45,
+});
+
+/** Fills only missing room settings; present but invalid values are still rejected. */
+export function withPersistedRoomDefaults(scene) {
+  if (!isPlainObject(scene) || !isPlainObject(scene.roomSize)) return scene;
+  return { ...scene, roomSize: { ...PERSISTED_ROOM_DEFAULTS, ...scene.roomSize } };
+}
+
 function isValidRoomSize(roomSize) {
   if (!isPlainObject(roomSize) || !isSafeStructure(roomSize)) return false;
 
@@ -677,9 +709,9 @@ export function startMultiplayerServer({
       return null;
     }
     try {
-      const scene = typeof gallery.scene_json === 'string'
+      const scene = withPersistedRoomDefaults(typeof gallery.scene_json === 'string'
         ? JSON.parse(gallery.scene_json)
-        : gallery.scene_json;
+        : gallery.scene_json);
       return isValidScene(scene, limits) ? scene : null;
     } catch {
       return null;
