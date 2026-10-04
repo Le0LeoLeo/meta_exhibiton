@@ -50,3 +50,29 @@ describe('RouteErrorPage', () => {
     });
   });
 });
+
+describe('RouteErrorPage chunk failures', () => {
+  afterEach(() => sessionStorage.clear());
+
+  it('reloads automatically once when a route chunk is stale', async () => {
+    const reloadPage = vi.fn();
+    const router = createMemoryRouter([
+      {
+        path: '/',
+        loader: () => {
+          throw new TypeError('Failed to fetch dynamically imported module: /src/app/pages/Login.tsx');
+        },
+        element: <div />,
+        errorElement: <RouteErrorPage reloadPage={reloadPage} reportError={vi.fn()} />,
+      },
+    ]);
+
+    render(
+      <I18nProvider>
+        <RouterProvider router={router} />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => expect(reloadPage).toHaveBeenCalledOnce());
+  });
+});

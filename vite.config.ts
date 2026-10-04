@@ -23,6 +23,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    // Crawl every app module at startup so deps used only by lazy routes
+    // (e.g. the login checkbox) are pre-bundled. Otherwise the first visit
+    // triggers a re-optimize and the route fails with "Outdated Optimize Dep".
+    entries: ['index.html', 'src/**/*.{ts,tsx}', '!src/**/*.test.{ts,tsx}', '!src/test/**'],
+  },
   server: {
     proxy: {
       '/api': {

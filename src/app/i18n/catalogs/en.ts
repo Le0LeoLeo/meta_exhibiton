@@ -598,6 +598,8 @@ export const en = {
     loginFailed: 'Login Failed',
     loginSuccess: 'Login Successful!',
     loginFailedDesc: 'Please check your credentials and try again',
+    showPasswordLabel: 'Show {label}',
+    hidePasswordLabel: 'Hide {label}',
     loginSuccessDesc: 'Welcome back, {name}. Entering Paidea',
     forgotPasswordSent: 'Reset link sent',
     forgotPasswordCheckEmail: 'Please check your email inbox',
