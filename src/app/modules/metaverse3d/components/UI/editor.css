@@ -1,0 +1,153 @@
+/* Scoped to the edit workspace; the 3D canvas and viewing UI keep their own theme. */
+.editor-shell {
+  color-scheme: dark;
+  --editor-surface: #25241f;
+  --editor-border: #555047;
+  --editor-muted: #d1cbbf;
+  font-size: 13px;
+  font-family: var(--font-sans-ui);
+  line-height: 1.5;
+}
+
+.editor-shell .editor-panel {
+  background: var(--editor-surface);
+  border: 1px solid var(--editor-border);
+  color: #f5f0e6;
+  box-shadow: none;
+}
+
+.editor-shell :is(button, summary) {
+  min-height: 36px;
+  cursor: pointer;
+  transition: background-color 160ms, border-color 160ms, color 160ms;
+}
+
+.editor-shell button:disabled { cursor: not-allowed; opacity: .65; }
+.editor-shell :is(button, summary, input, select, textarea, label[tabindex]):focus-visible {
+  outline: 2px solid #efb2a5;
+  outline-offset: 3px;
+}
+.editor-shell button[aria-expanded="true"],
+.editor-shell button[aria-pressed="true"] {
+  background-color: #73342c;
+  border-color: #e28f7d;
+  color: #fff;
+}
+.editor-shell .editor-delete:not(:disabled):hover {
+  color: #fecdd3;
+  background: #4c1827;
+  border-color: #fb7185;
+}
+
+.editor-shell :is(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), select, textarea) {
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid #625b50;
+  border-radius: 3px;
+  background-color: #1e1c18;
+  color: #f5f0e6;
+  font-size: 13px;
+  box-shadow: none;
+}
+.editor-shell textarea { line-height: 1.65; resize: vertical; }
+.editor-shell input::placeholder, .editor-shell textarea::placeholder { color: #bcb4a7; }
+.editor-shell input[type="range"] { min-height: 24px; accent-color: #efb2a5; }
+.editor-shell input:is([type="checkbox"], [type="radio"]) { width: 16px; height: 16px; accent-color: #e28f7d; flex-shrink: 0; }
+.editor-shell input[type="color"] { padding: 4px; cursor: pointer; }
+.editor-shell :is(.text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-900) { color: var(--editor-muted); }
+.editor-shell :is(.text-\[10px\], .text-\[11px\]) { font-size: 12px; letter-spacing: normal; }
+.editor-shell :is(.text-white\/55, .text-white\/60, .text-white\/65) { color: #c9c1b3; }
+.editor-shell :is(.overflow-y-auto, .editor-tools-scroll) {
+  scrollbar-width: thin;
+  scrollbar-color: #625b50 transparent;
+  overscroll-behavior: contain;
+}
+.editor-shell details > summary { align-content: center; }
+.editor-shell details[open] > summary { margin-bottom: 8px; }
+.editor-shell .editor-align-menu[open] > summary { margin-bottom: 0; }
+.editor-align-menu > summary { list-style: none; }
+.editor-align-menu > summary::-webkit-details-marker { display: none; }
+.editor-shell .editor-topbar { border-radius: 0; box-shadow: none; }
+.editor-status > span { white-space: nowrap; }
+
+.editor-shell .editor-workspace {
+  left: 96px;
+  width: 300px;
+  border-radius: 3px;
+  padding: 16px;
+  transition: none;
+}
+.editor-shell .editor-workspace[data-collapsed="true"] { width: 52px; padding: 8px; }
+.editor-panel-heading { border-bottom: 1px solid #4a443b; padding-bottom: 12px; }
+.editor-shell .editor-inspector {
+  top: calc(var(--top-bar-height, 6rem) + .75rem);
+  right: 12px;
+  bottom: 12px;
+  left: auto;
+  width: 320px;
+  border-radius: 3px;
+  padding: 16px;
+  z-index: 20;
+}
+.editor-shell .editor-toolrail { left: 12px; width: 72px; padding: 8px; border-radius: 3px; }
+.editor-tools-scroll { overflow-y: auto; max-height: calc(100dvh - var(--top-bar-height, 6rem) - 152px); }
+.editor-shell .editor-toolrail button { min-height: 56px; transform: none; }
+.editor-shell .editor-library button { min-height: 56px; }
+.editor-shell .editor-library .editor-panel-heading button { min-height: 36px; }
+.editor-shell .editor-toolrail svg { transform: none; }
+.editor-shell .editor-library {
+  left: 84px;
+  width: 260px;
+  max-width: calc(100vw - 108px);
+  max-height: calc(100dvh - var(--top-bar-height, 6rem) - 24px);
+  overflow-y: auto;
+  border-radius: 3px;
+}
+.editor-shell .editor-flyout {
+  position: absolute;
+  top: calc(var(--top-bar-height, 6rem) + .75rem);
+  right: 12px;
+  left: auto;
+  width: 360px;
+  max-width: calc(100% - 24px);
+  max-height: calc(100dvh - var(--top-bar-height, 6rem) - 24px);
+  padding: 16px;
+  z-index: 40;
+}
+.editor-shell .editor-inspector .editor-panel-heading h3 { font-size: 16px; }
+
+@media (max-width: 1100px) {
+  .editor-shell[data-inspector-open="true"] .editor-workspace { display: none; }
+  .editor-shell .editor-inspector { width: 300px; }
+}
+@media (max-width: 639px) {
+  .editor-shell .editor-topbar { padding: 8px; }
+  .editor-topbar button, .editor-topbar summary { padding-inline: 8px; }
+  .editor-commands { gap: 6px; }
+  .editor-status { width: 100%; }
+  .editor-shell .editor-workspace { left: 84px; width: calc(100% - 96px); padding: 12px; }
+  .editor-shell .editor-inspector { left: 84px; width: auto; padding: 12px; }
+  .editor-shell .editor-toolrail { left: 8px; width: 64px; }
+  .editor-shell .editor-library { left: 76px; }
+  .editor-shell .editor-align-menu > div { left: auto; right: 0; }
+  .editor-shell :is(button, summary) { min-height: 44px; }
+  .editor-shell :is(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea) { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor-shell *, .editor-shell *::before, .editor-shell *::after { transition: none !important; animation: none !important; }
+}
+
+.editor-shell :is(button,summary) { border-radius: 3px; }
+.editor-shell .bg-indigo-600 { background: #a82e23; box-shadow: none; }
+.editor-shell h1,.editor-shell h2 { font-family: var(--font-sans-ui); }
+.editor-shell :is(details,[class~="bg-slate-800/60"]) { background-color: #353129; border-color: #555047; border-radius: 3px; }
+.editor-shell button.bg-slate-800:not(:disabled) { background-color: #353129; border-color: #625b50; }
+.editor-shell button.bg-slate-800:not(:disabled):hover { background-color: #4a443b; }
+
+/* The Agent conversation has its own dark, rounded surfaces. */
+.editor-shell #editor-builder-chat :is(button, summary) { border-radius: 10px; }
+.editor-shell #editor-builder-chat details { background: transparent; border-color: #ffffff1a; border-radius: 10px; }
+.editor-shell #editor-builder-chat :is(textarea, select, input:not([type="checkbox"]):not([type="file"])) { background: #292929; border-color: #ffffff20; border-radius: 12px; color: #f4f4f4; }
+.editor-shell #editor-builder-chat textarea { min-height: 96px; resize: none; font-size: 14px; }
+.editor-shell #editor-builder-chat button[aria-expanded="true"] { background: #ffffff15; border-color: #ffffff25; }
+.editor-shell #editor-builder-chat footer > div > button:last-child { border-radius: 999px; }

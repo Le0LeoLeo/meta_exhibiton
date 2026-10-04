@@ -1,3 +1,10 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+@import '../app/features/home/home.css';
+@import './museum.css';
+@import './museum-motion.css';
+@import './exhibition-wall.css';
+@import './home-poster.css';
+@import './home-showcase.css';

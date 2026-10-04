@@ -1,0 +1,102 @@
+import { test, expect } from '@playwright/test';
+
+test('standalone CV protects unsaved edits, creates, publishes, scopes, updates and unpublishes from the workspace', async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  await page.addInitScript(() => localStorage.setItem('metaexpo-locale', 'en'));
+  await page.goto('/login');
+  await page.locator('#login-email').fill('creator@example.invalid');
+  await page.locator('#login-password').fill('SyntheticPassword2026!');
+  await page.getByRole('button', { name: 'Log In', exact: true }).click();
+  await expect(page).not.toHaveURL(/\/login/);
+
+  await page.goto('/cv');
+  await expect(page.getByRole('heading', { name: 'My skills CV' })).toBeVisible();
+  await page.getByLabel('Short introduction').fill('A synthetic profile for browser acceptance.');
+  await page.getByLabel('About me').fill('This profile belongs to the isolated acceptance database.');
+  const leaveDialog = page.waitForEvent('dialog');
+  const attemptedNavigation = page.getByRole('link', { name: 'Linked exhibition room', exact: true }).click();
+  const dialog = await leaveDialog;
+  await dialog.dismiss();
+  await attemptedNavigation;
+  expect(dialog.type()).toBe('confirm');
+  expect(dialog.message()).toContain('unsaved changes');
+  await expect(page).toHaveURL(/\/cv$/);
+  await expect(page.getByLabel('Short introduction')).toHaveValue('A synthetic profile for browser acceptance.');
+  await expect(page.getByLabel('About me')).toHaveValue('This profile belongs to the isolated acceptance database.');
+  await page.getByRole('button', { name: 'Save profile', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Saved.');
+
+  await page.getByLabel('Skill or experience').fill('Synthetic public card');
+  await page.getByLabel('Situation').fill('A fictional community project');
+  await page.getByLabel('My contribution').fill('Coordinator');
+  await page.getByLabel('What I did').fill('Prepared a shared plan');
+  await page.getByLabel('Result').fill('A completed draft plan');
+  await page.getByLabel('Reflection').fill('I learned to coordinate work.');
+  await page.getByLabel('CV summary').fill('Original saved summary');
+  await page.getByLabel('Skills (comma separated)').fill('planning, coordination');
+  await page.locator('form').nth(1).getByRole('combobox').first().selectOption('public');
+  await page.getByRole('button', { name: 'Add source', exact: true }).click();
+  await page.getByRole('button', { name: 'Add source', exact: true }).click();
+  const evidenceFields = page.locator('form').nth(1).locator('fieldset fieldset');
+  await evidenceFields.nth(0).getByLabel('Source title').fill('Public synthetic record');
+  await evidenceFields.nth(0).getByLabel('Source name').fill('Acceptance fixture');
+  await evidenceFields.nth(0).getByLabel('Content').fill('A fictional schedule was prepared.');
+  await evidenceFields.nth(0).getByRole('combobox').nth(1).selectOption('public');
+  await evidenceFields.nth(1).getByLabel('Source title').fill('Private synthetic note');
+  await evidenceFields.nth(1).getByLabel('Source name').fill('Acceptance private fixture');
+  await evidenceFields.nth(1).getByLabel('Content').fill('PRIVATE_CV_SENTINEL');
+  await page.getByRole('button', { name: 'Save card', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Synthetic public card' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add skill card', exact: true }).click();
+  await page.getByLabel('Skill or experience').fill('Synthetic private card');
+  await page.getByLabel('CV summary').fill('PRIVATE_CARD_SENTINEL');
+  await page.getByRole('button', { name: 'Save card', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Synthetic private card' })).toBeVisible();
+
+  const publicCard = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Synthetic public card' }) });
+  await publicCard.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByLabel('CV summary').fill('Edited before first publication');
+  await page.getByRole('button', { name: 'Save card', exact: true }).click();
+  await expect(publicCard).toContainText('Edited before first publication');
+
+  await page.getByLabel('I have permission to share the public content and sources').check();
+  await page.getByRole('button', { name: 'Publish CV', exact: true }).click();
+  const publicLink = page.getByRole('link', { name: 'Public CV', exact: true });
+  await expect(publicLink).toBeVisible();
+  const publicUrl = await publicLink.getAttribute('href');
+  expect(publicUrl).toMatch(/^\/cv\/public\//);
+  await page.goto(publicUrl!);
+  await expect(page.getByRole('heading', { name: 'Synthetic public card' })).toBeVisible();
+  await expect(page.getByText('Edited before first publication')).toBeVisible();
+  await expect(page.getByText('Public synthetic record')).toBeVisible();
+  await expect(page.getByText('Private synthetic note')).toHaveCount(0);
+  await expect(page.getByText('PRIVATE_CV_SENTINEL')).toHaveCount(0);
+  await expect(page.getByText('Synthetic private card')).toHaveCount(0);
+  await expect(page.getByText('PRIVATE_CARD_SENTINEL')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('cv-public-scope.png'), fullPage: true });
+
+  await page.goto('/cv');
+  const publishedCard = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Synthetic public card' }) });
+  await publishedCard.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByLabel('CV summary').fill('Draft edit after publication');
+  await page.getByRole('button', { name: 'Save card', exact: true }).click();
+  await page.goto(publicUrl!);
+  await expect(page.getByText('Edited before first publication')).toBeVisible();
+  await expect(page.getByText('Draft edit after publication')).toHaveCount(0);
+
+  await page.goto('/cv');
+  await page.getByLabel('I have permission to share the public content and sources').check();
+  await page.getByRole('button', { name: 'Update public CV', exact: true }).click();
+  const updatedPublicLink = page.getByRole('link', { name: 'Public CV', exact: true });
+  await expect(updatedPublicLink).toBeVisible();
+  const updatedPublicUrl = await updatedPublicLink.getAttribute('href');
+  await page.goto(updatedPublicUrl!);
+  await expect(page.getByText('Draft edit after publication')).toBeVisible();
+  await expect(page.getByText('PRIVATE_CV_SENTINEL')).toHaveCount(0);
+  await page.goto('/cv');
+  await page.getByRole('button', { name: 'Stop sharing', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Public CV', exact: true })).toHaveCount(0);
+  await page.goto(updatedPublicUrl!);
+  await expect(page.getByRole('alert')).toHaveText('This CV is unavailable.');
+});

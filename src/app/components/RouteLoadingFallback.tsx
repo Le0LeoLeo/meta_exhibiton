@@ -1,0 +1,26 @@
+import { useI18n } from './I18nProvider';
+
+export function RouteLoadingFallback() {
+  const { t } = useI18n();
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="mx-auto flex min-h-[50vh] w-full max-w-6xl items-center px-4 py-12"
+    >
+      <div className="w-full animate-pulse space-y-5">
+        <div className="h-4 w-24 bg-border" />
+        <div className="h-10 w-2/3 bg-border" />
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[0, 1, 2].map((item) => (
+            <div
+              key={item}
+              className="h-40 bg-secondary"
+            />
+          ))}
+        </div>
+        <span className="sr-only">{t('routeLoading')}</span>
+      </div>
+    </div>
+  );
+}

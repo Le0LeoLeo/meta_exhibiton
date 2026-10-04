@@ -1,8 +1,26 @@
 # dependencies
 node_modules/
 
+# package manager / local caches
+.node_repl_history
+npm-cache/
+.tmp/
+.pnpm-store/
+.npm/
+.yarn/
+bun.lock
+
 # build outputs
 dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# local database / uploads / runtime artifacts
+server/uploads/
+*.db
+*.db-shm
+*.db-wal
 
 # environment variables
 .env
@@ -10,10 +28,17 @@ dist/
 !.env.example
 
 # logs
+logs/
+*.log
+.codex-*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+bun-debug.log*
+
+# local agent/session state
+.superpowers/
 
 # OS / editor
 .DS_Store

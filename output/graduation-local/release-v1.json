@@ -1,0 +1,44 @@
+{
+  "id": "480ca888-2b19-4533-8328-4dd3fe6f6216",
+  "classId": "33755bbb-c1f0-406b-bf44-4bd3e7d55a67",
+  "version": 1,
+  "token": "r2EVjf_SXi3PpzB5qbsS9XAVMv6HB0kQ",
+  "title": "2026 視覺傳達畢業展 · 本地示範",
+  "description": "以城市記憶與日常觀察為主題，展示研究、創作過程與成果。此展覽僅供本地驗收。",
+  "createdAt": "2026-09-07T11:17:59.588Z",
+  "projects": [
+    {
+      "id": "a81ee6a4-2f56-47dd-ae74-cdc610aaae78",
+      "authorName": "示範學生",
+      "title": "街角記憶：城市聲音的視覺轉譯",
+      "researchQuestion": "如何讓年輕人透過視覺設計理解舊區的日常聲音？",
+      "concept": "把市場叫賣、電車與街坊對話轉化為一組有節奏的海報。",
+      "process": "實地觀察、聲音記錄、草圖探索及三輪版面測試。",
+      "outcome": "完成六張海報與一本過程冊，反思聲音如何承載地方認同。",
+      "team": "",
+      "supervisor": "",
+      "galleryId": null,
+      "revision": 3,
+      "reviews": [
+        {
+          "id": "f9e7459a-6f0b-4681-9eaf-8e5de94bd0d4",
+          "projectId": "a81ee6a4-2f56-47dd-ae74-cdc610aaae78",
+          "authorName": "示範教師",
+          "role": "teacher",
+          "visibility": "public",
+          "content": "清楚連結城市聲音與視覺節奏，創作過程具有說服力。",
+          "createdAt": "2026-09-07T11:15:53.55Z"
+        }
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "title": "城市記憶與日常觀察",
+      "rationale": "以城市聲音作為切入點，先呈現研究問題，再展示視覺轉譯與創作反思。由教師確認的分組。",
+      "projectIds": [
+        "a81ee6a4-2f56-47dd-ae74-cdc610aaae78"
+      ]
+    }
+  ]
+}

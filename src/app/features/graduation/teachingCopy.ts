@@ -1,0 +1,58 @@
+import { useI18n } from '@/app/components/I18nProvider';
+
+const tw = {
+  progress: '收件與審核進度', all: '全部作品', missing: '尚未建立作品', enrolled: '已加入學生',
+  next: '下一步', teacherNext: '先處理待審核作品，再確認分組與公開範圍；只有已核准作品會收入典藏。',
+  studentNext: '完成必填內容並儲存後提交；收到退回建議時，修改後再次提交。',
+  editDeadline: '調整投稿截止時間', saveDeadline: '儲存截止時間', deadlineSaved: '截止時間已更新。',
+  guide: '觀眾導覽文字', guideHelp: '依作品原文整理導覽；請確認描述與作者原意一致。規則備援不會代寫導覽，可自行補充。',
+  evaluate: '記錄本次策展成效', evaluationHelp: '針對已儲存的分組填寫實際測試紀錄。時間與品質由評估者自填；差值不等於已驗證的 AI 效益。',
+  baseline: '相同作品人工整理時間（分鐘）', actual: '本次建議、修改與確認總時間（分鐘）', quality: '策展品質（1＝需大幅修改，5＝可直接使用）',
+  notes: '測試方式、修改原因與觀察', saveEvaluation: '儲存成效紀錄', recorded: '已儲存紀錄。', difference: '人工時間減本次時間（分鐘）',
+  history: '創作版本紀錄', historyHelp: '保留本功能啟用後的儲存、投稿及審核版本。更早的修改無法回復。',
+  printPortfolio: '下載可列印作品集', versionData: '下載版本資料', selectedVersion: '選擇作品版本',
+  contents: '作品目錄', search: '搜尋作品、作者或主題', noMatch: '沒有符合的作品。', view2d: '瀏覽 2D 圖文作品',
+  questions: '展後提問與回覆', questionHelp: '此處是發布後持續更新的公開交流，與定稿評語分開保存。請勿填寫私人聯絡資料。最多顯示最近 100 則。',
+  ask: '向作者提問', sendQuestion: '送出公開提問', signIn: '登入後提問', noQuestions: '目前沒有提問。',
+  reply: '公開回覆', sendReply: '送出回覆', hide: '隱藏這則問答', confirmHide: '確認隱藏', cancel: '取消',
+  inbox: '觀眾提問待辦', inboxHelp: '優先顯示尚未回覆的提問，最多 100 則。作者與教師可回覆或隱藏問答。', unanswered: '待回覆',
+  openDiscussion: '查看原展覽', showQuestions: '展開問答', hideQuestions: '收起問答',
+};
+type Copy = typeof tw;
+const en: Copy = {
+  progress: 'Submission and review progress', all: 'All projects', missing: 'No project yet', enrolled: 'Enrolled students',
+  next: 'Next step', teacherNext: 'Review submitted projects, then confirm groups and publication scope. Only approved projects enter the archive.',
+  studentNext: 'Complete required fields, save and submit. Revise returned work and submit it again.',
+  editDeadline: 'Adjust submission deadline', saveDeadline: 'Save deadline', deadlineSaved: 'Deadline updated.',
+  guide: 'Visitor introduction', guideHelp: 'Use the supplied project text and check the author’s intent. Rule fallback leaves the introduction for you to write.',
+  evaluate: 'Record curation results', evaluationHelp: 'Record a real test of the saved plan. Time and quality are self-reported; the difference is not verified AI impact.',
+  baseline: 'Manual time for the same projects (minutes)', actual: 'Suggestion, editing and confirmation time (minutes)', quality: 'Curation quality (1 = major revision, 5 = ready to use)',
+  notes: 'Test method, reasons for edits and observations', saveEvaluation: 'Save evaluation', recorded: 'Record saved.', difference: 'Manual time minus current time (minutes)',
+  history: 'Project version history', historyHelp: 'Keeps saved, submitted and reviewed versions from when this feature was enabled. Earlier edits cannot be reconstructed.',
+  printPortfolio: 'Download printable portfolio', versionData: 'Download version data', selectedVersion: 'Choose project version',
+  contents: 'Project index', search: 'Search projects, authors or themes', noMatch: 'No matching projects.', view2d: 'View 2D artwork pages',
+  questions: 'Questions after publication', questionHelp: 'This public discussion updates after publication, separately from archived feedback. Avoid private contact details. Shows the latest 100 questions.',
+  ask: 'Ask the author', sendQuestion: 'Post public question', signIn: 'Sign in to ask', noQuestions: 'No questions yet.',
+  reply: 'Public reply', sendReply: 'Post reply', hide: 'Hide this discussion', confirmHide: 'Confirm hide', cancel: 'Cancel',
+  inbox: 'Visitor question inbox', inboxHelp: 'Unanswered questions appear first, up to 100. Authors and class organisers can reply or hide discussions.', unanswered: 'Awaiting reply',
+  openDiscussion: 'View original exhibition', showQuestions: 'Show questions', hideQuestions: 'Hide questions',
+};
+const cn: Copy = {
+  progress: '收件与审核进度', all: '全部作品', missing: '尚未建立作品', enrolled: '已加入学生',
+  next: '下一步', teacherNext: '先处理待审核作品，再确认分组与公开范围；只有已核准作品会收入典藏。',
+  studentNext: '完成必填内容并保存后提交；收到退回建议时，修改后再次提交。',
+  editDeadline: '调整投稿截止时间', saveDeadline: '保存截止时间', deadlineSaved: '截止时间已更新。',
+  guide: '观众导览文字', guideHelp: '依作品原文整理导览；请确认描述与作者原意一致。规则备用不代写导览，可自行补充。',
+  evaluate: '记录本次策展成效', evaluationHelp: '针对已保存的分组填写实际测试记录。时间与质量由评估者自填；差值不等于已验证的 AI 效益。',
+  baseline: '相同作品人工整理时间（分钟）', actual: '本次建议、修改与确认总时间（分钟）', quality: '策展质量（1＝需大幅修改，5＝可直接使用）',
+  notes: '测试方式、修改原因与观察', saveEvaluation: '保存成效记录', recorded: '已保存记录。', difference: '人工时间减本次时间（分钟）',
+  history: '创作版本记录', historyHelp: '保留本功能启用后的保存、投稿及审核版本。更早的修改无法恢复。',
+  printPortfolio: '下载可打印作品集', versionData: '下载版本资料', selectedVersion: '选择作品版本',
+  contents: '作品目录', search: '搜索作品、作者或主题', noMatch: '没有符合的作品。', view2d: '浏览 2D 图文作品',
+  questions: '展后提问与回复', questionHelp: '此处是发布后持续更新的公开交流，与定稿评语分开保存。请勿填写私人联系资料。最多显示最近 100 则。',
+  ask: '向作者提问', sendQuestion: '送出公开提问', signIn: '登录后提问', noQuestions: '目前没有提问。',
+  reply: '公开回复', sendReply: '送出回复', hide: '隐藏这则问答', confirmHide: '确认隐藏', cancel: '取消',
+  inbox: '观众提问待办', inboxHelp: '优先显示尚未回复的提问，最多 100 则。作者与教师可回复或隐藏问答。', unanswered: '待回复',
+  openDiscussion: '查看原展览', showQuestions: '展开问答', hideQuestions: '收起问答',
+};
+export function useTeachingCopy() { const { locale } = useI18n(); return locale === 'en' ? en : locale === 'zh-CN' ? cn : tw; }

@@ -1,92 +1,63 @@
 import { Button } from './ui/button';
-import { X } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { useState } from 'react';
 import { Link } from 'react-router';
+import { useState } from 'react';
+import { ArrowRight, Sparkles, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useI18n } from './I18nProvider';
 
 export function InfoBanner() {
+  const { t } = useI18n();
   const [isVisible, setIsVisible] = useState(true);
 
   return (
     <AnimatePresence>
       {isVisible && (
-        <motion.div 
-          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 50, transition: { duration: 0.3 } }}
-          transition={{ duration: 0.6 }}
-        >
-          <motion.div 
-            className="bg-blue-50 border border-blue-200 rounded-lg p-6 relative"
-            whileHover={{ scale: 1.02 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          >
-            {/* Close button */}
-            <motion.button 
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-              onClick={() => setIsVisible(false)}
-              whileHover={{ scale: 1.2, rotate: 90 }}
-              whileTap={{ scale: 0.9 }}
+        <div className="relative overflow-hidden bg-background py-16 sm:py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 24, transition: { duration: 0.3 } }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ duration: 0.55 }}
+              className="relative overflow-hidden rounded-md border border-border bg-card p-6 shadow-[0_24px_70px_-44px_rgba(28,28,26,0.45)] sm:p-8 lg:p-10"
             >
-              <X className="size-5" />
-            </motion.button>
+              <motion.button
+                type="button"
+                className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                onClick={() => setIsVisible(false)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                aria-label={t('visitorDismissBanner')}
+              >
+                <X className="size-4" />
+              </motion.button>
 
-            {/* Content */}
-            <div className="pr-8">
-              <motion.div 
-                className="flex items-start space-x-2 mb-4"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <motion.span 
-                  className="text-lg"
-                  animate={{ 
-                    rotate: [0, 10, -10, 10, 0],
-                    scale: [1, 1.2, 1.2, 1.2, 1]
-                  }}
-                  transition={{ 
-                    duration: 1,
-                    repeat: Infinity,
-                    repeatDelay: 2
-                  }}
-                >
-                  🎉
-                </motion.span>
-                <h3 className="text-gray-900">歡迎體驗：免費創建您的第一個虛擬展廳</h3>
-              </motion.div>
-              
-              <motion.p 
-                className="text-sm text-gray-700 leading-relaxed mb-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
-              >
-                現在註冊 MetaExpo，即可獲得30天專業版試用，體驗完整功能。
-                包含3D展廳建立、多人同時瀏覽、數據分析報告等。
-              </motion.p>
+              <div className="relative z-10 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+                <div className="max-w-2xl pr-10">
+                  <div className="mb-4 inline-flex items-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-xs font-semibold text-muted-foreground shadow-sm">
+                    <Sparkles className="size-3.5" />
+                    {t('appShort')}
+                  </div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{t('ctaTitle')}</h2>
+                  <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">{t('ctaDesc')}</p>
+                </div>
 
-              <motion.div 
-                className="flex flex-wrap gap-3"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <Link to="/register">
-                  <Button className="bg-purple-600 hover:bg-purple-700 text-white text-sm">
-                    立即體驗
+                <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+                  <Button asChild className="h-auto min-h-12 w-full whitespace-normal rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-curator-brass">
+                    <Link to="/virtual-gallery/quick-create">
+                      {t('quickExhibitionCreateAction')}
+                      <ArrowRight className="ml-2 size-4" />
+                    </Link>
                   </Button>
-                </Link>
-                <Link to="/solutions">
-                  <Button variant="outline" className="text-sm">
-                    了解更多詳情
+                  <Button asChild variant="outline" className="h-auto min-h-12 w-full whitespace-normal rounded-md border-border bg-card px-4 py-3 text-sm font-semibold text-foreground shadow-sm transition-all hover:bg-secondary">
+                    <Link to="/demo">{t('visitorDemoAction')}</Link>
                   </Button>
-                </Link>
-              </motion.div>
-            </div>
-          </motion.div>
-        </motion.div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
       )}
     </AnimatePresence>
   );

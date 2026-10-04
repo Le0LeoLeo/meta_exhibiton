@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { ThreeEvent } from "@react-three/fiber";
 import { useMetaverseStudioStore } from "../store/useMetaverseStudioStore";
 
 export function StudioRoom() {
@@ -13,7 +14,7 @@ export function StudioRoom() {
   const wallColor = useMemo(() => roomSize.wallColor, [roomSize.wallColor]);
   const floorColor = useMemo(() => roomSize.floorColor, [roomSize.floorColor]);
 
-  const handleWallClick = (face: "north" | "south" | "east" | "west", e: any) => {
+  const handleWallClick = (face: "north" | "south" | "east" | "west", e: ThreeEvent<PointerEvent>) => {
     if (mode !== "edit") return;
     e.stopPropagation();
     setSelectedWallFace(face);

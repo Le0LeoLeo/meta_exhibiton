@@ -1,21 +1,21 @@
 export const defaultGalleryScene = JSON.parse(`{
   "roomSize": {
-    "wallColor": "#4f4040",
+    "wallColor": "#ffffff",
     "wallMaterialPreset": "paint",
-    "wallTextureUrl": "/textures/wall-wood.svg",
-    "wallTextureTiling": 8,
-    "wallRoughness": 1,
-    "wallMetalness": 0.08,
-    "wallBumpScale": 0.04,
-    "wallEnvIntensity": 0.9,
-    "wallOpacity": 0.98,
+    "wallTextureUrl": "/textures/pbr/plaster-wall",
+    "wallTextureTiling": 1,
+    "wallRoughness": 0.88,
+    "wallMetalness": 0,
+    "wallBumpScale": 0,
+    "wallEnvIntensity": 0.3,
+    "wallOpacity": 1,
     "wallTransmission": 0,
     "wallIor": 1.45,
-    "floorColor": "#404654",
-    "floorTextureUrl": "/textures/wall-wood.svg",
-    "floorTextureTiling": 2.5,
-    "floorRoughness": 0.42,
-    "floorMetalness": 0.18,
+    "floorColor": "#ffffff",
+    "floorTextureUrl": "/textures/pbr/oak-floor",
+    "floorTextureTiling": 1,
+    "floorRoughness": 0.62,
+    "floorMetalness": 0,
     "environmentBrightness": 0.56,
     "width": 9,
     "length": 50,
@@ -24,120 +24,97 @@ export const defaultGalleryScene = JSON.parse(`{
   },
   "items": [
     {
-      "id": "8a77fd33-3826-4a9f-91e1-1508b3e300cc",
-      "type": "partition",
-      "position": [-17, 3, -12],
-      "rotation": [0, -1.5707963267948966, 0],
-      "scale": [17.303620677723256, 6, 1.7642303954869134],
-      "content": "#f3f4f6"
-    },
-    {
-      "id": "5caaabc3-2bfe-40dc-b931-fe48e286fafc",
-      "type": "partition",
-      "position": [-17.099999999999984, 3, 11.999999999999964],
-      "rotation": [0, -1.5707963267948966, 0],
-      "scale": [17.303620677723256, 6, 1.7642303954869134],
-      "content": "#f3f4f6"
-    },
-    {
-      "id": "942e63a5-414d-4f36-9770-67328e25ad6c",
-      "type": "partition",
-      "position": [17, 3, -12.5],
-      "rotation": [0, -1.5707963267948966, 0],
-      "scale": [17.303620677723256, 6, 1.7642303954869134],
-      "content": "#f3f4f6"
-    },
-    {
-      "id": "74b52bce-f62e-4337-af7f-fe8735190b67",
-      "type": "partition",
-      "position": [17, 3, 12.5],
-      "rotation": [0, -1.5707963267948966, 0],
-      "scale": [17.303620677723256, 6, 1.7642303954869134],
-      "content": "#f3f4f6"
-    },
-    {
-      "id": "f58f3d4b-235a-4bb6-bca6-f5a9c45e7abe",
+      "id": "default-left-painting",
       "type": "painting",
-      "position": [-18.08211519774344, 3, 4.548189661138337],
-      "rotation": [0, -1.5707963267948966, 0],
+      "position": [-4.4, 1.55, 2],
+      "rotation": [0, 1.5707963267948966, 0],
       "scale": [1, 1, 1],
       "content": "https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&q=80&w=800",
       "frameWidth": 2,
       "frameHeight": 1.5,
-      "title": "新作品",
-      "artist": "未知作者",
-      "description": "作品描述。",
+      "title": "Chromatic Field",
+      "artist": "Gallery Collection",
+      "description": "A study in layered colour and rhythm.",
       "externalUrl": ""
     },
     {
-      "id": "6920149c-93bd-4d93-92d8-da58201ee497",
-      "type": "lightstrip",
-      "position": [-18.08211519774344, 3.97, 4.548189661138337],
-      "rotation": [0, -1.5707963267948966, 0],
-      "scale": [2, 0.12, 0.12],
-      "content": "#ffe08a",
-      "lightIntensity": 0.5
-    },
-    {
-      "id": "45bb8ef1-a46e-4b3d-868e-d5e928383cbf",
+      "id": "default-right-painting",
       "type": "painting",
-      "position": [-18.08211519774344, 3, 11.999999999999964],
+      "position": [4.4, 1.55, 6.5],
       "rotation": [0, -1.5707963267948966, 0],
       "scale": [1, 1, 1],
-      "content": "https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&q=80&w=800",
+      "content": "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?auto=format&fit=crop&q=80&w=800",
       "frameWidth": 2,
       "frameHeight": 1.5,
-      "title": "新作品",
-      "artist": "未知作者",
-      "description": "作品描述。",
+      "title": "Quiet Geometry",
+      "artist": "Gallery Collection",
+      "description": "Architectural forms reduced to light and colour.",
       "externalUrl": ""
     },
     {
-      "id": "e387255a-0de8-4114-b6b5-baa5ea71c6c8",
-      "type": "lightstrip",
-      "position": [-18.08211519774344, 3.97, 11.999999999999964],
-      "rotation": [0, -1.5707963267948966, 0],
-      "scale": [2, 0.12, 0.12],
-      "content": "#ffe08a",
-      "lightIntensity": 0.5
+      "id": "default-hero-partition",
+      "type": "partition",
+      "position": [2.9, 3, -2],
+      "rotation": [0, 1.5707963267948966, 0],
+      "scale": [3.8, 6, 0.2],
+      "content": "#f3f4f6",
+      "isLocked": true
     },
     {
-      "id": "f88f9657-d6d6-4c96-97fa-3b078fafa936",
-      "type": "plant",
-      "position": [4, 1.5, 24.5],
-      "rotation": [0, 3.141592653589793, 0],
-      "scale": [1.1, 1.4, 1.1],
-      "content": "#22c55e"
-    },
-    {
-      "id": "c3441434-72d2-4764-bbac-fef580ebeb61",
-      "type": "plant",
-      "position": [29, 1.5, 24.5],
-      "rotation": [0, 3.141592653589793, 0],
-      "scale": [1.1, 1.4, 1.1],
-      "content": "#22c55e"
-    },
-    {
-      "id": "44bad338-ab31-46a7-8ca7-553dea87f678",
-      "type": "plant",
-      "position": [29, 1.5, -0.5],
-      "rotation": [0, -1.5707963267948966, 0],
-      "scale": [1.1, 1.4, 1.1],
-      "content": "#22c55e"
-    },
-    {
-      "id": "db22f5d9-2b5f-4768-8d17-fbf37ff7404d",
+      "id": "default-hero-painting",
       "type": "painting",
-      "position": [0, 1.5, 24.9],
-      "rotation": [0, 3.141592653589793, 0],
+      "position": [2.76, 1.55, -2],
+      "rotation": [0, -1.5707963267948966, 0],
       "scale": [1, 1, 1],
-      "content": "https://images.unsplash.com/photo-1541961017774-22349e4a1262?auto=format&fit=crop&q=80&w=800",
-      "title": "新作品",
-      "artist": "未知作者",
-      "description": "作品描述。",
-      "externalUrl": "",
-      "frameWidth": 2,
-      "frameHeight": 1.5
+      "content": "https://images.unsplash.com/photo-1549490349-8643362247b5?auto=format&fit=crop&q=80&w=800",
+      "frameWidth": 2.2,
+      "frameHeight": 1.6,
+      "title": "Threshold",
+      "artist": "Gallery Collection",
+      "description": "The focal work at the start of the exhibition.",
+      "externalUrl": ""
+    },
+    {
+      "id": "default-hero-lightstrip",
+      "type": "lightstrip",
+      "position": [2.66, 2.65, -2],
+      "rotation": [0, -1.5707963267948966, 0],
+      "scale": [2.2, 0.08, 0.08],
+      "content": "#ffe8b0",
+      "lightIntensity": 0.35
+    },
+    {
+      "id": "default-bench",
+      "type": "bench",
+      "position": [2.5, 0.55, 4.5],
+      "rotation": [0, 0, 0],
+      "scale": [1, 1, 1],
+      "content": "#8b6f55"
+    },
+    {
+      "id": "default-pedestal",
+      "type": "pedestal",
+      "position": [-2.4, 0.6, 8.5],
+      "rotation": [0, 0, 0],
+      "scale": [1, 1.2, 1],
+      "content": ""
+    },
+    {
+      "id": "default-sculpture",
+      "type": "sculpture",
+      "position": [-2.4, 1.55, 8.5],
+      "rotation": [0, 0.45, 0],
+      "scale": [0.65, 0.65, 0.65],
+      "content": "#b9a58f",
+      "title": "Fold"
+    },
+    {
+      "id": "default-plant",
+      "type": "plant",
+      "position": [3.35, 0.7, 11],
+      "rotation": [0, -0.35, 0],
+      "scale": [0.9, 1.15, 0.9],
+      "content": "#3f7d4b"
     }
   ],
   "floorPlanElements": [
@@ -148,7 +125,8 @@ export const defaultGalleryScene = JSON.parse(`{
       "rotation": [0, 0, 0],
       "scale": [9, 0.04, 50],
       "color": "#dbeafe",
-      "isLocked": true
+      "isLocked": true,
+      "doorWidth": 1.8
     },
     {
       "id": "6d36eb9d-27c2-4350-8711-09f69ffff045",
@@ -157,7 +135,8 @@ export const defaultGalleryScene = JSON.parse(`{
       "rotation": [0, 0, 0],
       "scale": [25, 0.04, 25],
       "color": "#dbeafe",
-      "isLocked": false
+      "isLocked": false,
+      "doorWidth": 1.8
     },
     {
       "id": "a0218829-6cd0-4b7a-b34e-97031f9a576c",
@@ -196,9 +175,5 @@ export const defaultGalleryScene = JSON.parse(`{
       "wallIor": 2.5
     }
   }
-}`) as {
-  roomSize: any;
-  items: any[];
-  floorPlanElements: any[];
-  wallMaterialOverrides: Record<string, any>;
-};
+}`) as SceneSnapshot;
+import type { SceneSnapshot } from "./metaverseStoreTypes";

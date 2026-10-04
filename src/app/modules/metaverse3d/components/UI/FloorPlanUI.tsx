@@ -1,8 +1,18 @@
-import { Home, Minus, Move3D, RotateCw, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { useStore } from "../../store/useStore";
+import { useI18n } from "../../../../components/I18nProvider";
+import { FloorPlanTopBar } from "./FloorPlanTopBar";
+import { FloorPlanInspectorPanel } from "./FloorPlanInspectorPanel";
+import { FloorPlanSpacePanel } from "./FloorPlanSpacePanel";
+import { FloorPlanTipsPanel } from "./FloorPlanTipsPanel";
+import { FloorPlanStatusPanel } from "./FloorPlanStatusPanel";
+import { useTopBarHeight } from "./useTopBarHeight";
+import "./editor.css";
+import "./floorplan.css";
 
 export function FloorPlanUI() {
+  const { t } = useI18n();
   const mode = useStore((state) => state.mode);
   const setMode = useStore((state) => state.setMode);
   const addFloorPlanElement = useStore((state) => state.addFloorPlanElement);
@@ -12,12 +22,12 @@ export function FloorPlanUI() {
   const duplicateFloorPlanElement = useStore((state) => state.duplicateFloorPlanElement);
   const updateFloorPlanElement = useStore((state) => state.updateFloorPlanElement);
   const applyFloorPlanToEdit = useStore((state) => state.applyFloorPlanToEdit);
-  const selectedFloorPlanElementId = useStore(
-    (state) => state.selectedFloorPlanElementId,
-  );
+  const selectedFloorPlanElementId = useStore((state) => state.selectedFloorPlanElementId);
+  const setSelectedFloorPlanElementId = useStore((state) => state.setSelectedFloorPlanElementId);
   const floorPlanElements = useStore((state) => state.floorPlanElements);
   const floorPlanEditTarget = useStore((state) => state.floorPlanEditTarget);
   const setFloorPlanEditTarget = useStore((state) => state.setFloorPlanEditTarget);
+  const syncEditToFloorPlan = useStore((state) => state.syncEditToFloorPlan);
   const undo = useStore((state) => state.undo);
   const redo = useStore((state) => state.redo);
   const undoStack = useStore((state) => state.undoStack);
@@ -25,20 +35,63 @@ export function FloorPlanUI() {
   const undoCount = undoStack?.length ?? 0;
   const redoCount = redoStack?.length ?? 0;
   const [resizeMode, setResizeMode] = useState<"stretch" | "shrink">("stretch");
+  const [floorPlanHistoryBaseline, setFloorPlanHistoryBaseline] = useState(undoCount);
+  const topBarRef = useRef<HTMLDivElement>(null);
+  const [activePanel, setActivePanel] = useState<"space" | "inspector" | null>("inspector");
+  useTopBarHeight({ topBarRef, active: mode === "floor-plan" });
 
-  const selectedElement = floorPlanElements.find(
-    (element) => element.id === selectedFloorPlanElementId,
-  );
+  const closePanel = useCallback(() => {
+    const panelId = activePanel === "space" ? "floorplan-space" : "floorplan-inspector";
+    setActivePanel(null);
+    topBarRef.current?.querySelector<HTMLButtonElement>(`[aria-controls="${panelId}"]`)?.focus();
+  }, [activePanel]);
+
+  useEffect(() => {
+    if (mode === "floor-plan" && selectedFloorPlanElementId) setActivePanel("inspector");
+  }, [mode, selectedFloorPlanElementId]);
+
+  const selectedElement = floorPlanElements.find((element) => element.id === selectedFloorPlanElementId);
+  const roomElements = floorPlanElements.filter((element) => element.type === "room");
+  const wallElements = floorPlanElements.filter((element) => element.type !== "room");
   const selectedRoomElement = selectedElement?.type === "room" ? selectedElement : null;
-  const roomCount = floorPlanElements.filter((element) => element.type === "room").length;
-  const canDeleteSelected = !(
-    selectedElement?.type === "room" && (roomCount <= 1 || selectedElement.isLocked)
-  );
+  const roomCount = roomElements.length;
+  const canDeleteSelected = !(selectedElement?.type === "room" && (roomCount <= 1 || selectedElement.isLocked));
+  const targetElements = floorPlanEditTarget === "room" ? roomElements : wallElements;
+  const floorPlanUndoCount = Math.max(0, undoCount - floorPlanHistoryBaseline);
 
-  const resizeSelected = (
-    direction: "left" | "right" | "up" | "down",
-    action: "stretch" | "shrink",
-  ) => {
+  const selectEditTarget = (target: "room" | "wall") => {
+    setActivePanel("inspector");
+    setFloorPlanEditTarget(target);
+    const nextElement = floorPlanElements.find((element) =>
+      target === "room" ? element.type === "room" : element.type !== "room",
+    );
+    setSelectedFloorPlanElementId(nextElement?.id ?? null);
+  };
+
+  const addElement = (type: "room" | "wall") => {
+    setActivePanel("inspector");
+    setFloorPlanEditTarget(type);
+    addFloorPlanElement(type);
+  };
+
+  const syncFrom3D = useCallback(() => {
+    syncEditToFloorPlan();
+    setFloorPlanHistoryBaseline(useStore.getState().undoStack.length);
+  }, [syncEditToFloorPlan]);
+
+  const modeSummary = useMemo(() => {
+    const targetCount = floorPlanEditTarget === "room" ? roomElements.length : wallElements.length;
+    return {
+      title: floorPlanEditTarget === "room" ? t('fpu.roomArrange') : t('fpu.wallArrange'),
+      hint:
+        floorPlanEditTarget === "room"
+          ? t('fpu.roomDesc')
+          : t('fpu.wallDesc'),
+      targetCount,
+    };
+  }, [floorPlanEditTarget, roomElements.length, wallElements.length, t]);
+
+  const resizeSelected = useCallback((direction: "left" | "right" | "up" | "down", action: "stretch" | "shrink") => {
     if (!selectedElement) return;
 
     const STEP = 0.5;
@@ -74,112 +127,105 @@ export function FloorPlanUI() {
       position: [nextX, y, nextZ],
       scale: [nextSX, sy, nextSZ],
     });
+  }, [selectedElement, updateFloorPlanElement]);
+
+  const stretchSelected = useCallback((direction: "left" | "right" | "up" | "down") => resizeSelected(direction, "stretch"), [resizeSelected]);
+  const shrinkSelected = useCallback((direction: "left" | "right" | "up" | "down") => resizeSelected(direction, "shrink"), [resizeSelected]);
+
+  const moveSelected = useCallback((direction: "left" | "right" | "up" | "down") => {
+    if (!selectedElement) return;
+
+    const STEP = 0.25;
+    const [x, y, z] = selectedElement.position;
+
+    const offsets = {
+      left: [-STEP, 0, 0],
+      right: [STEP, 0, 0],
+      up: [0, 0, -STEP],
+      down: [0, 0, STEP],
+    } as const;
+
+    const [dx, dy, dz] = offsets[direction];
+    updateFloorPlanElement(selectedElement.id, {
+      position: [x + dx, y + dy, z + dz],
+    });
+  }, [selectedElement, updateFloorPlanElement]);
+
+  const alignSelectedToTarget = (axis: "left" | "right" | "top" | "bottom" | "centerX" | "centerZ") => {
+    if (!selectedElement || targetElements.length === 0) return;
+
+    const [x, y, z] = selectedElement.position;
+    const xs = targetElements.map((element) => element.position[0]);
+    const zs = targetElements.map((element) => element.position[2]);
+
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minZ = Math.min(...zs);
+    const maxZ = Math.max(...zs);
+    const centerX = (minX + maxX) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+
+    const nextPosition: [number, number, number] = [x, y, z];
+
+    if (axis === "left") nextPosition[0] = minX;
+    if (axis === "right") nextPosition[0] = maxX;
+    if (axis === "top") nextPosition[2] = minZ;
+    if (axis === "bottom") nextPosition[2] = maxZ;
+    if (axis === "centerX") nextPosition[0] = centerX;
+    if (axis === "centerZ") nextPosition[2] = centerZ;
+
+    updateFloorPlanElement(selectedElement.id, { position: nextPosition });
   };
 
-  const stretchSelected = (direction: "left" | "right" | "up" | "down") => {
-    resizeSelected(direction, "stretch");
+  const setDoorOffset = (offset: number) => {
+    if (!selectedRoomElement) return;
+    updateFloorPlanElement(selectedRoomElement.id, {
+      doorOffset: Math.max(-3, Math.min(3, offset)),
+    });
   };
 
-  const shrinkSelected = (direction: "left" | "right" | "up" | "down") => {
-    resizeSelected(direction, "shrink");
+  const setDoorWidth = (width: number) => {
+    if (!selectedRoomElement) return;
+    updateFloorPlanElement(selectedRoomElement.id, {
+      doorWidth: Math.max(0.8, Math.min(2.4, width)),
+    });
   };
 
-  type NumericField = "width" | "length" | "height" | "wallThickness" | "environmentBrightness";
-  const [activeField, setActiveField] = useState<NumericField | null>(null);
-  const [draftValue, setDraftValue] = useState("");
+  useEffect(() => {
+    if (mode !== "floor-plan") return;
+    const selectionMatchesTarget = selectedElement && (
+      floorPlanEditTarget === "room"
+        ? selectedElement.type === "room"
+        : selectedElement.type !== "room"
+    );
+    if (selectionMatchesTarget) return;
 
-  const getFieldValue = (field: NumericField) => {
-    if (field === "width") return selectedRoomElement ? Math.abs(selectedRoomElement.scale[0]) : roomSize.width;
-    if (field === "length") return selectedRoomElement ? Math.abs(selectedRoomElement.scale[2]) : roomSize.length;
-    if (field === "height") return roomSize.height;
-    if (field === "wallThickness") return roomSize.wallThickness;
-    return roomSize.environmentBrightness ?? 1;
-  };
+    setSelectedFloorPlanElementId(targetElements[0]?.id ?? null);
+  }, [mode, floorPlanEditTarget, selectedElement, targetElements, setSelectedFloorPlanElementId]);
 
-  const commitFieldValue = (field: NumericField, raw: string) => {
-    if (raw.trim() === "") return;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return;
-
-    if (field === "width") {
-      const clamped = Math.max(4, Math.min(80, parsed));
-      if (selectedRoomElement) {
-        updateFloorPlanElement(selectedRoomElement.id, {
-          scale: [clamped, selectedRoomElement.scale[1], selectedRoomElement.scale[2]],
-        });
-        if (selectedRoomElement.isLocked) {
-          setRoomSize({ width: clamped });
-        }
-      } else {
-        setRoomSize({ width: clamped });
-      }
-      return;
-    }
-
-    if (field === "length") {
-      const clamped = Math.max(4, Math.min(80, parsed));
-      if (selectedRoomElement) {
-        updateFloorPlanElement(selectedRoomElement.id, {
-          scale: [selectedRoomElement.scale[0], selectedRoomElement.scale[1], clamped],
-        });
-        if (selectedRoomElement.isLocked) {
-          setRoomSize({ length: clamped });
-        }
-      } else {
-        setRoomSize({ length: clamped });
-      }
-      return;
-    }
-
-    if (field === "height") {
-      setRoomSize({ height: Math.max(3, Math.min(15, parsed)) });
-      return;
-    }
-
-    if (field === "wallThickness") {
-      setRoomSize({ wallThickness: Math.max(0.1, Math.min(2, parsed)) });
-      return;
-    }
-
-    setRoomSize({ environmentBrightness: Math.max(0.2, Math.min(2.5, parsed)) });
-  };
-
-  const getDisplayValue = (field: NumericField) => {
-    if (activeField === field) return draftValue;
-    const value = getFieldValue(field);
-    if (field === "environmentBrightness") return value.toFixed(2);
-    if (field === "wallThickness") return value.toFixed(1);
-    return value.toFixed(1);
-  };
-
-  const handleFieldFocus = (field: NumericField) => {
-    setActiveField(field);
-    setDraftValue(getDisplayValue(field));
-  };
-
-  const handleFieldBlur = (field: NumericField) => {
-    commitFieldValue(field, draftValue);
-    setActiveField(null);
-    setDraftValue("");
-  };
+  useEffect(() => {
+    if (mode === "floor-plan") setFloorPlanHistoryBaseline(useStore.getState().undoStack?.length ?? 0);
+  }, [mode]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (mode !== "floor-plan") return;
 
+      if (e.key === "Escape" && activePanel) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        closePanel();
+        return;
+      }
+
       const tagName = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
-      const isTyping =
-        tagName === "input" || tagName === "textarea" || (e.target as HTMLElement | null)?.isContentEditable;
+      const isTyping = tagName === "input" || tagName === "textarea" || (e.target as HTMLElement | null)?.isContentEditable;
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-
         if (!isTyping) {
           e.preventDefault();
-          if (e.shiftKey) {
-            redo();
-          } else {
-            undo();
-          }
+          if (e.shiftKey && redoCount > 0) redo();
+          else if (!e.shiftKey && floorPlanUndoCount > 0) undo();
         }
         return;
       }
@@ -191,32 +237,58 @@ export function FloorPlanUI() {
         return;
       }
 
-      if (selectedElement) {
-        if (!isTyping) {
-          if (e.key === "ArrowUp") {
-            e.preventDefault();
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        syncFrom3D();
+        return;
+      }
+
+      if (!isTyping && e.key === "Escape") {
+        e.preventDefault();
+        setSelectedFloorPlanElementId(null);
+        return;
+      }
+
+      if (selectedElement && !isTyping) {
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          if (e.shiftKey) {
             if (resizeMode === "stretch") stretchSelected("up");
             else shrinkSelected("up");
-            return;
+          } else {
+            moveSelected("up");
           }
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          if (e.shiftKey) {
             if (resizeMode === "stretch") stretchSelected("down");
             else shrinkSelected("down");
-            return;
+          } else {
+            moveSelected("down");
           }
-          if (e.key === "ArrowLeft") {
-            e.preventDefault();
+          return;
+        }
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          if (e.shiftKey) {
             if (resizeMode === "stretch") stretchSelected("left");
             else shrinkSelected("left");
-            return;
+          } else {
+            moveSelected("left");
           }
-          if (e.key === "ArrowRight") {
-            e.preventDefault();
+          return;
+        }
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          if (e.shiftKey) {
             if (resizeMode === "stretch") stretchSelected("right");
             else shrinkSelected("right");
-            return;
+          } else {
+            moveSelected("right");
           }
+          return;
         }
       }
 
@@ -244,6 +316,18 @@ export function FloorPlanUI() {
         return;
       }
 
+      if (!isTyping && e.key === "m") {
+        e.preventDefault();
+        setResizeMode("stretch");
+        return;
+      }
+
+      if (!isTyping && e.key === "s") {
+        e.preventDefault();
+        setResizeMode("shrink");
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d" && selectedElement) {
         if (!isTyping) {
           e.preventDefault();
@@ -262,487 +346,79 @@ export function FloorPlanUI() {
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [
-    mode,
-    selectedElement,
-    canDeleteSelected,
-    resizeMode,
-    removeFloorPlanElement,
-    duplicateFloorPlanElement,
-    setFloorPlanEditTarget,
-    applyFloorPlanToEdit,
-    undo,
-    redo,
-    undoCount,
-    redoCount,
-    setMode,
-  ]);
+  }, [mode, selectedElement, canDeleteSelected, resizeMode, removeFloorPlanElement, duplicateFloorPlanElement, setFloorPlanEditTarget, applyFloorPlanToEdit, undo, redo, floorPlanUndoCount, redoCount, setMode, syncFrom3D, setSelectedFloorPlanElementId, activePanel, closePanel, stretchSelected, shrinkSelected, moveSelected]);
 
   if (mode !== "floor-plan") return null;
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex z-20">
-      <div className="w-72 bg-white/90 backdrop-blur-sm border-r border-gray-200 p-4 pointer-events-auto flex flex-col gap-5 overflow-y-auto">
-        <div>
-          <h2 className="text-xl font-bold mb-3 text-gray-900">平面圖模式</h2>
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <button
-              onClick={() => setFloorPlanEditTarget("room")}
-              className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
-                floorPlanEditTarget === "room"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              展間 mode
-            </button>
-            <button
-              onClick={() => setFloorPlanEditTarget("wall")}
-              className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
-                floorPlanEditTarget === "wall"
-                  ? "bg-slate-700 text-white border-slate-700"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              牆 mode
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <button
-              onClick={undo}
-              disabled={undoCount === 0}
-              className={`py-2 rounded-lg text-sm font-medium transition-colors ${
-                undoCount === 0
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              復原
-            </button>
-            <button
-              onClick={redo}
-              disabled={redoCount === 0}
-              className={`py-2 rounded-lg text-sm font-medium transition-colors ${
-                redoCount === 0
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              重做
-            </button>
-          </div>
-          <button
-            onClick={() => {
-              applyFloorPlanToEdit();
-              setMode("edit");
-            }}
-            className="w-full py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm"
-          >
-            套用並回到 3D 編輯模式
-          </button>
-        </div>
+    <div className="editor-shell floorplan-shell absolute inset-0 z-20 pointer-events-none text-white">
+        <FloorPlanTopBar
+          topBarRef={topBarRef}
+          activePanel={activePanel}
+          onTogglePanel={(panel) => setActivePanel((current) => current === panel ? null : panel)}
+          floorPlanElementCount={floorPlanElements.length}
+          modeTitle={modeSummary.title}
+          modeHint={modeSummary.hint}
+          targetCount={modeSummary.targetCount}
+          floorPlanEditTarget={floorPlanEditTarget}
+          undoCount={floorPlanUndoCount}
+          redoCount={redoCount}
+          selectedElementExists={Boolean(selectedElement)}
+          onSetEditTarget={selectEditTarget}
+          onUndo={undo}
+          onRedo={redo}
+          onSyncFrom3D={syncFrom3D}
+          onDuplicateSelected={() => selectedElement && duplicateFloorPlanElement(selectedElement.id)}
+          onApplyAndReturn={() => {
+            applyFloorPlanToEdit();
+            setMode("edit");
+          }}
+          onAddRoom={() => addElement("room")}
+          onAddWall={() => addElement("wall")}
+        />
 
-        <div>
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-            新增平面元素
-          </h3>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => addFloorPlanElement("room")}
-              className="flex flex-col items-center justify-center p-3 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
-            >
-              <Home className="w-6 h-6 mb-1 text-blue-700" />
-              <span className="text-xs font-medium text-blue-800">展間</span>
-            </button>
-            <button
-              onClick={() => addFloorPlanElement("wall")}
-              className="flex flex-col items-center justify-center p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
-            >
-              <Minus className="w-6 h-6 mb-1 text-gray-700" />
-              <span className="text-xs font-medium text-gray-700">牆</span>
-            </button>
-          </div>
-        </div>
+      {activePanel === "space" && (
+      <div id="floorplan-space" className="floorplan-sidebar editor-panel space-y-3">
+        <div className="editor-panel-heading flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">{t('fpspSummary')}</h3><button aria-label={t('close')} onClick={closePanel} className="flex w-9 items-center justify-center rounded-lg hover:bg-white/10"><X className="size-4" /></button></div>
+        <FloorPlanSpacePanel
+          selectedRoomElement={selectedRoomElement ? {
+            id: selectedRoomElement.id,
+            scale: selectedRoomElement.scale,
+            isLocked: selectedRoomElement.isLocked,
+          } : null}
+          roomSize={roomSize}
+          onUpdateSelectedRoom={(id, scale) => updateFloorPlanElement(id, { scale })}
+          onSetRoomSize={setRoomSize}
+        />
 
-        <details className="rounded-lg border border-slate-200 bg-white/70 p-3" open>
-          <summary className="cursor-pointer text-xs font-semibold text-slate-700">空間尺寸與材質</summary>
-          <div className="space-y-3 mt-2">
-            <div>
-              <div className="flex justify-between mb-1">
-                <label className="text-xs font-medium text-gray-700">寬度（選中展間）</label>
-                <span className="text-xs text-gray-500">{(selectedRoomElement ? Math.abs(selectedRoomElement.scale[0]) : roomSize.width).toFixed(1)}m</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min="4"
-                  max="80"
-                  step="0.5"
-                  value={selectedRoomElement ? Math.abs(selectedRoomElement.scale[0]) : roomSize.width}
-                  onChange={(e) => {
-                    const width = Number(e.target.value);
-                    if (selectedRoomElement) {
-                      updateFloorPlanElement(selectedRoomElement.id, {
-                        scale: [width, selectedRoomElement.scale[1], selectedRoomElement.scale[2]],
-                      });
-                      if (selectedRoomElement.isLocked) {
-                        setRoomSize({ width });
-                      }
-                    } else {
-                      setRoomSize({ width });
-                    }
-                  }}
-                  className="w-full accent-indigo-600"
-                />
-                <input
-                  type="number"
-                  min="4"
-                  max="80"
-                  step="0.5"
-                  value={getDisplayValue("width")}
-                  onFocus={() => handleFieldFocus("width")}
-                  onChange={(e) => setDraftValue(e.target.value)}
-                  onBlur={() => handleFieldBlur("width")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      commitFieldValue("width", draftValue);
-                      setActiveField(null);
-                      setDraftValue("");
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                  className="w-20 px-2 py-1 border border-slate-300 rounded text-xs text-slate-800"
-                />
-              </div>
-            </div>
+        <FloorPlanStatusPanel
+          roomCount={roomCount}
+          wallCount={wallElements.length}
+          selectedElementExists={Boolean(selectedElement)}
+          undoCount={floorPlanUndoCount}
+          redoCount={redoCount}
+        />
 
-            <div>
-              <div className="flex justify-between mb-1">
-                <label className="text-xs font-medium text-gray-700">長度（選中展間）</label>
-                <span className="text-xs text-gray-500">{(selectedRoomElement ? Math.abs(selectedRoomElement.scale[2]) : roomSize.length).toFixed(1)}m</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min="4"
-                  max="80"
-                  step="0.5"
-                  value={selectedRoomElement ? Math.abs(selectedRoomElement.scale[2]) : roomSize.length}
-                  onChange={(e) => {
-                    const length = Number(e.target.value);
-                    if (selectedRoomElement) {
-                      updateFloorPlanElement(selectedRoomElement.id, {
-                        scale: [selectedRoomElement.scale[0], selectedRoomElement.scale[1], length],
-                      });
-                      if (selectedRoomElement.isLocked) {
-                        setRoomSize({ length });
-                      }
-                    } else {
-                      setRoomSize({ length });
-                    }
-                  }}
-                  className="w-full accent-indigo-600"
-                />
-                <input
-                  type="number"
-                  min="4"
-                  max="80"
-                  step="0.5"
-                  value={getDisplayValue("length")}
-                  onFocus={() => handleFieldFocus("length")}
-                  onChange={(e) => setDraftValue(e.target.value)}
-                  onBlur={() => handleFieldBlur("length")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      commitFieldValue("length", draftValue);
-                      setActiveField(null);
-                      setDraftValue("");
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                  className="w-20 px-2 py-1 border border-slate-300 rounded text-xs text-slate-800"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between mb-1">
-                <label className="text-xs font-medium text-gray-700">高度</label>
-                <span className="text-xs text-gray-500">{roomSize.height}m</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min="3"
-                  max="15"
-                  step="0.5"
-                  value={roomSize.height}
-                  onChange={(e) => setRoomSize({ height: Number(e.target.value) })}
-                  className="w-full accent-indigo-600"
-                />
-                <input
-                  type="number"
-                  min="3"
-                  max="15"
-                  step="0.5"
-                  value={getDisplayValue("height")}
-                  onFocus={() => handleFieldFocus("height")}
-                  onChange={(e) => setDraftValue(e.target.value)}
-                  onBlur={() => handleFieldBlur("height")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      commitFieldValue("height", draftValue);
-                      setActiveField(null);
-                      setDraftValue("");
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                  className="w-20 px-2 py-1 border border-slate-300 rounded text-xs text-slate-800"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between mb-1">
-                <label className="text-xs font-medium text-gray-700">牆體厚度</label>
-                <span className="text-xs text-gray-500">{roomSize.wallThickness}m</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min="0.1"
-                  max="2"
-                  step="0.1"
-                  value={roomSize.wallThickness}
-                  onChange={(e) => setRoomSize({ wallThickness: Number(e.target.value) })}
-                  className="w-full accent-indigo-600"
-                />
-                <input
-                  type="number"
-                  min="0.1"
-                  max="2"
-                  step="0.1"
-                  value={getDisplayValue("wallThickness")}
-                  onFocus={() => handleFieldFocus("wallThickness")}
-                  onChange={(e) => setDraftValue(e.target.value)}
-                  onBlur={() => handleFieldBlur("wallThickness")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      commitFieldValue("wallThickness", draftValue);
-                      setActiveField(null);
-                      setDraftValue("");
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                  className="w-20 px-2 py-1 border border-slate-300 rounded text-xs text-slate-800"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between mb-1">
-                <label className="text-xs font-medium text-gray-700">環境亮度</label>
-                <span className="text-xs text-gray-500">{(roomSize.environmentBrightness ?? 1).toFixed(2)}x</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min="0.2"
-                  max="2.5"
-                  step="0.05"
-                  value={roomSize.environmentBrightness ?? 1}
-                  onChange={(e) => setRoomSize({ environmentBrightness: Number(e.target.value) })}
-                  className="w-full accent-indigo-600"
-                />
-                <input
-                  type="number"
-                  min="0.2"
-                  max="2.5"
-                  step="0.05"
-                  value={getDisplayValue("environmentBrightness")}
-                  onFocus={() => handleFieldFocus("environmentBrightness")}
-                  onChange={(e) => setDraftValue(e.target.value)}
-                  onBlur={() => handleFieldBlur("environmentBrightness")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      commitFieldValue("environmentBrightness", draftValue);
-                      setActiveField(null);
-                      setDraftValue("");
-                      (e.target as HTMLInputElement).blur();
-                    }
-                  }}
-                  className="w-20 px-2 py-1 border border-slate-300 rounded text-xs text-slate-800"
-                />
-              </div>
-            </div>
-
-            {!selectedRoomElement && (
-              <p className="text-[11px] text-amber-700">提示：先選取一個「展間」後，寬度/長度會改為調整該展間。</p>
-            )}
-          </div>
-        </details>
-
-        <div className="p-3 bg-emerald-50 text-emerald-900 text-xs rounded-lg border border-emerald-100 leading-relaxed">
-          <p className="mb-1 font-semibold">操作方式</p>
-          <p>1. 先切換上方「展間 mode / 牆 mode」</p>
-          <p>2. 在該 mode 下只可選取並操作同類元素</p>
-          <p>3. 可平移、旋轉、縮放形成不規則平面配置</p>
-          <p>4. 完成後切回 3D 編輯模式微調展品</p>
-          <div className="mt-3 pt-2 border-t border-emerald-200">
-            <p className="font-semibold mb-1">快捷鍵</p>
-            <p><span className="font-mono">T</span>：平移</p>
-            <p><span className="font-mono">R</span>：旋轉</p>
-            <p><span className="font-mono">S</span>：縮放</p>
-            <p><span className="font-mono">1</span>：展間 mode</p>
-            <p><span className="font-mono">2</span>：牆 mode</p>
-            <p><span className="font-mono">+</span>：切到伸長模式（方向鍵會伸長）</p>
-            <p><span className="font-mono">-</span>：切到縮短模式（方向鍵會縮短）</p>
-            <p><span className="font-mono">Delete / Backspace</span>：刪除選取元素</p>
-            <p><span className="font-mono">Ctrl/Cmd + D</span>：複製選取元素</p>
-            <p><span className="font-mono">Ctrl/Cmd + Z</span>：復原</p>
-            <p><span className="font-mono">Ctrl/Cmd + Shift + Z</span>：重做</p>
-            <p><span className="font-mono">Ctrl/Cmd + E</span>：套用並回到 3D 編輯模式</p>
-          </div>
-        </div>
+        <FloorPlanTipsPanel />
       </div>
+      )}
 
-      {selectedElement && (
-        <div className="absolute right-0 top-0 bottom-0 w-80 bg-white/90 backdrop-blur-sm border-l border-gray-200 p-4 pointer-events-auto overflow-y-auto">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-bold text-gray-900">平面元素設定</h3>
-            <button
-              onClick={() => removeFloorPlanElement(selectedElement.id)}
-              disabled={!canDeleteSelected}
-              className={`p-2 rounded-lg transition-colors ${
-                canDeleteSelected
-                  ? "text-red-600 hover:bg-red-50"
-                  : "text-gray-400 bg-gray-100 cursor-not-allowed"
-              }`}
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <div className="p-3 bg-indigo-50 text-indigo-800 text-xs rounded-lg border border-indigo-100">
-              <p className="font-semibold mb-1">目前選取</p>
-              <p>{selectedElement.type === "room" ? "展間" : "牆"}</p>
-              {selectedElement.type === "room" && selectedElement.isLocked && (
-                <p className="mt-2 text-amber-700">這是預設展間：不可移動、不可刪除，可調整大小。</p>
-              )}
-              {selectedElement.type === "room" && !selectedElement.isLocked && roomCount <= 1 && (
-                <p className="mt-2 text-amber-700">至少需保留一個展間，無法刪除最後一個展間。</p>
-              )}
-            </div>
-
-            <div className="space-y-2 text-xs text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-200">
-              <div className="flex items-center gap-2 font-medium text-gray-800">
-                <Move3D className="w-4 h-4" />
-                平移
-              </div>
-              <p>拖曳元素調整位置。</p>
-            </div>
-
-            <div className="space-y-2 text-xs text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-200">
-              <div className="flex items-center gap-2 font-medium text-gray-800">
-                <RotateCw className="w-4 h-4" />
-                旋轉 / 縮放
-              </div>
-              <p>使用 TransformControls 上的軸向控制柄調整角度與尺寸。</p>
-            </div>
-
-            <div className="space-y-2 text-xs text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-200">
-              <div className="font-medium text-gray-800">方向鍵伸縮模式</div>
-              <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
-                <button
-                  onClick={() => setResizeMode("stretch")}
-                  className={`px-3 py-1 text-xs ${resizeMode === "stretch" ? "bg-indigo-600 text-white" : "bg-white text-gray-700 hover:bg-gray-50"}`}
-                >
-                  伸長（+）
-                </button>
-                <button
-                  onClick={() => setResizeMode("shrink")}
-                  className={`px-3 py-1 text-xs border-l border-gray-300 ${resizeMode === "shrink" ? "bg-indigo-600 text-white" : "bg-white text-gray-700 hover:bg-gray-50"}`}
-                >
-                  縮短（-）
-                </button>
-              </div>
-              <p className="text-[11px] text-gray-500">目前方向鍵模式：{resizeMode === "stretch" ? "伸長" : "縮短"}</p>
-            </div>
-
-            <div className="space-y-2 text-xs text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-200">
-              <div className="font-medium text-gray-800">快速伸長</div>
-              <div className="grid grid-cols-3 gap-2">
-                <div />
-                <button
-                  onClick={() => stretchSelected("up")}
-                  className="px-2 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
-                >
-                  上
-                </button>
-                <div />
-                <button
-                  onClick={() => stretchSelected("left")}
-                  className="px-2 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
-                >
-                  左
-                </button>
-                <div className="flex items-center justify-center text-[11px] text-gray-400">中心</div>
-                <button
-                  onClick={() => stretchSelected("right")}
-                  className="px-2 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
-                >
-                  右
-                </button>
-                <div />
-                <button
-                  onClick={() => stretchSelected("down")}
-                  className="px-2 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
-                >
-                  下
-                </button>
-                <div />
-              </div>
-              <p>每次伸長 0.5m，並自動往該方向平移半步，讓你像拉外框一樣擴展。</p>
-            </div>
-
-            <div className="space-y-2 text-xs text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-200">
-              <div className="font-medium text-gray-800">快速縮短</div>
-              <div className="grid grid-cols-3 gap-2">
-                <div />
-                <button
-                  onClick={() => shrinkSelected("up")}
-                  className="px-2 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
-                >
-                  上
-                </button>
-                <div />
-                <button
-                  onClick={() => shrinkSelected("left")}
-                  className="px-2 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
-                >
-                  左
-                </button>
-                <div className="flex items-center justify-center text-[11px] text-gray-400">中心</div>
-                <button
-                  onClick={() => shrinkSelected("right")}
-                  className="px-2 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
-                >
-                  右
-                </button>
-                <div />
-                <button
-                  onClick={() => shrinkSelected("down")}
-                  className="px-2 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
-                >
-                  下
-                </button>
-                <div />
-              </div>
-              <p>每次縮短 0.5m，會往該方向反向平移半步；縮到下限會自動停止。</p>
-            </div>
-          </div>
-        </div>
+      {selectedElement && activePanel === "inspector" && (
+        <FloorPlanInspectorPanel
+          key={selectedElement.id}
+          onClose={closePanel}
+          selectedElement={selectedElement}
+          roomCount={roomCount}
+          canDeleteSelected={canDeleteSelected}
+          resizeMode={resizeMode}
+          onDelete={() => removeFloorPlanElement(selectedElement.id)}
+          onSetResizeMode={setResizeMode}
+          onStretch={stretchSelected}
+          onShrink={shrinkSelected}
+          onAlignSelected={alignSelectedToTarget}
+          onSetDoorOffset={setDoorOffset}
+          onSetDoorWidth={setDoorWidth}
+        />
       )}
     </div>
   );

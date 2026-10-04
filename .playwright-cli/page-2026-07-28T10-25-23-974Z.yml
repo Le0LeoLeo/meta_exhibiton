@@ -1,0 +1,268 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - generic [ref=e6]:
+        - link "MetaRealm Expo Intelligence MREI 元境智展" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e8]: MetaRealm Expo Intelligence
+          - generic [ref=e9]: MREI 元境智展
+        - generic [ref=e10]:
+          - link "首頁" [ref=e11] [cursor=pointer]:
+            - /url: /
+          - link "虛擬展廳" [ref=e12] [cursor=pointer]:
+            - /url: /virtual-gallery
+          - link "展覽列表" [ref=e13] [cursor=pointer]:
+            - /url: /exhibitions
+          - link "解決方案" [ref=e14] [cursor=pointer]:
+            - /url: /solutions
+          - link "支援" [ref=e15] [cursor=pointer]:
+            - /url: /support
+          - link "資源" [ref=e16] [cursor=pointer]:
+            - /url: /resources
+        - generic [ref=e17]:
+          - button "切換語言" [ref=e18]: 繁中
+          - button "切換淺色模式" [ref=e22]
+          - generic [ref=e30]:
+            - link "S Shirt Photo Test" [ref=e182] [cursor=pointer]:
+              - /url: /profile
+              - generic [ref=e183]: S
+              - generic [ref=e184]: Shirt Photo Test
+            - button "登出" [ref=e185]
+    - main [ref=e34]:
+      - generic [ref=e190]:
+        - generic [ref=e192]:
+          - generic [ref=e193]:
+            - generic [ref=e194]: MREI 元境智展
+            - heading "教師和學生，30 分鐘內 用 AI 建立並發布多人 3D 成果展" [level=1] [ref=e198]:
+              - text: 教師和學生，30 分鐘內
+              - generic [ref=e199]: 用 AI 建立並發布多人 3D 成果展
+            - paragraph [ref=e200]: 上傳課堂作品、選擇展廳風格，讓 AI 完成排展，再預覽並發布給全班多人參觀。
+            - generic [ref=e201]:
+              - link [ref=e202] [cursor=pointer]:
+                - /url: /virtual-gallery/create
+                - button "開始 AI 建展" [ref=e203]
+              - button "影片教學" [ref=e204]
+            - generic [ref=e205]:
+              - generic [ref=e206]:
+                - generic [ref=e211]: 作品素材
+                - generic [ref=e212]: PDF / IMG / Video
+              - generic [ref=e213]:
+                - generic [ref=e224]: 3D 展間
+                - generic [ref=e225]: 拖放佈置
+              - generic [ref=e226]:
+                - generic [ref=e231]: 分享參觀
+                - generic [ref=e232]: 公開連結
+          - generic [ref=e234]:
+            - generic [ref=e235]: 3D 虛擬展覽空間
+            - generic [ref=e242]:
+              - generic:
+                - generic: 真 3D 展廳預覽
+                - generic: 拖曳旋轉視角
+            - generic [ref=e246]:
+              - generic [ref=e247]:
+                - generic [ref=e248]: "01"
+                - text: 上傳作品
+              - generic [ref=e249]:
+                - generic [ref=e250]: "02"
+                - text: 安排空間
+              - generic [ref=e251]:
+                - generic [ref=e252]: "03"
+                - text: 分享參觀
+        - generic [ref=e254]:
+          - generic [ref=e255]:
+            - generic [ref=e256]:
+              - paragraph [ref=e257]: 創作流程
+              - heading "從作品到展廳，一路保持直覺" [level=2] [ref=e258]
+            - paragraph [ref=e259]: 把繁瑣的展覽製作拆成清楚步驟，讓創作者專注在作品與故事。
+          - generic [ref=e260]:
+            - article [ref=e261]:
+              - generic [ref=e262]: "01"
+              - heading "上傳作品" [level=3] [ref=e269]
+              - paragraph [ref=e270]: 加入圖片、影片、文件與作品資訊，快速整理成可展示的素材庫。
+            - article [ref=e271]:
+              - generic [ref=e272]: "02"
+              - heading "安排空間" [level=3] [ref=e280]
+              - paragraph [ref=e281]: 拖放作品、調整位置與比例，像佈置真實展場一樣建立觀看節奏。
+            - article [ref=e282]:
+              - generic [ref=e283]: "03"
+              - heading "設計氛圍" [level=3] [ref=e289]
+              - paragraph [ref=e290]: 套用牆面、材質、燈光與主題，讓每個展間都有自己的性格。
+            - article [ref=e291]:
+              - generic [ref=e292]: "04"
+              - heading "即時預覽" [level=3] [ref=e298]
+              - paragraph [ref=e299]: 隨時切換觀看模式，檢查觀眾進入展廳後看到的每個細節。
+            - article [ref=e300]:
+              - generic [ref=e301]: "05"
+              - heading "分享參觀" [level=3] [ref=e310]
+              - paragraph [ref=e311]: 發布公開展覽或分享連結，邀請同學、觀眾與評審直接進入展場。
+            - article [ref=e312]:
+              - generic [ref=e313]: "06"
+              - heading "跨裝置瀏覽" [level=3] [ref=e318]
+              - paragraph [ref=e319]: 桌機、平板與手機都能開啟展覽，讓作品更容易被看見。
+        - generic [ref=e321]:
+          - generic [ref=e322]:
+            - generic [ref=e323]:
+              - paragraph [ref=e324]: 專為學生與創作者
+              - heading "最適合學生作品展示、課堂成果發表與競賽策展" [level=2] [ref=e325]
+            - link "瀏覽展廳" [ref=e326] [cursor=pointer]:
+              - /url: /virtual-gallery
+          - generic [ref=e329]:
+            - link [ref=e330] [cursor=pointer]:
+              - /url: /solutions
+              - article [ref=e331]:
+                - generic [ref=e332]:
+                  - generic [ref=e333]:
+                    - heading "學生作品集" [level=3] [ref=e341]
+                    - paragraph [ref=e342]: 把你的課堂創作、畢業製作或課外作品整理成有路線、有燈光、有節奏的 3D 展覽，讓老師和同學線上瀏覽。
+                  - generic [ref=e343]:
+                    - generic [ref=e344]: 學生作品集
+                    - generic [ref=e345]: 安排空間
+                    - generic [ref=e346]: 分享參觀
+            - generic [ref=e347]:
+              - link [ref=e348] [cursor=pointer]:
+                - /url: /solutions
+                - article [ref=e349]:
+                  - heading "課堂成果展" [level=3] [ref=e357]
+                  - paragraph [ref=e358]: 老師可以收集學生作品、安排主題展間，讓期末成果在線上完整呈現。
+              - link [ref=e359] [cursor=pointer]:
+                - /url: /solutions
+                - article [ref=e360]:
+                  - heading "策展提案展示" [level=3] [ref=e369]
+                  - paragraph [ref=e370]: 用可互動的空間草圖展示策展概念，讓團隊更快討論動線與作品關係。
+        - region [ref=e371]:
+          - generic [ref=e372]:
+            - generic [ref=e373]:
+              - paragraph [ref=e374]: 近期旅程
+              - heading "探索大家分享的展覽紀念" [level=2] [ref=e375]
+              - paragraph [ref=e376]: 從近期完成的護照，發現下一個值得參觀的展覽。
+            - paragraph [ref=e377]: 暫時未有公開的展覽紀念卡。
+        - generic [ref=e379]:
+          - generic [ref=e380]:
+            - heading "客戶好評" [level=2] [ref=e381]
+            - paragraph [ref=e382]: 看看我們的客戶怎麼說
+          - generic [ref=e383]:
+            - generic [ref=e384]:
+              - paragraph [ref=e385]: "\"MetaExpo 讓我們的展覽延伸到線上，吸引了不少海外觀眾。虛擬導覽功能使用起來很方便。\""
+              - generic [ref=e386]:
+                - paragraph [ref=e387]: 陳雅婷
+                - paragraph [ref=e388]: 國立美術館 策展人
+            - generic [ref=e389]:
+              - paragraph [ref=e390]: "\"用 MetaExpo 辦產品發表會，省下了不少場地費用，後台的數據分析也幫助我們了解客戶的瀏覽習慣。\""
+              - generic [ref=e391]:
+                - paragraph [ref=e392]: 王建華
+                - paragraph [ref=e393]: TechCorp 行銷總監
+            - generic [ref=e394]:
+              - paragraph [ref=e395]: "\"作為獨立藝術家，MetaExpo 讓我能線上展示作品，接觸到更多藝術愛好者。操作簡單，功能也夠用。\""
+              - generic [ref=e396]:
+                - paragraph [ref=e397]: 林怡君
+                - paragraph [ref=e398]: 藝術家
+        - generic [ref=e401]:
+          - button "Dismiss" [ref=e402]
+          - generic [ref=e406]:
+            - generic [ref=e407]:
+              - generic [ref=e408]: MREI 元境智展
+              - heading "準備好把作品放進 3D 展場了嗎？" [level=2] [ref=e411]
+              - paragraph [ref=e412]: 從一個空白展間開始，幾分鐘內完成第一版線上展覽。
+            - generic [ref=e413]:
+              - link [ref=e414] [cursor=pointer]:
+                - /url: /register
+                - button "開始創建" [ref=e415]
+              - link [ref=e416] [cursor=pointer]:
+                - /url: /solutions
+                - button "探索展廳" [ref=e417]
+    - contentinfo [ref=e105]:
+      - generic [ref=e106]:
+        - generic [ref=e107]:
+          - generic [ref=e108]:
+            - link "MetaRealm Expo Intelligence MREI 元境智展" [ref=e109] [cursor=pointer]:
+              - /url: /
+              - generic [ref=e110]: MetaRealm Expo Intelligence
+              - generic [ref=e111]: MREI 元境智展
+            - paragraph [ref=e112]: 全稱 MetaRealm Expo Intelligence，簡稱 MREI 元境智展
+          - generic [ref=e113]:
+            - heading "產品" [level=4] [ref=e114]
+            - list [ref=e115]:
+              - listitem [ref=e116]:
+                - link "虛擬展廳" [ref=e117] [cursor=pointer]:
+                  - /url: /virtual-gallery
+              - listitem [ref=e118]:
+                - link "展覽列表" [ref=e119] [cursor=pointer]:
+                  - /url: /exhibitions
+              - listitem [ref=e120]:
+                - link "VR 體驗" [ref=e121] [cursor=pointer]:
+                  - /url: /virtual-gallery
+              - listitem [ref=e122]:
+                - link "數據分析" [ref=e123] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e124]:
+                - link "開發者 API" [ref=e125] [cursor=pointer]:
+                  - /url: /resources
+          - generic [ref=e126]:
+            - heading "解決方案" [level=4] [ref=e127]
+            - list [ref=e128]:
+              - listitem [ref=e129]:
+                - link "藝術展覽" [ref=e130] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e131]:
+                - link "企業方案" [ref=e132] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e133]:
+                - link "教育方案" [ref=e134] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e135]:
+                - link "博物館方案" [ref=e136] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e137]:
+                - link "活動策展" [ref=e138] [cursor=pointer]:
+                  - /url: /solutions
+          - generic [ref=e139]:
+            - heading "資源" [level=4] [ref=e140]
+            - list [ref=e141]:
+              - listitem [ref=e142]:
+                - link "教學指南" [ref=e143] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e144]:
+                - link "案例研究" [ref=e145] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e146]:
+                - link "技術文檔" [ref=e147] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e148]:
+                - link "部落格" [ref=e149] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e150]:
+                - link "說明中心" [ref=e151] [cursor=pointer]:
+                  - /url: /support
+          - generic [ref=e152]:
+            - heading "公司" [level=4] [ref=e153]
+            - list [ref=e154]:
+              - listitem [ref=e155]:
+                - link "關於我們" [ref=e156] [cursor=pointer]:
+                  - /url: /support
+              - listitem [ref=e157]:
+                - link "加入我們" [ref=e158] [cursor=pointer]:
+                  - /url: /support
+              - listitem [ref=e159]:
+                - link "最新消息" [ref=e160] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e161]:
+                - link "合作夥伴" [ref=e162] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e163]:
+                - link "聯絡我們" [ref=e164] [cursor=pointer]:
+                  - /url: /support
+        - generic [ref=e165]:
+          - paragraph [ref=e166]: © 2026 MetaRealm Expo Intelligence / MREI 元境智展. 保留所有權利。
+          - generic [ref=e167]:
+            - link "隱私權政策" [ref=e169] [cursor=pointer]:
+              - /url: /support
+            - link "服務條款" [ref=e171] [cursor=pointer]:
+              - /url: /support
+            - link "Cookie 設定" [ref=e173] [cursor=pointer]:
+              - /url: /resources
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e418]:
+        - generic [ref=e422]:
+          - generic [ref=e423]: 註冊成功！
+          - generic [ref=e424]: 歡迎加入，Shirt Photo Test！

@@ -1,94 +1,91 @@
-import { ImageWithFallback } from './figma/ImageWithFallback';
-import { ArrowRight } from 'lucide-react';
-import { motion } from 'motion/react';
 import { Link } from 'react-router';
+import { ArrowRight, Building2, GraduationCap, Palette } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useI18n } from './I18nProvider';
 
 export function Showcase() {
-  const showcases = [
-    {
-      title: '藝術展覽',
-      description: '為藝術作品打造沉浸式虛擬畫廊',
-      image: 'https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=600&q=80',
-      tag: '藝術',
-    },
-    {
-      title: '產品發表會',
-      description: '創新的產品展示與互動體驗',
-      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80',
-      tag: '商業',
-    },
-    {
-      title: '虛擬博物館',
-      description: '讓歷史文物走向全球觀眾',
-      image: 'https://images.unsplash.com/photo-1582555172866-f73bb12a2ab3?w=600&q=80',
-      tag: '文化',
-    },
+  const { t } = useI18n();
+  const useCases = [
+    { icon: Palette, title: t('showcaseUseCase1Title'), desc: t('showcaseUseCase1Desc') },
+    { icon: GraduationCap, title: t('showcaseUseCase2Title'), desc: t('showcaseUseCase2Desc') },
+    { icon: Building2, title: t('showcaseUseCase3Title'), desc: t('showcaseUseCase3Desc') },
   ];
+  const [featured, ...secondary] = useCases;
 
   return (
-    <div className="bg-gray-50 py-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div 
-          className="text-center mb-12"
-          initial={{ opacity: 0, y: 30 }}
+    <section className="bg-secondary">
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.5 }}
+          className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
         >
-          <h2 className="text-4xl text-gray-900 mb-4">應用場景</h2>
-          <p className="text-xl text-gray-600">不同場景下的虛擬展覽應用</p>
+          <div className="max-w-2xl">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.26em] text-curator-brass">{t('showcaseSectionLabel')}</p>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{t('showcaseSectionTitle')}</h2>
+          </div>
+          <Link to="/exhibitions" className="inline-flex items-center gap-2 text-sm font-semibold text-tool-blue transition-colors hover:text-curator-brass">
+            {t('browseGallery')}
+            <ArrowRight className="size-4" />
+          </Link>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {showcases.map((showcase, index) => (
-            <Link to="/solutions" key={showcase.title}>
-              <motion.div 
-                initial={{ opacity: 0, y: 50 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: index * 0.2 }}
-                whileHover={{ y: -10 }}
-                className="bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-shadow group cursor-pointer"
-              >
-                <div className="relative h-64 overflow-hidden">
-                  <motion.div
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ duration: 0.4 }}
-                  >
-                    <ImageWithFallback
-                      src={showcase.image}
-                      alt={showcase.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </motion.div>
-                  <motion.div 
-                    className="absolute top-4 left-4"
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: index * 0.2 + 0.3 }}
-                  >
-                    <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs">
-                      {showcase.tag}
-                    </span>
-                  </motion.div>
+        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <Link to="/solutions">
+            <motion.article
+              initial={{ opacity: 0, y: 22 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-50px' }}
+              transition={{ duration: 0.5 }}
+              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+              className="group relative h-full overflow-hidden rounded-md border border-border bg-card p-6 shadow-[0_24px_70px_-48px_rgba(28,28,26,0.55)] transition-colors hover:border-curator-brass/70 sm:p-8"
+            >
+              <div className="relative z-10 flex h-full min-h-72 flex-col justify-between gap-8">
+                <div>
+                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-md border border-border bg-secondary text-curator-brass shadow-sm">
+                    <featured.icon className="size-6" />
+                  </div>
+                  <h3 className="max-w-lg text-2xl font-semibold tracking-tight text-foreground">{featured.title}</h3>
+                  <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">{featured.desc}</p>
                 </div>
-                <div className="p-6">
-                  <h3 className="text-xl text-gray-900 mb-2">{showcase.title}</h3>
-                  <p className="text-gray-600 mb-4">{showcase.description}</p>
-                  <motion.div 
-                    className="flex items-center text-purple-600 group-hover:text-purple-700"
-                    whileHover={{ x: 5 }}
-                  >
-                    <span className="text-sm">查看詳情</span>
-                    <ArrowRight className="size-4 ml-2" />
-                  </motion.div>
+                <div className="grid max-w-md grid-cols-3 gap-2">
+                  {[t('showcaseUseCase1Title'), t('featureMoveTitle'), t('featureInteractTitle')].map((label) => (
+                    <div key={label} className="rounded-md border border-border bg-secondary px-3 py-2 text-center text-xs font-semibold text-muted-foreground">
+                      {label}
+                    </div>
+                  ))}
                 </div>
-              </motion.div>
-            </Link>
-          ))}
+              </div>
+            </motion.article>
+          </Link>
+
+          <div className="grid gap-4">
+            {secondary.map((item, index) => (
+              <Link to="/solutions" key={item.title}>
+                <motion.article
+                  initial={{ opacity: 0, y: 22 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-50px' }}
+                  transition={{ duration: 0.45, delay: index * 0.08 }}
+                  whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                  className="group h-full rounded-md border border-border bg-card p-5 shadow-[0_18px_45px_-38px_rgba(28,28,26,0.45)] transition-colors hover:border-curator-brass/70"
+                >
+                  <div className="mb-5 flex items-center justify-between">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-secondary text-foreground shadow-sm">
+                      <item.icon className="size-5" />
+                    </div>
+                    <ArrowRight className="size-4 text-tool-blue transition-colors group-hover:text-curator-brass" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.desc}</p>
+                </motion.article>
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

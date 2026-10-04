@@ -1,0 +1,215 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - generic [ref=e6]:
+        - link "MetaRealm Expo Intelligence MREI 元境智展" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e8]: MetaRealm Expo Intelligence
+          - generic [ref=e9]: MREI 元境智展
+        - generic [ref=e10]:
+          - button "切換語言" [ref=e11]: 繁中
+          - button "切換淺色模式" [ref=e15]
+          - generic [ref=e23]:
+            - link "登入" [ref=e24] [cursor=pointer]:
+              - /url: /login
+            - link [ref=e25] [cursor=pointer]:
+              - /url: /register
+              - button "註冊" [ref=e26]
+          - button "開啟選單" [ref=e28]
+    - main [ref=e30]:
+      - main [ref=e32]:
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - generic [ref=e35]:
+              - paragraph [ref=e36]: Avatar Studio
+              - heading "自訂角色" [level=1] [ref=e37]
+              - paragraph [ref=e38]: 設計你在多人展館中的角色外觀。
+            - button "返回" [ref=e39]
+          - generic [ref=e40]:
+            - generic [ref=e41]:
+              - button "比較原本造型" [ref=e42]
+              - img "3D 預覽暫時無法使用，你仍可選擇外觀。" [ref=e43]
+            - generic [ref=e47]:
+              - generic [ref=e48]:
+                - tablist [ref=e49]:
+                  - tab "快速造型" [ref=e50]
+                  - tab "身體" [ref=e51]
+                  - tab "臉型" [ref=e52]
+                  - tab "眼睛" [ref=e53]
+                  - tab "眉毛" [ref=e54]
+                  - tab "嘴型" [ref=e55]
+                  - tab "髮型" [ref=e56]
+                  - tab "上衣" [ref=e57]
+                  - tab "下身" [ref=e58]
+                  - tab "鞋履" [ref=e59]
+                  - tab "配件" [ref=e60]
+                  - tab "五官位置" [selected] [ref=e61]
+                  - tab "顏色" [ref=e62]
+                - tabpanel "五官位置" [ref=e144]:
+                  - generic [ref=e145]:
+                    - paragraph [ref=e146]: 安全範圍會讓五官保持在臉部可見區域，並維持自然比例。
+                    - region [ref=e147]:
+                      - heading "眼睛" [level=2] [ref=e148]
+                      - generic [ref=e149]:
+                        - generic [ref=e150]:
+                          - generic [ref=e151]: 眼睛高度
+                          - generic [ref=e152]: "0.000"
+                        - generic "眼睛高度" [ref=e153]:
+                          - slider "眼睛高度" [active] [ref=e157]
+                      - generic [ref=e158]:
+                        - generic [ref=e159]:
+                          - generic [ref=e160]: 眼睛間距
+                          - generic [ref=e161]: "0.000"
+                        - generic "眼睛間距" [ref=e162]:
+                          - slider "眼睛間距" [ref=e166]
+                      - generic [ref=e167]:
+                        - generic [ref=e168]:
+                          - generic [ref=e169]: 眼睛大小
+                          - generic [ref=e170]: 100%
+                        - generic "眼睛大小" [ref=e171]:
+                          - slider "眼睛大小" [ref=e175]
+                    - region [ref=e176]:
+                      - heading "眉毛" [level=2] [ref=e177]
+                      - generic [ref=e178]:
+                        - generic [ref=e179]:
+                          - generic [ref=e180]: 眉毛高度
+                          - generic [ref=e181]: "0.000"
+                        - generic "眉毛高度" [ref=e182]:
+                          - slider "眉毛高度" [ref=e186]
+                      - generic [ref=e187]:
+                        - generic [ref=e188]:
+                          - generic [ref=e189]: 眉毛間距
+                          - generic [ref=e190]: "0.000"
+                        - generic "眉毛間距" [ref=e191]:
+                          - slider "眉毛間距" [ref=e195]
+                      - generic [ref=e196]:
+                        - generic [ref=e197]:
+                          - generic [ref=e198]: 眉毛傾斜
+                          - generic [ref=e199]: 0.00 rad
+                        - generic "眉毛傾斜" [ref=e200]:
+                          - slider "眉毛傾斜" [ref=e204]
+                    - region [ref=e205]:
+                      - heading "嘴巴" [level=2] [ref=e206]
+                      - generic [ref=e207]:
+                        - generic [ref=e208]:
+                          - generic [ref=e209]: 水平位置
+                          - generic [ref=e210]: "0.000"
+                        - generic "水平位置" [ref=e211]:
+                          - slider "水平位置" [ref=e215]
+                      - generic [ref=e216]:
+                        - generic [ref=e217]:
+                          - generic [ref=e218]: 嘴巴高度
+                          - generic [ref=e219]: "0.000"
+                        - generic "嘴巴高度" [ref=e220]:
+                          - slider "嘴巴高度" [ref=e224]
+                      - generic [ref=e225]:
+                        - generic [ref=e226]:
+                          - generic [ref=e227]: 嘴巴寬度
+                          - generic [ref=e228]: 100%
+                        - generic "嘴巴寬度" [ref=e229]:
+                          - slider "嘴巴寬度" [ref=e233]
+                      - generic [ref=e234]:
+                        - generic [ref=e235]:
+                          - generic [ref=e236]: 嘴巴高度比例
+                          - generic [ref=e237]: 100%
+                        - generic "嘴巴高度比例" [ref=e238]:
+                          - slider "嘴巴高度比例" [ref=e242]
+                    - button "重設五官位置" [ref=e243]
+              - generic [ref=e71]:
+                - button "復原外觀" [disabled]
+                - button "重做外觀" [disabled]
+                - button "隨機產生" [ref=e72]
+                - button "重設" [ref=e73]
+                - button "取消" [ref=e244]
+                - button "儲存角色" [ref=e245]
+    - contentinfo [ref=e75]:
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - link "MetaRealm Expo Intelligence MREI 元境智展" [ref=e79] [cursor=pointer]:
+              - /url: /
+              - generic [ref=e80]: MetaRealm Expo Intelligence
+              - generic [ref=e81]: MREI 元境智展
+            - paragraph [ref=e82]: 全稱 MetaRealm Expo Intelligence，簡稱 MREI 元境智展
+          - generic [ref=e83]:
+            - heading "產品" [level=4] [ref=e84]
+            - list [ref=e85]:
+              - listitem [ref=e86]:
+                - link "虛擬展廳" [ref=e87] [cursor=pointer]:
+                  - /url: /virtual-gallery
+              - listitem [ref=e88]:
+                - link "展覽列表" [ref=e89] [cursor=pointer]:
+                  - /url: /exhibitions
+              - listitem [ref=e90]:
+                - link "VR 體驗" [ref=e91] [cursor=pointer]:
+                  - /url: /virtual-gallery
+              - listitem [ref=e92]:
+                - link "數據分析" [ref=e93] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e94]:
+                - link "開發者 API" [ref=e95] [cursor=pointer]:
+                  - /url: /resources
+          - generic [ref=e96]:
+            - heading "解決方案" [level=4] [ref=e97]
+            - list [ref=e98]:
+              - listitem [ref=e99]:
+                - link "藝術展覽" [ref=e100] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e101]:
+                - link "企業方案" [ref=e102] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e103]:
+                - link "教育方案" [ref=e104] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e105]:
+                - link "博物館方案" [ref=e106] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e107]:
+                - link "活動策展" [ref=e108] [cursor=pointer]:
+                  - /url: /solutions
+          - generic [ref=e109]:
+            - heading "資源" [level=4] [ref=e110]
+            - list [ref=e111]:
+              - listitem [ref=e112]:
+                - link "教學指南" [ref=e113] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e114]:
+                - link "案例研究" [ref=e115] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e116]:
+                - link "技術文檔" [ref=e117] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e118]:
+                - link "部落格" [ref=e119] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e120]:
+                - link "說明中心" [ref=e121] [cursor=pointer]:
+                  - /url: /support
+          - generic [ref=e122]:
+            - heading "公司" [level=4] [ref=e123]
+            - list [ref=e124]:
+              - listitem [ref=e125]:
+                - link "關於我們" [ref=e126] [cursor=pointer]:
+                  - /url: /support
+              - listitem [ref=e127]:
+                - link "加入我們" [ref=e128] [cursor=pointer]:
+                  - /url: /support
+              - listitem [ref=e129]:
+                - link "最新消息" [ref=e130] [cursor=pointer]:
+                  - /url: /resources
+              - listitem [ref=e131]:
+                - link "合作夥伴" [ref=e132] [cursor=pointer]:
+                  - /url: /solutions
+              - listitem [ref=e133]:
+                - link "聯絡我們" [ref=e134] [cursor=pointer]:
+                  - /url: /support
+        - generic [ref=e135]:
+          - paragraph [ref=e136]: © 2026 MetaRealm Expo Intelligence / MREI 元境智展. 保留所有權利。
+          - generic [ref=e137]:
+            - link "隱私權政策" [ref=e139] [cursor=pointer]:
+              - /url: /support
+            - link "服務條款" [ref=e141] [cursor=pointer]:
+              - /url: /support
+            - link "Cookie 設定" [ref=e143] [cursor=pointer]:
+              - /url: /resources
+  - region "Notifications alt+T"

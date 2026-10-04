@@ -1,0 +1,95 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e12]:
+    - navigation [ref=f1e13]:
+      - generic [ref=f1e15]:
+        - link "META EXB" [ref=f1e16] [cursor=pointer]:
+          - /url: /
+        - generic [ref=f1e18]:
+          - link "Gallery" [ref=f1e19] [cursor=pointer]:
+            - /url: /virtual-gallery
+          - link "Exhibitions" [ref=f1e21] [cursor=pointer]:
+            - /url: /exhibitions
+          - link "AI for Education" [ref=f1e22] [cursor=pointer]:
+            - /url: /solutions
+        - generic [ref=f1e23]:
+          - button "Switch Language" [ref=f1e24]: EN
+          - button "Switch to Dark Mode" [ref=f1e28]
+          - generic [ref=f1e32]:
+            - link "A Acceptance user" [ref=f1e33] [cursor=pointer]:
+              - /url: /profile
+              - generic [ref=f1e34]: A
+              - generic [ref=f1e35]: Acceptance user
+            - button "Log Out" [ref=f1e36]
+          - button "Open Menu" [ref=f1e41]
+    - main [ref=f1e43]:
+      - generic [ref=f1e47]:
+        - link "Back to my exhibitions" [ref=f1e48] [cursor=pointer]:
+          - /url: /virtual-gallery/my-exhibitions
+        - generic [ref=f1e51]:
+          - heading "Start your learning exhibition" [level=1] [ref=f1e52]
+          - paragraph [ref=f1e53]: Upload a project image and choose a 3D space. Save and review the preview before sharing it with classmates.
+        - generic [ref=f1e54]:
+          - list "Create your exhibition" [ref=f1e55]:
+            - listitem [ref=f1e56]:
+              - generic [ref=f1e57]: 1. Upload an image
+              - generic [ref=f1e99]: Completed
+            - listitem [ref=f1e58]:
+              - generic [ref=f1e59]: 2. Choose a template
+              - generic [ref=f1e167]: Completed
+            - listitem [ref=f1e60]:
+              - generic [ref=f1e61]: 3. Preview and publish
+          - status [ref=f1e62]: Preview saved. Publish your exhibition when you are ready.
+        - status [ref=f1e66]:
+          - generic [ref=f1e71]:
+            - paragraph [ref=f1e72]: Exhibition preview
+            - paragraph [ref=f1e104]: Uploaded 2 / 2 artworks
+        - generic [ref=f1e73]:
+          - generic [ref=f1e171]:
+            - generic [ref=f1e172]:
+              - generic [ref=f1e173]:
+                - heading "Learning exhibition acceptance" [level=2] [ref=f1e174]
+                - paragraph [ref=f1e175]: Showing 2 / 2 artworks
+              - button "View artwork in 2D" [ref=f1e176]
+            - generic [ref=f1e177]:
+              - generic "Exhibition preview" [ref=f1e178]
+              - generic [ref=f1e182]:
+                - button "Previous artwork" [ref=f1e183]
+                - paragraph [ref=f1e184]:
+                  - text: photo-1
+                  - generic [ref=f1e185]: 1 / 2
+                - button "Next artwork" [ref=f1e186]
+              - paragraph [ref=f1e187]: Drag to rotate the view, or switch between artworks.
+            - generic [ref=f1e188]:
+              - 'button "View artwork: photo-1" [ref=f1e189]':
+                - img "photo-1" [ref=f1e191]
+                - paragraph [ref=f1e192]: photo-1
+              - 'button "View artwork: photo-2" [ref=f1e193]':
+                - img "photo-2" [ref=f1e195]
+                - paragraph [ref=f1e196]: photo-2
+          - generic [ref=f1e197]:
+            - button "Save exhibition" [ref=f1e198]
+            - button "Publish exhibition" [ref=f1e199]
+            - button "Manage artwork" [ref=f1e200]
+            - link "Advanced editing" [ref=f1e201] [cursor=pointer]:
+              - /url: /virtual-gallery/create?exhibitionId=59d99046-ca7b-4589-a366-f074c0e26e1a
+          - paragraph [ref=f1e202]: Private draft saved
+    - contentinfo [ref=f1e85]:
+      - generic [ref=f1e86]:
+        - link "META EXB" [ref=f1e87] [cursor=pointer]:
+          - /url: /
+        - paragraph [ref=f1e88]: A 3D learning exhibition for student work, process and ideas.
+      - navigation "Resources" [ref=f1e89]:
+        - link "Explore sample learning exhibitions" [ref=f1e90] [cursor=pointer]:
+          - /url: /demo
+        - link "Browse class exhibitions" [ref=f1e91] [cursor=pointer]:
+          - /url: /exhibitions
+        - link "Support" [ref=f1e92] [cursor=pointer]:
+          - /url: /support
+        - link "Learning guide" [ref=f1e93] [cursor=pointer]:
+          - /url: /resources
+        - link "Privacy Policy" [ref=f1e94] [cursor=pointer]:
+          - /url: /privacy
+        - link "Terms of Service" [ref=f1e95] [cursor=pointer]:
+          - /url: /terms
+      - generic [ref=f1e96]: © 2026 MetaRealm Expo Intelligence / MREI. All rights reserved.
+  - region "Notifications alt+T"

@@ -1,0 +1,212 @@
+[
+  {
+    "path": "web_ui_new/src/app/routes.ts",
+    "kind": "modified",
+    "sha256": "0f9ed9f1e433108c4928f73c16250fd7bdc49071829d671111ff8c3d3811c111"
+  },
+  {
+    "path": "web_ui_new/src/app/api/graduation.ts",
+    "kind": "added",
+    "sha256": "22c37e5a804eb83623714375e219123f4f34f51a45ec7b5e77ce337268c495ed"
+  },
+  {
+    "path": "web_ui_new/src/app/components/Hero.test.tsx",
+    "kind": "modified",
+    "sha256": "6a57dc18f678bf7726fa0e9f2527116a2fe09be3eeff992bf6f0328c1f07d984"
+  },
+  {
+    "path": "web_ui_new/src/app/components/Hero.tsx",
+    "kind": "modified",
+    "sha256": "9d4351e68afc319f528e763dfcacc3679651ab210b2b88a723ac975a077dd3ba"
+  },
+  {
+    "path": "web_ui_new/src/app/components/Navigation.tsx",
+    "kind": "modified",
+    "sha256": "f0da64b2f61e3c9700add04c595185ecca960089f4ac197574c57896b6c81c3d"
+  },
+  {
+    "path": "web_ui_new/src/app/pages/QuickExhibitionCreate.tsx",
+    "kind": "modified",
+    "sha256": "9620b49d9bda73fd4fbb2ead901b6cc58c6c3b5a990002fd6265c52212ec3bc0"
+  },
+  {
+    "path": "web_ui_new/src/app/utils/galleryEntry.test.ts",
+    "kind": "modified",
+    "sha256": "e1fa0df824c82c8386cae23625b3cfa9c61236709346c7209ad4342c7768944c"
+  },
+  {
+    "path": "web_ui_new/src/app/utils/galleryEntry.ts",
+    "kind": "modified",
+    "sha256": "41f39fa187f0f1eeeb6d0f090efa8a036c34a0975bd56015f916a0dba218d36a"
+  },
+  {
+    "path": "web_ui_new/src/app/i18n/catalogs/en.ts",
+    "kind": "modified",
+    "sha256": "0a807a94715b002de28012f6121231757e94991c1c0fd24d92ffddb95804f5df"
+  },
+  {
+    "path": "web_ui_new/src/app/i18n/catalogs/zh-CN.ts",
+    "kind": "modified",
+    "sha256": "01955f1ab2175bb7547682387449f72dc9560103dd0e6da913e7f1f4a348184b"
+  },
+  {
+    "path": "web_ui_new/src/app/i18n/catalogs/zh-TW.ts",
+    "kind": "modified",
+    "sha256": "5c5046d1440d61d2ad768a61c7e2fe8c656485923655fc934e65eea96936047c"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/copy.ts",
+    "kind": "added",
+    "sha256": "df442abfe5d34b6fe980210311d19f408e1920d8f75f00f0c076900d1f18c59f"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/curationCopy.ts",
+    "kind": "added",
+    "sha256": "c6d160c59de9d01400fdeb3d4b237215b6b2c286ecbf5efaf6e770fef7f3562a"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/CurationPanel.test.tsx",
+    "kind": "added",
+    "sha256": "4b81b7f4f4274e0febcdfe9552c23c6d1483ad13d01045c3f4a1430f2caf3183"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/CurationPanel.tsx",
+    "kind": "added",
+    "sha256": "970481429eed6cec8b57a48ed828228e0a715fb316b748436a1a89ee553e992a"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/errors.test.ts",
+    "kind": "added",
+    "sha256": "258af27b985731ab37a266bbf393c33b3a410b979af6f135370b686f0e101e2c"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/errors.ts",
+    "kind": "added",
+    "sha256": "9103227852ba97195efb5348ba4fa42c3c722d762a4754cdb0dc846e0376372c"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/graduation.test.tsx",
+    "kind": "added",
+    "sha256": "e26dc0edceef4a3da4f34ecc74b3104f4f7153f71f6517c208e3c1dbd1e828d4"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/GraduationClassPage.tsx",
+    "kind": "added",
+    "sha256": "4a9c75b4cf400fb85598fb626f03f058fed0ae11a7fa67bcc888cb688d776783"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/GraduationPortfolio.tsx",
+    "kind": "added",
+    "sha256": "ab600f919c9d32c61f363b45c7f2aa08b9cdc5e6f121885c1a8ce11fbd1045dc"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/GraduationPublicPage.tsx",
+    "kind": "added",
+    "sha256": "78533bbc6f58ccba408339ea007a7f1ca40192e9791edfba97a7f0eb80e77b8b"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/GraduationWorkspace.tsx",
+    "kind": "added",
+    "sha256": "3429a69ec52bf0f2ecdcbf7e45a742c85b6a5dfce834e2c627d702e5f10acf90"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/ProjectDetails.tsx",
+    "kind": "added",
+    "sha256": "52e9c68edc6cae55b930ade3e34ef80630582900536650c3ed9656c0937c49c0"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/ProjectEditor.tsx",
+    "kind": "added",
+    "sha256": "92326dfde18dd1343039069a1c440f2320c24b398839ec911d4e06004bff1564"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/ProjectReview.tsx",
+    "kind": "added",
+    "sha256": "73f727ac1daa3b2cfb45f23e3404941fc2f33bfb59ec07403f5f2582f9cfe6c7"
+  },
+  {
+    "path": "web_ui_new/src/app/features/graduation/shared.tsx",
+    "kind": "added",
+    "sha256": "afd98c25cd60b1fbdc1bbe1ee4f535d3426d3c0bc1356130ee65bb32bb710561"
+  },
+  {
+    "path": "web_ui_new/server/index.js",
+    "kind": "modified",
+    "sha256": "ce4572520e9770b5e2f35e53b6d87854f543f5dfff27fbd111c5ce8866cdbaf5"
+  },
+  {
+    "path": "web_ui_new/server/multiplayer/socketServer.js",
+    "kind": "modified",
+    "sha256": "97843626bbd2c0c44c69215d62df2d0f267da414fcbb6e2c378fd238354c8089"
+  },
+  {
+    "path": "web_ui_new/server/repositories/graduationRepository.js",
+    "kind": "added",
+    "sha256": "bf73dbb6f2365c51b870e1f1a72e854210cb4762726a50a9faf543ce41c1f635"
+  },
+  {
+    "path": "web_ui_new/server/routes/graduationRoutes.js",
+    "kind": "added",
+    "sha256": "d93ecdd7b585adcb69fd7ea702f5a044692af9b660058bee5f2a1bf0dd702ac2"
+  },
+  {
+    "path": "web_ui_new/server/routes/graduationRoutes.test.js",
+    "kind": "added",
+    "sha256": "f6e19e775669fadb47317d37ab974663a3a151b64d303feb3c00ad90c1405cca"
+  },
+  {
+    "path": "web_ui_new/server/services/graduationCurationService.js",
+    "kind": "added",
+    "sha256": "6953eb1b8653a76c53dda931edf3fe36c7ee10c6e279b92d80eebbcf092d7a52"
+  },
+  {
+    "path": "web_ui_new/server/services/graduationCurationService.test.js",
+    "kind": "added",
+    "sha256": "d6cc8e73077bbb47feff259249942456d4d7680d87c41ff7ca9df730b5906347"
+  },
+  {
+    "path": "web_ui_new/server/services/graduationService.js",
+    "kind": "added",
+    "sha256": "19fc662a99e7ab6bf2ed5537a0c764ecaf572f592b01c5f9c4994e2bcf6f2a01"
+  },
+  {
+    "path": "web_ui_new/server/services/userDataExportService.js",
+    "kind": "modified",
+    "sha256": "dbe3cda226ce1469a5bb4166217679d2f6e28ab7581aad054ce5262bbd96a394"
+  },
+  {
+    "path": "web_ui_new/server/services/userDataExportService.test.js",
+    "kind": "modified",
+    "sha256": "b14397c337d48f6395b6c3c99599b5dd4e87449368dfa3d7f44c463ce7f6d71c"
+  },
+  {
+    "path": "web_ui_new/scripts/start-graduation-local.mjs",
+    "kind": "added",
+    "sha256": "a837c965d5b6bcd1edaaed81ed0b16b1a676f03a1058e63f5fe479d71a110201"
+  },
+  {
+    "path": "web_ui_new/scripts/start-graduation-web.mjs",
+    "kind": "added",
+    "sha256": "fb628f47796c11c144c6fc186b2ba56ee005f5c8b4ce3c008cf0f0e20f624c6a"
+  },
+  {
+    "path": "web_ui_new/docs/graduation-local-guide.md",
+    "kind": "added",
+    "sha256": "4a62557a5a8a054259516868776c63386d63bff95bebc80c3dc218778cfce3e8"
+  },
+  {
+    "path": "web_ui_new/docs/plans/2026-09-07-graduation-local-implementation.md",
+    "kind": "added",
+    "sha256": "3617b99f94eb86104b3bcca69c4f5240f37dbf4eba7774c6c682caf9f407a5ae"
+  },
+  {
+    "path": "web_ui_new/package.json",
+    "kind": "modified",
+    "sha256": "79a4732eaa6a71023730209fb7e88f01d9f8000eda667f167ddad3174945c08c"
+  },
+  {
+    "path": "專案補強計畫.md",
+    "kind": "modified",
+    "sha256": "73cbd9d257e7237e3e22d30533c4ee45741186f44697abfb219f8863a7da650f"
+  }
+]

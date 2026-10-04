@@ -1,0 +1,40 @@
+- generic [ref=f2e2]:
+  - main [ref=f2e30]:
+    - generic [ref=f2e141]:
+      - group "Exhibition display mode" [ref=f2e142]:
+        - button "2D artworks" [ref=f2e143]
+        - button "3D gallery" [pressed] [ref=f2e144]
+      - generic [ref=f2e145]:
+        - generic:
+          - generic:
+            - paragraph:
+              - text: Click to control • WASD to move • Click artwork for details
+              - generic: Press Esc to release the mouse and use the controls.
+            - region "Visitor controls" [ref=f2e210]:
+              - button "Visitor controls" [ref=f2e211]:
+                - text: Visitor controls
+                - generic [aria-hidden] [ref=f2e212]: +
+          - region "Avatar actions" [ref=f2e151]:
+            - generic [ref=f2e152]:
+              - button "Wave (1)" [ref=f2e153]:
+                - generic [aria-hidden] [ref=f2e154]: 👋
+                - generic [ref=f2e155]: Wave
+              - button "Cheer (2)" [ref=f2e156]:
+                - generic [aria-hidden] [ref=f2e157]: 🙌
+                - generic [ref=f2e158]: Cheer
+              - button "Clap (3)" [ref=f2e159]:
+                - generic [aria-hidden] [ref=f2e160]: 👏
+                - generic [ref=f2e161]: Clap
+              - button "Bow (4)" [ref=f2e162]:
+                - generic [aria-hidden] [ref=f2e163]: 🙇
+                - generic [ref=f2e164]: Bow
+      - button "Return to entrance" [ref=f2e208]
+      - generic:
+        - button "Exit View" [ref=f2e209]
+        - generic:
+          - paragraph: Learning exhibition acceptance
+          - paragraph: Welcome to this virtual exhibition.
+          - generic:
+            - generic: Acceptance user
+            - generic: 2026/9/26
+  - region "Notifications alt+T"

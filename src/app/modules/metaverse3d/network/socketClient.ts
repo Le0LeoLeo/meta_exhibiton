@@ -1,11 +1,16 @@
 import { io, type Socket } from "socket.io-client";
+import { loadAuth } from "../../../api/auth";
+import { useAvatarPreferenceStore } from "../avatar/avatarPreferenceStore";
 import { useMultiplayerStore } from "./multiplayerStore";
 import type {
   ChatMessagePayload,
   ChatSendPayload,
+  PlayerAppearanceChangedPayload,
+  PlayerAppearancePayload,
   PlayerLeftPayload,
   PlayerMovePayload,
   PlayerMovedPayload,
+  RoomErrorPayload,
   RoomJoinPayload,
   RoomJoinedPayload,
   SceneFocusPayload,
@@ -13,9 +18,16 @@ import type {
   SceneOpEnvelope,
   SceneOpPayload,
   SceneSyncPayload,
+  SceneSnapshot,
 } from "./protocol";
 
 let socket: Socket | null = null;
+let socketToken: string | null = null;
+let socketServerUrl: string | null = null;
+
+const EDIT_ROLES = new Set(["editor", "owner"]);
+export const CHAT_ROLES: ReadonlySet<string> = new Set(["participant", "editor", "owner"]);
+const MOVEMENT_ROLES = new Set(["viewer", "participant", "editor", "owner"]);
 
 export function getSocket(): Socket | null {
   return socket;
@@ -23,16 +35,21 @@ export function getSocket(): Socket | null {
 
 export function connectMultiplayer(): Socket {
   const { serverUrl } = useMultiplayerStore.getState();
+  const token = loadAuth().token;
 
-  if (socket && socket.connected && socket.io.uri === serverUrl) {
+  if (socket && socketServerUrl === serverUrl && socketToken === token) {
     return socket;
   }
 
   if (socket) {
+    useMultiplayerStore.getState().setConnected(false);
+    useMultiplayerStore.getState().setRole(null);
     socket.removeAllListeners();
     socket.disconnect();
   }
 
+  socketToken = token;
+  socketServerUrl = serverUrl;
   socket = io(serverUrl, {
     transports: ["websocket"],
     autoConnect: true,
@@ -40,19 +57,31 @@ export function connectMultiplayer(): Socket {
     reconnectionAttempts: Infinity,
     reconnectionDelay: 500,
     reconnectionDelayMax: 2000,
+    ...(token ? { auth: { token } } : {}),
+  });
+  const connectedSocket = socket;
+  connectedSocket.io.on("reconnect_attempt", () => {
+    const currentToken = loadAuth().token;
+    socketToken = currentToken;
+    connectedSocket.auth = currentToken ? { token: currentToken } : {};
   });
 
   socket.on("connect", () => {
     useMultiplayerStore.getState().setConnected(true);
-    joinCurrentRoom();
   });
 
   socket.on("disconnect", () => {
     useMultiplayerStore.getState().setConnected(false);
+    useMultiplayerStore.getState().setRole(null);
   });
 
   socket.on("room:joined", (payload: RoomJoinedPayload) => {
+    if (payload.roomId !== useMultiplayerStore.getState().roomId) return;
     useMultiplayerStore.getState().applyRoomJoined(payload);
+  });
+
+  socket.on("room:error", (payload: RoomErrorPayload) => {
+    useMultiplayerStore.getState().setRoomError(payload);
   });
 
   socket.on("player:joined", (payload) => {
@@ -62,6 +91,13 @@ export function connectMultiplayer(): Socket {
   socket.on("player:moved", (payload: PlayerMovedPayload) => {
     useMultiplayerStore.getState().applyPlayerMoved(payload);
   });
+
+  socket.on(
+    "player:appearance:changed",
+    (payload: PlayerAppearanceChangedPayload) => {
+      useMultiplayerStore.getState().applyPlayerAppearance(payload);
+    },
+  );
 
   socket.on("player:left", (payload: PlayerLeftPayload) => {
     useMultiplayerStore.getState().applyPlayerLeft(payload);
@@ -91,10 +127,12 @@ export function connectMultiplayer(): Socket {
 }
 
 export function disconnectMultiplayer() {
-  if (!socket) return;
-  socket.removeAllListeners();
-  socket.disconnect();
-  socket = null;
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+    socketToken = null;
+  }
   useMultiplayerStore.getState().clearSession();
 }
 
@@ -102,10 +140,20 @@ export function joinCurrentRoom() {
   const currentSocket = socket;
   if (!currentSocket || !currentSocket.connected) return;
 
-  const { roomId, nickname } = useMultiplayerStore.getState();
+  const auth = loadAuth();
+  const preference = useAvatarPreferenceStore.getState();
+  if (auth.user && preference.source !== "account") {
+    preference.hydrateAccount(auth.user.avatarAppearance);
+  } else if (!auth.user && preference.source === "default" && !preference.dirty) {
+    preference.hydrateGuest();
+  }
+
+  const { roomId, nickname, shareToken } = useMultiplayerStore.getState();
   const payload: RoomJoinPayload = {
     roomId,
     nickname,
+    appearance: useAvatarPreferenceStore.getState().savedAppearance,
+    ...(shareToken ? { shareToken } : {}),
   };
   currentSocket.emit("room:join", payload);
 }
@@ -113,45 +161,76 @@ export function joinCurrentRoom() {
 export function emitPlayerMove(payload: PlayerMovePayload) {
   const currentSocket = socket;
   if (!currentSocket || !currentSocket.connected) return;
+  if (!MOVEMENT_ROLES.has(useMultiplayerStore.getState().role || "")) return;
   currentSocket.emit("player:move", payload);
+}
+
+export function emitPlayerAppearance(
+  appearance = useAvatarPreferenceStore.getState().savedAppearance,
+) {
+  const currentSocket = socket;
+  if (!currentSocket || !currentSocket.connected) return false;
+  if (!MOVEMENT_ROLES.has(useMultiplayerStore.getState().role || "")) return false;
+  const payload: PlayerAppearancePayload = {
+    roomId: useMultiplayerStore.getState().roomId,
+    appearance,
+  };
+  currentSocket.emit("player:appearance", payload);
+  return true;
 }
 
 export function emitSceneSync(payload: {
   roomId: string;
-  scene: {
-    roomSize: any;
-    items: any[];
-    floorPlanElements: any[];
-    wallMaterialOverrides: Record<string, any>;
-  };
+  scene: SceneSnapshot;
+  expectedVersion?: number;
+  clientSyncId?: string;
 }) {
   const currentSocket = socket;
-  if (!currentSocket || !currentSocket.connected) return;
+  if (!currentSocket || !currentSocket.connected) return false;
+  if (!EDIT_ROLES.has(useMultiplayerStore.getState().role || "")) return false;
   currentSocket.emit("scene:sync", payload);
+  return true;
+}
+
+export function emitSceneRequestSync(payload: { roomId: string }) {
+  const currentSocket = socket;
+  if (!currentSocket || !currentSocket.connected) return;
+  currentSocket.emit("scene:request-sync", payload);
 }
 
 export function emitSceneOp(payload: SceneOpEnvelope) {
   const currentSocket = socket;
-  if (!currentSocket || !currentSocket.connected) return;
+  if (!currentSocket || !currentSocket.connected) return false;
+  if (!EDIT_ROLES.has(useMultiplayerStore.getState().role || "")) return false;
   currentSocket.emit("scene:op", payload);
+  return true;
 }
 
-export function emitSceneFocus(payload: { roomId: string; itemId: string | null }) {
+export function emitSceneFocus(payload: {
+  roomId: string;
+  itemId: string | null;
+  nickname?: string;
+}) {
   const currentSocket = socket;
   if (!currentSocket || !currentSocket.connected) return;
+  if (!EDIT_ROLES.has(useMultiplayerStore.getState().role || "")) return;
   currentSocket.emit("scene:focus", payload);
 }
 
 export function emitChatMessage(message: string) {
   const currentSocket = socket;
-  if (!currentSocket || !currentSocket.connected) return;
+  if (!currentSocket || !currentSocket.connected) return false;
 
-  const { roomId, nickname } = useMultiplayerStore.getState();
+  const { roomId, nickname, role } = useMultiplayerStore.getState();
+  if (!CHAT_ROLES.has(role || "")) return false;
+  const text = message.trim();
+  if (!text || text.length > 300) return false;
   const payload: ChatSendPayload = {
     roomId,
     nickname,
-    message,
+    message: text,
   };
 
   currentSocket.emit("chat:send", payload);
+  return true;
 }

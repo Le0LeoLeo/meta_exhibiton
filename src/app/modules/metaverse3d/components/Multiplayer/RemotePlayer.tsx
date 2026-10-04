@@ -1,120 +1,183 @@
 import { Billboard, Text } from "@react-three/drei";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Suspense, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { SkeletonUtils } from "three-stdlib";
+import { AvatarModel } from "../../avatar/AvatarModel";
+import { AvatarModelBoundary } from "../../avatar/AvatarModelBoundary";
+import { AVATAR_MANIFEST } from "../../avatar/avatarManifest";
+import {
+  ProceduralAvatarFallback,
+  type ProceduralAvatarFallbackHandle,
+} from "../../avatar/ProceduralAvatarFallback";
 import type { RemotePlayerState } from "../../network/multiplayerStore";
+import {
+  getRemoteAppearanceKey,
+  getRemoteAvatarPalette,
+  getRemotePlayerTransform,
+  updateRemoteAvatarMotion,
+} from "./remotePlayerAppearance";
 
 type RemotePlayerProps = {
   player: RemotePlayerState;
 };
 
-const REMOTE_AVATAR_GLB = ((import.meta as any)?.env?.VITE_REMOTE_AVATAR_GLB as string | undefined)?.trim() || "";
-const TARGET_AVATAR_HEIGHT = 1.75;
-
-function normalizeAvatar(root: THREE.Object3D) {
-  const box = new THREE.Box3().setFromObject(root);
-  const size = new THREE.Vector3();
-  box.getSize(size);
-
-  if (Number.isFinite(size.y) && size.y > 0.001) {
-    const scalar = TARGET_AVATAR_HEIGHT / size.y;
-    root.scale.setScalar(scalar);
-  } else {
-    root.scale.setScalar(1);
-  }
-
-  root.traverse((obj) => {
-    if ((obj as any).isMesh) {
-      const mesh = obj as THREE.Mesh;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-
-      if (Array.isArray(mesh.material)) {
-        mesh.material.forEach((m) => {
-          (m as THREE.Material).side = THREE.FrontSide;
-        });
-      } else if (mesh.material) {
-        (mesh.material as THREE.Material).side = THREE.FrontSide;
-      }
-    }
-  });
-}
+const SHARED_GEOMETRIES = {
+  groundRing: new THREE.RingGeometry(0.18, 0.31, 28),
+  nameplate: new THREE.PlaneGeometry(1.05, 0.28),
+};
+const AVATAR_SPEED_PUBLISH_DELTA = 0.12;
+const AVATAR_WALK_START_SPEED = 0.14;
+const AVATAR_WALK_STOP_SPEED = 0.07;
 
 export function RemotePlayer({ player }: RemotePlayerProps) {
-  const position = useMemo(
-    () => [player.renderPosition.x, player.renderPosition.y - 1.3, player.renderPosition.z] as [number, number, number],
-    [player.renderPosition.x, player.renderPosition.y, player.renderPosition.z],
+  const groupRef = useRef<THREE.Group>(null);
+  const worldPositionRef = useRef(new THREE.Vector3());
+  const transform = getRemotePlayerTransform(player);
+  const appearanceKey = useMemo(
+    () => getRemoteAppearanceKey(player.appearance),
+    [player.appearance],
+  );
+  const fallbackRef = useRef<ProceduralAvatarFallbackHandle>(null);
+  const latestPositionRef = useRef(
+    new THREE.Vector3(
+      player.renderPosition.x,
+      player.renderPosition.y,
+      player.renderPosition.z,
+    ),
+  );
+  const previousPositionRef = useRef(latestPositionRef.current.clone());
+  const smoothedSpeedRef = useRef(0);
+  const publishedSpeedRef = useRef(0);
+  const [avatarSpeed, setAvatarSpeed] = useState(0);
+  const motionPoseRef = useRef({
+    armSwing: 0,
+    legSwing: 0,
+    bob: 0,
+    lean: 0,
+    sittingBlend: player.pose === "sitting" ? 1 : 0,
+  });
+  const palette = useMemo(
+    () => getRemoteAvatarPalette(player.id, player.appearance),
+    [player.id, player.appearance],
   );
 
-  const [avatarScene, setAvatarScene] = useState<THREE.Object3D | null>(null);
-  const loggedRef = useRef(false);
+  latestPositionRef.current.set(
+    player.renderPosition.x,
+    player.renderPosition.y,
+    player.renderPosition.z,
+  );
 
-  useEffect(() => {
-    if (!REMOTE_AVATAR_GLB) {
-      setAvatarScene(null);
-      return;
+  useFrame(({ camera, clock }, delta) => {
+    if (groupRef.current instanceof THREE.Object3D) {
+      groupRef.current.getWorldPosition(worldPositionRef.current);
+      groupRef.current.visible =
+        worldPositionRef.current.distanceTo(camera.position) > 0.9;
     }
 
-    let cancelled = false;
-    const loader = new GLTFLoader();
-
-    loader.load(
-      REMOTE_AVATAR_GLB,
-      (gltf) => {
-        if (cancelled) return;
-
-        const cloned = SkeletonUtils.clone(gltf.scene);
-        normalizeAvatar(cloned);
-        setAvatarScene(cloned);
-
-        if (!loggedRef.current) {
-          loggedRef.current = true;
-          console.info("[multiplayer] avatar loaded", { url: REMOTE_AVATAR_GLB });
-        }
-      },
-      undefined,
-      (error) => {
-        if (cancelled) return;
-        setAvatarScene(null);
-        console.warn("[multiplayer] avatar load failed, fallback to capsule", {
-          url: REMOTE_AVATAR_GLB,
-          error,
-        });
-      },
+    const frameDelta = Math.max(delta, 1 / 120);
+    const travelled = latestPositionRef.current.distanceTo(
+      previousPositionRef.current,
     );
+    previousPositionRef.current.copy(latestPositionRef.current);
 
-    return () => {
-      cancelled = true;
-      setAvatarScene(null);
-    };
-  }, []);
+    const sampledSpeed = Math.min(4, travelled / frameDelta);
+    const smoothing = 1 - Math.exp(-frameDelta * 10);
+    smoothedSpeedRef.current = THREE.MathUtils.lerp(
+      smoothedSpeedRef.current,
+      sampledSpeed,
+      smoothing,
+    );
+    const previousPublishedSpeed = publishedSpeedRef.current;
+    const nextSpeed = smoothedSpeedRef.current;
+    const crossedWalkStart =
+      previousPublishedSpeed < AVATAR_WALK_START_SPEED &&
+      nextSpeed >= AVATAR_WALK_START_SPEED;
+    const crossedWalkStop =
+      previousPublishedSpeed >= AVATAR_WALK_STOP_SPEED &&
+      nextSpeed < AVATAR_WALK_STOP_SPEED;
+    if (
+      crossedWalkStart ||
+      crossedWalkStop ||
+      Math.abs(nextSpeed - previousPublishedSpeed) >=
+        AVATAR_SPEED_PUBLISH_DELTA
+    ) {
+      publishedSpeedRef.current = nextSpeed;
+      setAvatarSpeed(nextSpeed);
+    }
+
+    const pose = updateRemoteAvatarMotion(
+      motionPoseRef.current,
+      clock.getElapsedTime(),
+      smoothedSpeedRef.current,
+      player.pose === "sitting",
+      frameDelta,
+    );
+    fallbackRef.current?.applyMotion(pose);
+  });
+
+  const fallback = (
+    <ProceduralAvatarFallback ref={fallbackRef} palette={palette} />
+  );
 
   return (
-    <group position={position} rotation={[0, player.renderYaw, 0]}>
-      {avatarScene ? (
-        <primitive object={avatarScene} position={[0, -0.87, 0]} />
-      ) : (
-        <>
-          <mesh castShadow>
-            <capsuleGeometry args={[0.28, 0.85, 4, 8]} />
-            <meshStandardMaterial color="#60a5fa" metalness={0.12} roughness={0.4} />
-          </mesh>
+    <group
+      ref={groupRef}
+      name={`remote-player-${player.id}`}
+      position={transform.position}
+      rotation={transform.rotation}
+    >
+      {AVATAR_MANIFEST.assetReady ? (
+        <Suspense fallback={fallback}>
+          <AvatarModelBoundary
+            fallback={fallback}
+            resetKey={`${player.id}:${appearanceKey}`}
+          >
+            <AvatarModel
+              appearance={player.appearance}
+              speed={player.pose === "sitting" ? 0 : avatarSpeed}
+              emote={player.emote ?? "none"}
+              emoteNonce={player.emoteNonce ?? 0}
+              playerSeed={player.id}
+              castShadow
+              pose={player.pose}
+            />
+          </AvatarModelBoundary>
+        </Suspense>
+      ) : fallback}
 
-          <mesh position={[0, 0.78, 0.22]} castShadow>
-            <sphereGeometry args={[0.16, 16, 16]} />
-            <meshStandardMaterial color="#e2e8f0" metalness={0.1} roughness={0.45} />
-          </mesh>
-        </>
-      )}
-
-      <mesh position={[0, -0.57, 0.27]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.23, 24]} />
-        <meshBasicMaterial color="#a7f3d0" transparent opacity={0.9} side={THREE.DoubleSide} depthWrite={false} />
+      <mesh
+        name="remote-player-ground-ring"
+        geometry={SHARED_GEOMETRIES.groundRing}
+        position={[0, 0.012, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <meshBasicMaterial
+          color={palette.accent}
+          transparent
+          opacity={0.58}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
       </mesh>
 
-      <Billboard position={[0, 1.32, 0]}>
-        <Text fontSize={0.18} color="#e2e8f0" anchorX="center" anchorY="middle" outlineColor="#0f172a" outlineWidth={0.03}>
+      <Billboard name="remote-player-nameplate" position={[0, 2.02, 0]}>
+        <mesh geometry={SHARED_GEOMETRIES.nameplate} position={[0, 0, -0.015]}>
+          <meshBasicMaterial
+            color="#0f172a"
+            transparent
+            opacity={0.76}
+            depthWrite={false}
+          />
+        </mesh>
+        <Text
+          position={[0, 0, 0.01]}
+          fontSize={0.16}
+          color="#f8fafc"
+          anchorX="center"
+          anchorY="middle"
+          outlineColor="#020617"
+          outlineWidth={0.025}
+        >
           {player.nickname}
         </Text>
       </Billboard>

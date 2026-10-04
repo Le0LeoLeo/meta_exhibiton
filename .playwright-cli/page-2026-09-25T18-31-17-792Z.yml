@@ -1,0 +1,66 @@
+- generic [ref=f2e2]:
+  - main [ref=f2e30]:
+    - generic [ref=f2e141]:
+      - group "Exhibition display mode" [ref=f2e142]:
+        - button "2D artworks" [ref=f2e143]
+        - button "3D gallery" [pressed] [ref=f2e144]
+      - generic [ref=f2e145]:
+        - generic:
+          - generic:
+            - paragraph:
+              - text: Click to control • WASD to move • Click artwork for details
+              - generic: Press Esc to release the mouse and use the controls.
+          - region "Avatar actions" [ref=f2e151]:
+            - generic [ref=f2e152]:
+              - button "Wave (1)" [ref=f2e153]:
+                - generic [aria-hidden] [ref=f2e154]: 👋
+                - generic [ref=f2e155]: Wave
+              - button "Cheer (2)" [ref=f2e156]:
+                - generic [aria-hidden] [ref=f2e157]: 🙌
+                - generic [ref=f2e158]: Cheer
+              - button "Clap (3)" [ref=f2e159]:
+                - generic [aria-hidden] [ref=f2e160]: 👏
+                - generic [ref=f2e161]: Clap
+              - button "Bow (4)" [ref=f2e162]:
+                - generic [aria-hidden] [ref=f2e163]: 🙇
+                - generic [ref=f2e164]: Bow
+        - dialog [ref=f2e166]:
+          - generic [ref=f2e167]:
+            - generic [ref=f2e168]:
+              - paragraph [ref=f2e169]: Welcome
+              - heading "Select Viewing Mode" [level=2] [ref=f2e170]
+              - paragraph [ref=f2e171]: Explore on your own, or choose an AI companion to guide you through the works.
+            - region "Visitor controls" [ref=f2e173]:
+              - button "Visitor controls" [expanded] [ref=f2e174]:
+                - text: Visitor controls
+                - generic [aria-hidden] [ref=f2e175]: −
+              - generic [ref=f2e176]:
+                - list [ref=f2e177]:
+                  - listitem [ref=f2e178]:
+                    - strong [ref=f2e179]: 1. Move and look around
+                    - paragraph [ref=f2e180]: Click the gallery, use WASD to move and the mouse to look around. Press Esc to release the mouse and use the buttons.
+                  - listitem [ref=f2e181]:
+                    - strong [ref=f2e182]: 2. Explore a work
+                    - paragraph [ref=f2e183]: Click a work to read its details. Close the details to continue exploring.
+                  - listitem [ref=f2e184]:
+                    - strong [ref=f2e185]: 3. Open your guide
+                    - paragraph [ref=f2e186]: Choose AI Companion to ask questions. After closing the panel, reopen it with the guide button at the top right.
+                - button "Got it, hide tips" [ref=f2e187]
+            - generic [ref=f2e188]:
+              - button "Solo mode, Agent NPC disabled" [pressed] [ref=f2e189]:
+                - generic [ref=f2e197]: Solo Mode
+                - paragraph [ref=f2e198]: Focus on free viewing without Agent NPC.
+              - button "AI Companion mode, Agent NPC enabled" [ref=f2e199]:
+                - generic [ref=f2e204]: AI Companion
+                - paragraph [ref=f2e205]: Explore with a companion at your pace. When you pause, it offers a little context. Choose quiet company or a guided route whenever you like.
+          - button "Confirm viewing mode selection" [ref=f2e207]: Confirm
+      - button "Return to entrance" [ref=f2e208]
+      - generic:
+        - button "Exit View" [ref=f2e209]
+        - generic:
+          - paragraph: Learning exhibition acceptance
+          - paragraph: Welcome to this virtual exhibition.
+          - generic:
+            - generic: Acceptance user
+            - generic: 2026/9/26
+  - region "Notifications alt+T"

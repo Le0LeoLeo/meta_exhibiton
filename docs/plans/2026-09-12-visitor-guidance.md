@@ -1,0 +1,20 @@
+# Visitor guidance implementation plan
+
+**Goal:** Help first-time visitors learn movement, artwork interaction and guide access, and make contextual guide questions and next-work recommendations easy to use.
+
+**Architecture:** Add a small reusable, localized help disclosure to the participation selector and existing viewing help area. Remember completion separately for desktop/touch controls with optional local preference storage. Improve the existing AgentChatPanel shortcuts rather than adding another chat interface. Use existing focus resolution, request handling and route recommendation primitives; never auto-start a tour when asking for a recommendation.
+
+1. Add Traditional Chinese, Simplified Chinese and English guidance copy and a reusable VisitorHelp component. Show it expanded once in the mode selector; retain a collapsed help control during viewing.
+2. Move contextual shortcuts to the top of the agent panel, disable artwork questions without a current work or during a reply, and label the current focus. Offer a local next-work suggestion using the existing complete route order, with explicit navigation confirmation.
+3. Test help persistence/storage failure/device copy, selected-work question scope, empty/single-work recommendations and no automatic movement. Run existing viewing/agent/demo tests, typecheck, lint and HK bundle budgets.
+4. Verify first entry/re-entry, shortcuts, guest responses and desktop/mobile layouts in the browser. Package a fresh whitelisted release, confirm no backend/deployment differences, deploy the existing web service and check public asset hashes, readiness, TLS and redirects. Preserve user data, environment, existing worktree and backups; no Git commit/push.
+
+## Completed — 2026-09-12 14:58 HKT
+
+- Added reusable three-step visitor help in Traditional Chinese, Simplified Chinese and English, with separate optional desktop/touch completion preferences and a reopen control during viewing.
+- Moved contextual questions and recommendations to the top of the existing guide. Questions bind to the currently inspected/nearby work; absent focus and pending replies disable them. Local recommendations exclude the current work and start a route only after the visitor clicks the existing navigation action.
+- Validation: 65 tests across six visitor/guide/demo/catalog files passed; typecheck, lint, fresh Hong Kong build and release bundle budgets passed. Browser acceptance covered desktop and 390 × 844 responsive layouts, first entry, returning with collapsed help, reopening help, no-focus disabled questions, offline guest recommendations and explicit tour start with panel dismissal. Responsive checks were browser emulation, not a physical phone test. Selected-work request binding and busy-state behavior were verified in component tests; no fresh remote-model availability claim.
+- Formal site browser acceptance confirmed Traditional Chinese help and local recommendation of 有柏樹的麥田 while the tour remained idle until explicit action. Public verification passed 220 file hashes, homepage prerender, isolated deep-link shell, trusted HTTPS, readiness and www/index redirects at `2026-09-12T06:58:01.672Z`.
+- Whitelisted release: 453 files, no backend or deployment configuration delta. Archive SHA256: `8b99a82cf6c37829a13db6436b752f420ad6d71eec9281806321dcff8c395408`.
+- Production source remains `/home/admin/meta-exb-hk-production-20260904/source`. Web image: `sha256:6ce733844c8016c05984ba8fa663b8f1d817eb88aa985fbc89698811802642e9`; unchanged healthy backend: `sha256:542698bfbded216582915d4f789f025b328abb5b6b754e5d4e577552eb7ead7f`. Only public website ports 80/443 are mapped. Environment checksum/mode, data and volumes preserved.
+- Release retained at `/home/admin/meta-exb-hk-visitor-guidance-20260912`; previous source at `/home/admin/meta-exb-hk-production-20260904/source.pre-visitor-guidance-20260912`; previous web image tagged `meta-exb-hk-production-web:pre-visitor-guidance-20260912`. Rollback, if needed: `sh /home/admin/visitor-guidance-tools-20260912/rollback.sh production` through the dedicated SSH configuration. No Git commit or push.

@@ -1,8 +1,30 @@
+import type {
+  ExhibitItem,
+  FloorPlanElement,
+  RoomSize,
+  WallMaterialSettings,
+} from "../types";
+import type { AvatarAppearanceV1 } from "../avatar/avatarAppearance";
+import type { AvatarPose } from "../avatar/avatarPose";
+import type { AvatarEmoteState } from "../avatar/avatarEmote";
+
 export type Vec3 = { x: number; y: number; z: number };
+
+export type MultiplayerRole = "viewer" | "participant" | "editor" | "owner";
+
+export type RoomErrorPayload = {
+  code: string;
+  message: string;
+  roomId?: string;
+  clientOpId?: string;
+  clientSyncId?: string;
+};
 
 export type RoomJoinPayload = {
   roomId: string;
   nickname: string;
+  appearance?: AvatarAppearanceV1;
+  shareToken?: string;
 };
 
 export type PlayerMovePayload = {
@@ -11,20 +33,40 @@ export type PlayerMovePayload = {
   t: number;
   position: Vec3;
   yaw: number;
+  pose?: AvatarPose;
+  emote?: AvatarEmoteState;
+  emoteNonce?: number;
 };
 
 export type PlayerSnapshot = {
   id: string;
   nickname: string;
+  appearance: AvatarAppearanceV1;
   position: Vec3;
   yaw: number;
+  pose?: AvatarPose;
+  emote?: AvatarEmoteState;
+  emoteNonce?: number;
   lastSeq: number;
+  updatedAt: number;
+};
+
+export type PlayerAppearancePayload = {
+  roomId: string;
+  appearance: AvatarAppearanceV1;
+};
+
+export type PlayerAppearanceChangedPayload = {
+  roomId: string;
+  id: string;
+  appearance: AvatarAppearanceV1;
   updatedAt: number;
 };
 
 export type RoomJoinedPayload = {
   selfId: string;
   roomId: string;
+  role: MultiplayerRole;
   players: PlayerSnapshot[];
 };
 
@@ -40,6 +82,9 @@ export type PlayerMovedPayload = {
   t: number;
   position: Vec3;
   yaw: number;
+  pose?: AvatarPose;
+  emote?: AvatarEmoteState;
+  emoteNonce?: number;
   updatedAt: number;
 };
 
@@ -65,23 +110,27 @@ export type ChatMessagePayload = {
 };
 
 export type SceneSnapshot = {
-  roomSize: any;
-  items: any[];
-  floorPlanElements: any[];
-  wallMaterialOverrides: Record<string, any>;
+  roomSize: RoomSize;
+  items: ExhibitItem[];
+  floorPlanElements: FloorPlanElement[];
+  wallMaterialOverrides: Record<string, Partial<WallMaterialSettings>>;
 };
 
 export type SceneSyncPayload = {
   roomId: string;
   by: string;
   scene: SceneSnapshot;
+  clientSyncId?: string;
+  version: number;
   updatedAt: number;
 };
 
 export type SceneOp =
-  | { kind: "set-room"; roomSize: any }
-  | { kind: "add-item"; item: any }
-  | { kind: "update-item"; id: string; updates: Record<string, any> }
+  | { kind: "set-room"; roomSize: RoomSize }
+  | { kind: "set-floor-plan"; floorPlanElements: FloorPlanElement[] }
+  | { kind: "set-wall-material-overrides"; wallMaterialOverrides: Record<string, Partial<WallMaterialSettings>> }
+  | { kind: "add-item"; item: ExhibitItem }
+  | { kind: "update-item"; id: string; updates: Partial<ExhibitItem> }
   | { kind: "remove-item"; id: string };
 
 export type SceneOpEnvelope = {
@@ -95,12 +144,14 @@ export type SceneOpPayload = {
   by: string;
   clientOpId: string;
   op: SceneOp;
+  version: number;
   updatedAt: number;
 };
 
 export type SceneOpAckPayload = {
   roomId: string;
   clientOpId: string;
+  version: number;
   updatedAt: number;
 };
 
@@ -108,5 +159,6 @@ export type SceneFocusPayload = {
   roomId: string;
   by: string;
   itemId: string | null;
+  nickname?: string;
   updatedAt: number;
 };

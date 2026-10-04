@@ -1,0 +1,31 @@
+.museum-home .home-showcase { position: relative; isolation: isolate; max-width: none; }
+.gallery-atmosphere { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; contain: paint; --atmosphere-gold: #b49456; --atmosphere-green: #789889; }
+.gallery-atmosphere-wash { position: absolute; inset: -15%; background: radial-gradient(ellipse at 12% 30%, color-mix(in srgb, var(--atmosphere-gold) 22%, transparent), transparent 46%), radial-gradient(ellipse at 88% 70%, color-mix(in srgb, var(--atmosphere-green) 17%, transparent), transparent 43%); }
+.gallery-atmosphere-window { position: absolute; width: 95%; height: 160%; right: -26%; top: -48%; transform: rotate(-28deg); transform-origin: center; background: linear-gradient(90deg, transparent 5%, color-mix(in srgb, var(--atmosphere-gold) 10%, transparent) 5.2%, color-mix(in srgb, var(--atmosphere-gold) 10%, transparent) 17%, transparent 17.2%, transparent 20%, color-mix(in srgb, var(--atmosphere-gold) 13%, transparent) 20.2%, color-mix(in srgb, var(--atmosphere-gold) 13%, transparent) 35%, transparent 35.2%, transparent 38%, color-mix(in srgb, var(--atmosphere-gold) 8%, transparent) 38.2%, color-mix(in srgb, var(--atmosphere-gold) 8%, transparent) 54%, transparent 54.2%); mask-image: linear-gradient(transparent, #000 26%, #000 55%, transparent 92%); }
+.gallery-atmosphere-contours { position: absolute; left: -260px; bottom: -400px; width: 660px; height: 800px; transform: rotate(-24deg); }
+.gallery-atmosphere-contours i { position: absolute; inset: 0; border: 1px solid color-mix(in srgb, var(--atmosphere-gold) 25%, transparent); border-radius: 50%; }
+.gallery-atmosphere-contours i:nth-child(2) { inset: 30px; }
+.gallery-atmosphere-contours i:nth-child(3) { inset: 60px; }
+.gallery-atmosphere-pigment { --atmosphere-gold: #be7959; --atmosphere-green: #73968a; }
+.gallery-atmosphere-pigment .gallery-atmosphere-wash { background: radial-gradient(ellipse at 15% 80%, color-mix(in srgb, var(--atmosphere-gold) 25%, transparent), transparent 42%), radial-gradient(ellipse at 85% 20%, color-mix(in srgb, var(--atmosphere-green) 23%, transparent), transparent 45%); }
+.gallery-atmosphere-pigment .gallery-atmosphere-window { display: none; }
+.gallery-atmosphere-pigment .gallery-atmosphere-contours { left: auto; right: -260px; bottom: -500px; }
+.dark .gallery-atmosphere { --atmosphere-gold: #d4b477; --atmosphere-green: #729a90; }
+.dark .gallery-atmosphere-wash { opacity: .65; }
+.dark .gallery-atmosphere-window { opacity: .65; }
+@keyframes gallery-wash-drift { from { transform: translate3d(-3%, -2%, 0) scale(1); } to { transform: translate3d(4%, 3%, 0) scale(1.06); } }
+@keyframes gallery-window-drift { from { transform: translate3d(-3%, 0, 0) rotate(-28deg); opacity: .55; } to { transform: translate3d(5%, 3%, 0) rotate(-23deg); opacity: 1; } }
+@keyframes gallery-contour-drift { from { transform: translate3d(0, 0, 0) rotate(-24deg); } to { transform: translate3d(24px, -18px, 0) rotate(-17deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  .gallery-atmosphere-wash { animation: gallery-wash-drift 18s ease-in-out infinite alternate; }
+  .gallery-atmosphere-window { animation: gallery-window-drift 22s ease-in-out infinite alternate; }
+  .gallery-atmosphere-contours { animation: gallery-contour-drift 26s ease-in-out infinite alternate; }
+  .gallery-atmosphere-pigment .gallery-atmosphere-wash { animation-delay: -9s; }
+  .gallery-atmosphere > * { animation-play-state: paused; }
+  .gallery-atmosphere[data-running="true"] > * { animation-play-state: running; }
+}
+@media (max-width: 650px) {
+  .gallery-atmosphere-window { width: 170%; right: -70%; opacity: .7; }
+  .gallery-atmosphere-contours { left: -430px; opacity: .6; }
+  .gallery-atmosphere-pigment .gallery-atmosphere-contours { left: auto; right: -460px; }
+}

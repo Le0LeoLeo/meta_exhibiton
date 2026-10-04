@@ -1,0 +1,12 @@
+services:
+  app:
+    environment:
+      METAEXB_STAGING_ONLY: "1"
+  web:
+    command: [caddy, run, --config, /etc/caddy/Caddyfile.staging, --adapter, caddyfile]
+    networks:
+      default:
+        aliases: [metaexb.com]
+networks:
+  default:
+    internal: true
