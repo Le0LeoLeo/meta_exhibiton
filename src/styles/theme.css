@@ -58,6 +58,8 @@
 .dark {
   --home-red: #c44636;
   --curator-brass: #bca374;
+  /* Lighter link blue for dark surfaces (≈7:1 on --card); the light value is only 2.6:1 here. */
+  --tool-blue: #8db0e0;
   --background: #201f1b;
   --foreground: #f0ece2;
   --card: #25241f;
@@ -214,4 +216,14 @@
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
+}
+
+/* The brand red is a fill colour (white text on it stays readable), but as text on dark
+ * surfaces it is only ~2.8:1. Lighten red text in dark mode without touching fills. */
+.dark .text-primary {
+  color: #eb9486;
+}
+/* Same for the dark destructive red, which is near-black as text (error messages, warnings). */
+.dark .text-destructive {
+  color: #f09a8c;
 }

@@ -189,7 +189,7 @@ export default function Login() {
             <div className="mt-5 text-center">
               <p className="text-sm text-muted-foreground">
                 {t('noAccount')}{' '}
-                <Link to={authPageLink('register', returnTo)} className="text-tool-blue transition-colors hover:text-foreground">{t('registerNow')}</Link>
+                <Link to={authPageLink('register', returnTo)} className="text-tool-blue underline underline-offset-4 transition-colors hover:text-foreground">{t('registerNow')}</Link>
               </p>
             </div>
           </div>
