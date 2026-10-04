@@ -37,3 +37,9 @@ it('distinguishes expired links from network failures and preserves retry inputs
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('resetRetry'));
   expect(screen.getByLabelText('resetPassword')).toHaveValue('new-password');
 });
+it('explains when email reset is not configured instead of blaming the connection', async () => {
+  vi.mocked(requestPasswordReset).mockRejectedValue(Object.assign(new Error('unavailable'), { status: 503, code: 'RESET_UNAVAILABLE' }));
+  show(); fireEvent.change(screen.getByLabelText('email'), { target: { value: 'user@example.com' } });
+  fireEvent.click(screen.getByRole('button', { name: 'resetSend' }));
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('resetUnavailable'));
+});
