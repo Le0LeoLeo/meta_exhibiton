@@ -204,6 +204,35 @@ describe("AgentChatPanel guided tour", () => {
     expect(vi.mocked(requestAgentReply).mock.calls[1][1].exhibit?.id).toBe(selected.id);
   });
 
+  it('asks about the current tour stop when the visitor is not near another work', async () => {
+    const stop = makeItem({ id: 'tour-stop', title: 'Tour stop', position: [20, 1.5, 0] });
+    resetPanelState([makeItem({ id: 'other', position: [-20, 1.5, 0] }), stop]);
+    useLocalPlayerStore.setState({ position: { x: 0, y: 1.6, z: 0 } });
+    useStore.setState((state) => ({ agent: { ...state.agent, tourSession: {
+      tourRunId: 'tour-1', status: 'running', routeExhibitIds: ['tour-stop', 'other'], currentStopIndex: 0,
+      currentExhibitId: 'tour-stop', arrivedExhibitId: null, lastExplainedExhibitId: null,
+    } } }));
+    render(<AgentChatPanel />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'What did the student learn?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
+    await waitFor(() => expect(requestAgentReply).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(requestAgentReply).mock.calls[0][1].exhibit?.id).toBe('tour-stop');
+  });
+
+  it('prefers the work beside the visitor over the tour stop', async () => {
+    resetPanelState([makeItem({ id: 'beside', position: [0, 1.5, 0] }), makeItem({ id: 'tour-stop', position: [20, 1.5, 0] })]);
+    useLocalPlayerStore.setState({ position: { x: 0, y: 1.6, z: 0 } });
+    useStore.setState((state) => ({ agent: { ...state.agent, tourSession: {
+      tourRunId: 'tour-1', status: 'arrived', routeExhibitIds: ['tour-stop'], currentStopIndex: 0,
+      currentExhibitId: 'tour-stop', arrivedExhibitId: 'tour-stop', lastExplainedExhibitId: null,
+    } } }));
+    render(<AgentChatPanel />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Tell me about this.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'acp.send' }));
+    await waitFor(() => expect(requestAgentReply).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(requestAgentReply).mock.calls[0][1].exhibit?.id).toBe('beside');
+  });
+
   it('tells signed-out visitors that replies are built in, not from the AI model', () => {
     resetPanelState([makeItem({ id: 'work' })]);
     const { unmount } = render(<AgentChatPanel />);

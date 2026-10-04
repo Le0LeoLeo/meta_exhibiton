@@ -104,14 +104,21 @@ export function AgentChatPanel() {
       && snapshot.items.some((item) => item.id === requestedOneTimeFocus.itemId)
       ? requestedOneTimeFocus.itemId
       : null;
+    const hasNearbyFocus = Boolean(resolveVisitorFocus(snapshot.items, [position.x, position.y, position.z], null));
     const followUpFocus = followUpFocusRef.current;
     const followUpFocusId = followUpFocus && followUpFocus.sessionId === initial.memory.sessionId
       && snapshot.items.some((item) => item.id === followUpFocus.itemId)
-      && !resolveVisitorFocus(snapshot.items, [position.x, position.y, position.z], null)
+      && !hasNearbyFocus
       ? followUpFocus.itemId
       : null;
+    // During a tour the current stop is the work being discussed unless the visitor stands at another one.
+    const tourStopId = initial.tourSession.currentExhibitId;
+    const tourFocusId = ['running', 'arrived'].includes(initial.tourSession.status) && tourStopId
+      && snapshot.items.some((item) => item.id === tourStopId) && !hasNearbyFocus
+      ? tourStopId
+      : null;
     const pickedExhibitId = exhibitIdOverride ?? validOneTimeFocusId ?? snapshot.viewingItem?.id ?? null;
-    const explicitExhibitId = pickedExhibitId ?? followUpFocusId;
+    const explicitExhibitId = pickedExhibitId ?? followUpFocusId ?? tourFocusId;
     followUpFocusRef.current = pickedExhibitId ? { sessionId: initial.memory.sessionId, itemId: pickedExhibitId } : followUpFocusId ? followUpFocus : null;
     const observedExhibit = resolveVisitorFocus(snapshot.items, [position.x, position.y, position.z], explicitExhibitId);
     const payload = buildVisitorAwareRequest({

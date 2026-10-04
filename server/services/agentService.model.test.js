@@ -59,6 +59,14 @@ describe('grounded conversational model request', () => {
     expect(messages[0].content).toMatch(/private CV\/profile sources/i);
   });
 
+  it('uses the creator notes when the model is unavailable', async () => {
+    create.mockRejectedValue(new Error('provider failure'));
+    const result = await generateAgentReply({ question: 'What did the student learn?', personality: 'xiaobai', exhibit: { id: 'a', title: 'Light', workContext: { reflection: 'I learned to cite every date.' } }, exhibitImage: 'data:image/jpeg;base64,YQ==', visitorState: { preferredLanguage: 'en' } });
+    expect(result.source).toBe('fallback');
+    expect(result.answer).toContain('could not read the image');
+    expect(result.answer).toContain('I learned to cite every date.');
+  });
+
   it('falls back on an empty successful model response', async () => {
     create.mockResolvedValue({ choices: [{ message: { content: '  ' } }] });
     const result = await generateAgentReply({ question: 'Introduce it', personality: 'xiaobai', exhibit: { id: 'a', title: 'Light', description: 'A study of light.' }, visitorState: { preferredLanguage: 'en' } });

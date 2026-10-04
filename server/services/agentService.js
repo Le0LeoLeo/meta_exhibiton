@@ -233,6 +233,17 @@ function buildRecommendation({ exhibit, nearbyExhibits = [], visitorState = {} }
   };
 }
 
+// Keep in step with the browser fallback in src/app/modules/metaverse3d/agent/response.ts.
+// Checked in order, so "what did they learn after changing it" is answered as a reflection.
+const WORK_CONTEXT_QUESTIONS = [
+  { field: 'reflection', pattern: /學到|學會|反思|收穫|learn|reflect|takeaway/i, en: 'reflection', zh: '反思' },
+  { field: 'process', pattern: /過程|怎樣做|怎麼做|修改|改了|改正|更正|回饋|process|how .*(made|make|created)|chang|fix|correct|feedback|revis/i, en: 'process', zh: '製作過程' },
+  { field: 'outcome', pattern: /成果|結果|產出|outcome|result|produce|final/i, en: 'outcome', zh: '成果' },
+  { field: 'contribution', pattern: /貢獻|負責|角色|分工|contribut|role|responsib|part did/i, en: 'contribution', zh: '個人貢獻' },
+];
+
+const clip = (text, limit) => text.length > limit ? `${text.slice(0, limit)}…` : text;
+
 function buildFallbackReply({ question, personality, exhibit, recommendation, visitorState = {}, userPreferences }) {
   const en = isEnglish(visitorState);
   const title = exhibit?.title || (en ? 'this work' : '這件作品');
@@ -251,15 +262,37 @@ function buildFallbackReply({ question, personality, exhibit, recommendation, vi
       ? en ? `${title} was created by ${exhibit.artist}.` : `「${title}」的作者是 ${exhibit.artist}。`
       : en ? `The available information does not name the artist of ${title}.` : `「${title}」目前沒有提供作者資料，我不想替它猜一個名字。`;
   }
+  const limit = userPreferences?.answerLength === 'deep' || personality === 'expert' ? 600 : 280;
+  const context = exhibit.workContext;
+  if (context?.sources?.length && /來源|參考|出處|資料從哪|source|reference|cite|evidence/i.test(question)) {
+    const sources = context.sources.map((source) => source.excerpt
+      ? en ? `${source.label} (supplied excerpt: "${clip(source.excerpt, 200)}")` : `${source.label}（提供的摘錄：「${clip(source.excerpt, 200)}」）`
+      : source.label);
+    return en
+      ? `The creator lists these sources for ${title}: ${sources.join('; ')}. I have not opened any linked pages, so please check them yourself.`
+      : `創作者為「${title}」列出的參考資料：${sources.join('；')}。我沒有開啟任何連結，請自行核對。`;
+  }
+  const asked = WORK_CONTEXT_QUESTIONS.find(({ field, pattern }) => context?.[field] && pattern.test(question));
+  if (asked) {
+    const answer = clip(context[asked.field], limit);
+    return en
+      ? `In the creator's own notes on ${title} (${asked.en}): ${answer} This is their account, not an independently checked fact.`
+      : `根據創作者對「${title}」的自述（${asked.zh}）：${answer} 這是創作者的說法，並未經獨立核實。`;
+  }
+  const availableFields = WORK_CONTEXT_QUESTIONS.filter(({ field }) => context?.[field]);
+  const invitation = availableFields.length
+    ? en
+      ? ` The creator also shared their ${availableFields.map(({ en: label }) => label).join(', ')}. Ask about any of them.`
+      : `創作者另外記錄了${availableFields.map(({ zh }) => zh).join('、')}，可以問問看。`
+    : '';
   const description = exhibit.description?.trim();
   if (!description) return en
-    ? `${title} has little written context available. What draws your attention to it? We can start there without guessing its background.`
-    : `「${title}」的文字資料還不多。你最先注意到的是什麼？我們可以從那裡開始，不急著替作品下定論。`;
-  const limit = userPreferences?.answerLength === 'deep' || personality === 'expert' ? 600 : 280;
-  const summary = description.length > limit ? `${description.slice(0, limit)}…` : description;
+    ? `${title} has little written description.${invitation || ' What draws your attention to it? We can start there without guessing its background.'}`
+    : `「${title}」的文字介紹還不多。${invitation || '你最先注意到的是什麼？我們可以從那裡開始，不急著替作品下定論。'}`;
+  const summary = clip(description, limit);
   const prefix = personality === 'humor' ? en ? "Let's give this one a moment. " : '先把趕行程模式關一下。' : '';
-  return en ? `${prefix}${title}${exhibit.artist ? ` by ${exhibit.artist}` : ''}: ${summary}`
-    : `${prefix}「${title}」${exhibit.artist ? `，作者是 ${exhibit.artist}` : ''}。${summary}`;
+  return en ? `${prefix}${title}${exhibit.artist ? ` by ${exhibit.artist}` : ''}: ${summary}${invitation}`
+    : `${prefix}「${title}」${exhibit.artist ? `，作者是 ${exhibit.artist}` : ''}。${summary}${invitation}`;
 }
 
 export async function generateAgentReply({

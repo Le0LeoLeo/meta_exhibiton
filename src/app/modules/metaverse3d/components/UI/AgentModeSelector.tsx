@@ -8,7 +8,7 @@ import { useTouchControls } from '../../input/useTouchControls';
 import { VisitorHelp, completeVisitorHelp } from './VisitorHelp';
 
 export function AgentModeSelector({ onEnter, landscapeOnEnter = false }: { onEnter?: () => void; landscapeOnEnter?: boolean }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const touch = useTouchControls();
   const agent = useStore((state) => state.agent);
   const setAgent = useStore((state) => state.setAgent);
@@ -84,7 +84,7 @@ export function AgentModeSelector({ onEnter, landscapeOnEnter = false }: { onEnt
               if (pendingMode === "solo") {
                 setAgent({ participationMode: "solo", enabled: false, followUser: false, mode: "idle", isChatOpen: false });
               } else {
-                setAgent({ participationMode: "ai", enabled: true, followUser: true, mode: "follow", isChatOpen: true, activeExhibit: null, position: [0, 0.15, 0], rotationY: 0 });
+                setAgent({ participationMode: "ai", enabled: true, followUser: true, mode: "follow", isChatOpen: true, activeExhibit: null, position: [0, 0.15, 0], rotationY: 0, preferredLanguage: locale });
               }
               setAllowPointerLock(true);
               setHasSelectedParticipationMode(true);

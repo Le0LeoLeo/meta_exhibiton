@@ -99,6 +99,41 @@ describe('generateAgentReply', () => {
       expectNoMojibake(result.answer);
     });
 
+    describe('creator work context', () => {
+      const exhibit = {
+        id: 'wave', title: 'Under the Wave', description: 'Label by Ava. A woodblock print.',
+        workContext: {
+          contribution: 'I wrote the label.',
+          process: 'Ben noticed I had written 1850, so I fixed the date to about 1830–32.',
+          reflection: 'I learned to write down where every date comes from.',
+          sources: [{ label: 'The Met record', url: 'https://example.org/wave', excerpt: 'about 1830–32' }],
+        },
+      };
+      const ask = (question, preferredLanguage = 'en') => generateAgentReply({ question, personality: 'expert', exhibit, visitorState: { preferredLanguage } });
+
+      it('answers process and learning questions from the creator notes as the creator account', async () => {
+        const process = await ask('Why did the student change the date?');
+        expect(process.answer).toContain('Ben noticed I had written 1850');
+        expect(process.answer).toContain('not an independently checked fact');
+        const reflection = await ask('學生學到什麼？', 'zh-TW');
+        expect(reflection.answer).toContain('根據創作者對「Under the Wave」的自述（反思）');
+        expect(reflection.answer).toContain('這是創作者的說法');
+        expectNoMojibake(reflection.answer);
+      });
+
+      it('lists sources without claiming to have opened them', async () => {
+        const result = await ask('What sources did they use?');
+        expect(result.answer).toContain('The Met record (supplied excerpt: "about 1830–32")');
+        expect(result.answer).toContain('I have not opened any linked pages');
+      });
+
+      it('invites questions about the recorded learning story for a general question', async () => {
+        const result = await ask('Introduce this work');
+        expect(result.answer).toContain('Under the Wave: Label by Ava.');
+        expect(result.answer).toContain('The creator also shared their reflection, process, contribution.');
+      });
+    });
+
     it('handles empty questions with a readable prompt', async () => {
       const result = await generateAgentReply({
         question: '',
