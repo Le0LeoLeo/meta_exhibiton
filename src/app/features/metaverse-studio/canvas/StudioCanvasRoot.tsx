@@ -12,6 +12,7 @@ import { useScenePreloader } from "./useScenePreloader";
 import type { ItemInteractionDescriptor } from "../../../modules/metaverse3d/interaction/itemInteraction";
 import { useBuilderPreviewStore } from "../../../modules/metaverse3d/aiBuilder/builderPreviewStore";
 import { useI18n } from "../../../components/I18nProvider";
+import { localizeInteractionPrompt } from "../../../modules/metaverse3d/items/interactionPromptKeys";
 
 const CenterReticle = memo(function CenterReticle() {
   return (
@@ -151,7 +152,7 @@ export function StudioCanvasRoot({ onUse2D }: { onUse2D?: () => void }) {
           <kbd className="rounded border border-white/25 bg-white/10 px-2 py-0.5 font-mono text-xs">
             E
           </kbd>
-          <span>{nearbyInteraction.prompt}</span>
+          <span>{localizeInteractionPrompt(nearbyInteraction.prompt, t)}</span>
         </div>
       )}
 

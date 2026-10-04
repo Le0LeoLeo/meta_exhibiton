@@ -1504,6 +1504,7 @@ export const zhTW = {
     visitorChatOnline: '{count} 人在場',
     visitorChatUnread: '{count} 則新訊息',
     visitorChatEmpty: '暫時沒有訊息。打個招呼，或向創作者問問作品吧。',
+    visitorChatEmptyReadOnly: '暫時沒有訊息。',
     visitorChatPlaceholder: '傳訊息給展廳內所有人',
     visitorChatSend: '傳送',
     visitorChatReadOnly: '你可以閱讀聊天，但不能傳送訊息。',

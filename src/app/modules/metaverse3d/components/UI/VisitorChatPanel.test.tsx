@@ -61,5 +61,7 @@ describe("VisitorChatPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "visitorChatOpen" }));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("visitorChatReadOnly");
+    // Viewers cannot post, so the empty state must not invite them to say hello.
+    expect(screen.getByRole("log")).toHaveTextContent("visitorChatEmptyReadOnly");
   });
 });

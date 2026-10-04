@@ -1448,6 +1448,7 @@ export const zhCN = {
     visitorChatOnline: '{count} 人在场',
     visitorChatUnread: '{count} 条新消息',
     visitorChatEmpty: '暂时没有消息。打个招呼，或向创作者问问作品吧。',
+    visitorChatEmptyReadOnly: '暂时没有消息。',
     visitorChatPlaceholder: '发消息给展厅内所有人',
     visitorChatSend: '发送',
     visitorChatReadOnly: '你可以阅读聊天，但不能发送消息。',
