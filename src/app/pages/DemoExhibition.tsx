@@ -60,7 +60,7 @@ function DemoExhibitionContent({ exhibition, initialIndex }: { exhibition: typeo
         </div>
         {!supported && <p role="status" className="mb-4 text-sm text-muted-foreground">{t('demo3DUnavailable')}</p>}
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="h-[48vh] min-h-72 overflow-hidden rounded-lg border border-border bg-card sm:h-[58vh]" aria-label={t('demoGallery')}>
+          <div className="h-[48vh] min-h-72 overflow-hidden rounded-lg border border-border bg-card sm:h-[58vh]" role="region" aria-label={t('demoGallery')}>
             {mode === '3d' ? <DemoCanvasBoundary fallback={fallback}><Suspense fallback={<p role="status" className="p-6">{t('viewSceneLoading')}</p>}><GalleryScenePreview scene={scene} focusedIndex={index} fallback={fallback} /></Suspense></DemoCanvasBoundary> : <img src={selected.content} alt={selected.title} className="h-full w-full object-contain p-4" />}
           </div>
           <aside className="rounded-lg border border-border bg-card p-5" aria-label={t('demoDetails')}>

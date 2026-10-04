@@ -182,9 +182,9 @@ export default function Register() {
                 <Checkbox id="terms" className="mt-1" checked={agreeTerms} onCheckedChange={(c) => { setAgreeTerms(c as boolean); setErrors((p) => ({ ...p, terms: '' })); }} />
                 <label htmlFor="terms" className="cursor-pointer text-sm text-muted-foreground">
                   {t('termsPrefix')}{' '}
-                  <Link to="/terms" className="text-tool-blue transition-colors hover:text-foreground" onClick={(event) => event.stopPropagation()}>{t('terms')}</Link>
+                  <Link to="/terms" className="text-tool-blue underline underline-offset-4 transition-colors hover:text-foreground" onClick={(event) => event.stopPropagation()}>{t('terms')}</Link>
                   {' / '}
-                  <Link to="/privacy" className="text-tool-blue transition-colors hover:text-foreground" onClick={(event) => event.stopPropagation()}>{t('privacyPolicy')}</Link>
+                  <Link to="/privacy" className="text-tool-blue underline underline-offset-4 transition-colors hover:text-foreground" onClick={(event) => event.stopPropagation()}>{t('privacyPolicy')}</Link>
                 </label>
               </motion.div>
               {errors.terms && <motion.p className="text-xs text-destructive" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{errors.terms}</motion.p>}
@@ -221,7 +221,7 @@ export default function Register() {
             <div className="mt-5 text-center">
               <p className="text-sm text-muted-foreground">
                 {t('haveAccount')}{' '}
-                <Link to={authPageLink('login', returnTo)} className="text-tool-blue transition-colors hover:text-foreground">{t('loginNow')}</Link>
+                <Link to={authPageLink('login', returnTo)} className="text-tool-blue underline underline-offset-4 transition-colors hover:text-foreground">{t('loginNow')}</Link>
               </p>
             </div>
 
