@@ -549,3 +549,41 @@ describe('QuickExhibitionCreate orchestration', () => {
     expect(api.publish).not.toHaveBeenCalled();
   });
 });
+
+describe('QuickExhibitionCreate step guidance', () => {
+  const scrolled: string[] = [];
+
+  beforeEach(() => {
+    for (const mock of Object.values(api)) mock.mockReset();
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem('metaexpo-locale', 'en');
+    scrolled.length = 0;
+    Element.prototype.scrollIntoView = function scrollIntoView(this: Element) { scrolled.push(this.tagName); };
+  });
+
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+    sessionStorage.clear();
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+  });
+
+  it('brings the template choice and then the preview into view as the user advances', async () => {
+    fakeServer();
+    renderPage();
+    selectFiles('first.png');
+
+    await waitFor(() => expect(scrolled).toEqual(['FIELDSET']));
+    await preview();
+    await waitFor(() => expect(scrolled).toEqual(['FIELDSET', 'SECTION']));
+  });
+
+  it('does not jump when reopening a draft that already has a preview', async () => {
+    fakeServer(completedDraft(draftFixture([artwork('saved.png')])));
+    renderPage('saved-draft');
+
+    await screen.findByRole('region', { name: 'Rendered exhibition preview' });
+    expect(scrolled).toEqual([]);
+  });
+});

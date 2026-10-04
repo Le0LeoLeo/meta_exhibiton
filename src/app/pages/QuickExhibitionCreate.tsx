@@ -1,5 +1,5 @@
 import { recordJourney, useJourneyStep } from '@/app/features/journey-analytics/journey';
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { ArrowLeft, Check, Copy, ExternalLink, LoaderCircle } from 'lucide-react';
 import { loadAuth } from '@/app/api/auth';
@@ -9,6 +9,11 @@ import { Button } from '@/app/components/ui/button';
 import { QuickBuildProgress, QuickUploadPanel, useQuickExhibition } from '@/app/features/quick-exhibition';
 
 const QuickExhibitionPreview = lazy(() => import('@/app/features/quick-exhibition/QuickExhibitionPreview').then((module) => ({ default: module.QuickExhibitionPreview })));
+
+function scrollStepIntoView(element: HTMLElement | null) {
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  element?.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+}
 
 function browserStorage() {
   try { return window.sessionStorage; } catch { return undefined; }
@@ -38,6 +43,18 @@ export default function QuickExhibitionCreate() {
   const hasResult = Boolean(draft?.result);
   const showPreview = hasResult && !managing;
   const publicPath = draft ? `/exhibitions/${encodeURIComponent(draft.galleryId)}` : '';
+  const activeStep = published || showPreview ? 2 : items.length && items.every(item => item.status === 'succeeded') ? 1 : 0;
+  const templateRef = useRef<HTMLFieldSetElement>(null);
+  const previewRef = useRef<HTMLElement>(null);
+  const previousStep = useRef<number | null>(null);
+  // Bring the next step into view when the user advances; restoring a draft only sets the baseline.
+  useEffect(() => {
+    if (phase === 'loading') { previousStep.current = null; return; }
+    const previous = previousStep.current;
+    previousStep.current = activeStep;
+    if (previous === null || activeStep <= previous) return;
+    scrollStepIntoView(activeStep === 2 ? previewRef.current : templateRef.current);
+  }, [activeStep, phase]);
   const editorGalleryId = error?.galleryId || draft?.galleryId;
   const editorPath = editorGalleryId ? `/virtual-gallery/create?exhibitionId=${encodeURIComponent(editorGalleryId)}&mode=advanced` : '/virtual-gallery/create?mode=advanced';
   const errorKey = editorManaged ? 'quickExhibitionEditorManaged'
@@ -62,7 +79,6 @@ export default function QuickExhibitionCreate() {
         {!editorManaged && <div className="space-y-3">
           <ol aria-label={t('createSteps')} className="grid gap-2 text-sm sm:grid-cols-3">
             {['journeyUpload', 'journeyTemplate', 'journeyPreview'].map((step, index) => {
-              const activeStep = published || showPreview ? 2 : items.length && items.every(item => item.status === 'succeeded') ? 1 : 0;
               const current = index === activeStep;
               const complete = published || index < activeStep;
               return <li key={step} aria-current={current ? 'step' : undefined} className={`flex min-h-12 items-center justify-between gap-2 rounded-lg border px-3 py-3 ${current ? 'border-primary bg-primary/5 font-semibold text-foreground' : 'border-border bg-card text-muted-foreground'}`}>
@@ -87,7 +103,7 @@ export default function QuickExhibitionCreate() {
         )}
         {editorManaged ? null : phase === 'loading' ? <div role="status" className="flex min-h-64 items-center justify-center gap-3"><LoaderCircle className="size-5 animate-spin" />{t('quickExhibitionLoading')}</div>
           : showPreview && draft ? (
-            <section className="space-y-6 rounded-md border border-border bg-card p-4 sm:p-6">
+            <section ref={previewRef} className="scroll-mt-20 space-y-6 rounded-md border border-border bg-card p-4 sm:p-6">
               <Suspense fallback={<p role="status">{t('quickExhibitionLoading')}</p>}><QuickExhibitionPreview key={`${draft.draftId}:${draft.revision}`} draft={draft} /></Suspense>
               {draft.status === 'candidate_ready' && <p className="rounded-lg bg-muted p-3 text-sm">{t('quickExhibitionCandidate')}</p>}
               <div className="flex flex-wrap items-center gap-3 border-t border-border pt-5">
@@ -107,7 +123,7 @@ export default function QuickExhibitionCreate() {
               </div>}
             </section>
           ) : <section className="rounded-md border border-border bg-card p-4 sm:p-6"><QuickUploadPanel items={items} title={title} onTitleChange={controller.setTitle} onArtworkTitleChange={controller.setArtworkTitle} onArtistChange={controller.setArtist} onDescriptionChange={controller.setDescription} onSelectFiles={(files) => void controller.addFiles(files)} onRemove={controller.removeItem} onRetry={(id) => void controller.retryItem(id)} disabled={busy || published} maxAssets={draft?.limits?.maxAssets} maxFileBytes={draft?.limits?.maxFileBytes} />
-            {items.length > 0 && <fieldset disabled={busy || published || items.some(item => item.status !== 'succeeded')} className="mt-6 space-y-3 border-t border-border pt-5">
+            {items.length > 0 && <fieldset ref={templateRef} disabled={busy || published || items.some(item => item.status !== 'succeeded')} className="mt-6 scroll-mt-20 space-y-3 border-t border-border pt-5">
               <legend className="pt-5 font-medium">{t('journeyChoose')}</legend>
               <p className="text-sm text-muted-foreground">{t('journeyStyleHint')}</p>
               <div className="grid gap-3 sm:grid-cols-3">

@@ -33,7 +33,7 @@ export function QuickBuildProgress({ phase, uploadedCount, totalCount }: QuickBu
       className="mx-auto flex w-full max-w-4xl items-start gap-3 rounded-md border border-border bg-card p-4 text-card-foreground shadow-sm sm:p-5"
     >
       <StatusIcon
-        className={`mt-0.5 size-5 shrink-0 ${isBusy ? 'motion-safe:animate-spin' : ''} ${phase === 'needs_attention' ? 'text-destructive' : 'text-curator-brass'}`}
+        className={`mt-0.5 size-5 shrink-0 ${isBusy ? 'motion-safe:animate-spin' : ''} ${phase === 'needs_attention' ? 'text-destructive' : isBusy || phase === 'empty' ? 'text-curator-brass' : 'text-success-quiet'}`}
         aria-hidden="true"
       />
       <div className="min-w-0 space-y-1">
