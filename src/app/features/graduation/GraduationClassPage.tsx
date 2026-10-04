@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { graduationRequest, type ClassDetail, type GraduationRelease } from '@/app/api/graduation';
 import { Button } from '@/app/components/ui/button';
@@ -87,6 +87,8 @@ export default function GraduationClassPage() {
 export function InviteCodeCopy({ token }: { token: string }) {
   const c = useGraduationCopy();
   const [result, setResult] = useState<'copied' | 'failed' | 'link-copied' | 'link-failed' | null>(null);
+  const linkField = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (result === 'link-failed') { linkField.current?.focus(); linkField.current?.select(); } }, [result]);
   async function copy() {
     try {
       await navigator.clipboard.writeText(token);
@@ -95,9 +97,9 @@ export function InviteCodeCopy({ token }: { token: string }) {
       setResult('failed');
     }
   }
+  const link = `${window.location.origin}/graduation?invite=${encodeURIComponent(token)}#student`;
   async function copyLink() {
     try {
-      const link = `${window.location.origin}/graduation?invite=${encodeURIComponent(token)}#student`;
       await navigator.clipboard.writeText(link);
       setResult('link-copied');
     } catch {
@@ -108,5 +110,7 @@ export function InviteCodeCopy({ token }: { token: string }) {
     <Button type="button" variant="outline" onClick={() => void copy()}>{c.copyInvite}</Button>
     <Button type="button" variant="outline" onClick={() => void copyLink()}>{c.copyInviteLink}</Button>
     {result && <p role="status" className="text-sm text-muted-foreground">{result === 'copied' ? c.inviteCopied : result === 'failed' ? c.copyInviteFailed : result === 'link-copied' ? c.inviteLinkCopied : c.inviteLinkFailed}</p>}
+    {/* Clipboard access can be blocked; show the link so it can still be copied by hand. */}
+    {result === 'link-failed' && <input ref={linkField} aria-label={c.copyInviteLink} className={`${inputClass} font-mono`} readOnly value={link} onFocus={(e) => e.target.select()} />}
   </div>;
 }

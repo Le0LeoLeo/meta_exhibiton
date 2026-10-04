@@ -44,6 +44,9 @@ export default function GraduationWorkspace() {
   const [deadline, setDeadline] = useState('');
   const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(location.search).get('invite') || '');
   const [role, setRole] = useState<'teacher' | 'student'>(() => location.hash === '#teacher' ? 'teacher' : 'student');
+  const { clearError } = action;
+  // An error from one role's form (e.g. a bad invitation code) should not follow the user to the other.
+  useEffect(() => { clearError(); }, [role, clearError]);
   useEffect(() => {
     const nextRole = location.hash === '#teacher' ? 'teacher' : location.hash === '#student' ? 'student' : null;
     if (!nextRole) return;
