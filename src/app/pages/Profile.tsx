@@ -31,6 +31,9 @@ export default function Profile() {
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [nameMissing, setNameMissing] = useState(false);
+  // Field-level password feedback stays next to the form instead of a transient toast.
+  const [passwordError, setPasswordError] = useState<{ field: 'current' | 'new' | 'confirm' | null; message: string } | null>(null);
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
 
@@ -86,7 +89,8 @@ export default function Profile() {
     if (!token || !me) return;
     const trimmed = nameInput.trim();
     if (!trimmed) {
-      toast.error(t('nameRequired'));
+      setNameMissing(true);
+      document.getElementById('profile-name')?.focus();
       return;
     }
 
@@ -108,20 +112,25 @@ export default function Profile() {
   const handleChangePassword = async () => {
     if (!token) return;
 
+    const fail = (field: 'current' | 'new' | 'confirm', message: string) => {
+      setPasswordError({ field, message });
+      document.getElementById(`profile-${field === 'current' ? 'current' : field === 'new' ? 'new' : 'confirm-new'}-password`)?.focus();
+    };
     if (!currentPassword || !newPassword || !confirmNewPassword) {
-      toast.error(t('fillAllFields'));
+      fail(!currentPassword ? 'current' : !newPassword ? 'new' : 'confirm', t('fillAllFields'));
       return;
     }
 
     if (newPassword.length < 8) {
-      toast.error(t('newPasswordTooShort'));
+      fail('new', t('newPasswordTooShort'));
       return;
     }
 
     if (newPassword !== confirmNewPassword) {
-      toast.error(t('passwordMismatch'));
+      fail('confirm', t('passwordMismatch'));
       return;
     }
+    setPasswordError(null);
 
     setChangingPassword(true);
     try {
@@ -131,9 +140,11 @@ export default function Profile() {
       setConfirmNewPassword('');
       toast.success(t('passwordUpdated'));
     } catch (err) {
-      toast.error(t('passwordUpdateFailed'), {
-        description: err instanceof Error ? err.message : t('retryLater'),
-      });
+      if ((err as { code?: string } | null)?.code === 'CURRENT_PASSWORD_INCORRECT') {
+        fail('current', t('currentPasswordIncorrect'));
+      } else {
+        setPasswordError({ field: null, message: `${t('passwordUpdateFailed')}: ${err instanceof Error ? err.message : t('retryLater')}` });
+      }
     } finally {
       setChangingPassword(false);
     }
@@ -247,9 +258,6 @@ export default function Profile() {
                     <p className="mt-1 text-sm text-muted-foreground">
                       {t('avatarCustomizerDescription')}
                     </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {me.avatarAppearance.hair} · {me.avatarAppearance.top} · {me.avatarAppearance.accessory}
-                    </p>
                   </div>
                   <Button type="button" onClick={() => navigate('/avatar')}>
                     {t('avatarCustomizeAction')}
@@ -267,15 +275,19 @@ export default function Profile() {
                     </label>
                     <Input
                       id="profile-name"
-                      className="sm:max-w-xs"
+                      autoComplete="name"
+                      aria-invalid={nameMissing}
+                      aria-describedby={nameMissing ? 'profile-name-error' : undefined}
+                      className={`sm:max-w-xs ${nameMissing ? 'border-destructive' : ''}`}
                       value={nameInput}
-                      onChange={(e) => setNameInput(e.target.value)}
+                      onChange={(e) => { setNameInput(e.target.value); setNameMissing(false); }}
                       placeholder={t('profileNamePlaceholder')}
                     />
                     <Button type="button" onClick={handleSaveName} disabled={nameSaving}>
                       {nameSaving ? t('saving') : t('saveChanges')}
                     </Button>
                   </div>
+                  {nameMissing && <p id="profile-name-error" role="alert" className="mt-2 text-xs text-destructive">{t('nameRequired')}</p>}
                 </div>
 
                 {/* 修改密碼 */}
@@ -290,8 +302,12 @@ export default function Profile() {
                       <Input
                         id="profile-current-password"
                         type="password"
+                        autoComplete="current-password"
+                        aria-invalid={passwordError?.field === 'current'}
+                        aria-describedby={passwordError ? 'profile-password-error' : undefined}
+                        className={passwordError?.field === 'current' ? 'border-destructive' : undefined}
                         value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        onChange={(e) => { setCurrentPassword(e.target.value); setPasswordError(null); }}
                       />
                     </div>
                     <div>
@@ -299,8 +315,12 @@ export default function Profile() {
                       <Input
                         id="profile-new-password"
                         type="password"
+                        autoComplete="new-password"
+                        aria-invalid={passwordError?.field === 'new'}
+                        aria-describedby={passwordError ? 'profile-password-error' : undefined}
+                        className={passwordError?.field === 'new' ? 'border-destructive' : undefined}
                         value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
+                        onChange={(e) => { setNewPassword(e.target.value); setPasswordError(null); }}
                       />
                     </div>
                     <div>
@@ -308,10 +328,15 @@ export default function Profile() {
                       <Input
                         id="profile-confirm-new-password"
                         type="password"
+                        autoComplete="new-password"
+                        aria-invalid={passwordError?.field === 'confirm'}
+                        aria-describedby={passwordError ? 'profile-password-error' : undefined}
+                        className={passwordError?.field === 'confirm' ? 'border-destructive' : undefined}
                         value={confirmNewPassword}
-                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        onChange={(e) => { setConfirmNewPassword(e.target.value); setPasswordError(null); }}
                       />
                     </div>
+                    {passwordError && <p id="profile-password-error" role="alert" className="text-sm text-destructive">{passwordError.message}</p>}
                     <Button
                       type="button"
                       onClick={handleChangePassword}
@@ -339,7 +364,7 @@ export default function Profile() {
                     {t('profileDeleteDesc')}
                   </p>
                   <label htmlFor="profile-delete-confirm" className="mb-2 block text-xs text-muted-foreground">
-                    {t('profileDeleteHint')} <span className="font-mono font-semibold">DELETE</span>。
+                    {t('profileDeleteHint')} <span className="font-mono font-semibold">DELETE</span>{t('profileDeleteHintEnd')}
                   </label>
                   <div className="max-w-md space-y-3">
                     <Input

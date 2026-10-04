@@ -197,7 +197,10 @@ export async function changePassword(token: string, payload: { currentPassword: 
     body: JSON.stringify(payload),
   });
   const data = await parseJsonSafe(res);
-  if (!res.ok) throw errorFromResponse(data, '修改密碼失敗');
+  if (!res.ok) {
+    const code = typeof data === 'object' && data !== null && 'code' in data ? data.code : undefined;
+    throw Object.assign(errorFromResponse(data, '修改密碼失敗'), { code });
+  }
   saveAuth(normalizeAuthResponse(data));
   return data as { ok: true };
 }

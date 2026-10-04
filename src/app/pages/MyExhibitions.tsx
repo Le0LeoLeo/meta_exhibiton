@@ -95,6 +95,7 @@ export default function MyExhibitions() {
   const [shareGalleryId, setShareGalleryId] = useState<string | null>(null);
   const [editingGalleryId, setEditingGalleryId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [editTitleMissing, setEditTitleMissing] = useState(false);
   const [editDescription, setEditDescription] = useState('');
   const [savingEditId, setSavingEditId] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -201,18 +202,24 @@ export default function MyExhibitions() {
   const handleStartInlineEdit = (gallery: GallerySummary) => {
     setEditingGalleryId(gallery.id);
     setEditTitle(gallery.title);
+    setEditTitleMissing(false);
     setEditDescription(gallery.description || '');
   };
   const handleCancelInlineEdit = () => {
     setEditingGalleryId(null);
     setEditTitle('');
+    setEditTitleMissing(false);
     setEditDescription('');
     setSavingEditId(null);
   };
   const handleSaveInlineEdit = async (gallery: GallerySummary) => {
     const title = editTitle.trim();
     const description = editDescription.trim();
-    if (!title) return toast.error(t('pleaseEnterExhibitionName'));
+    if (!title) {
+      setEditTitleMissing(true);
+      document.getElementById(`gallery-title-${gallery.id}`)?.focus();
+      return;
+    }
     const { token } = loadAuth();
     if (!token)
       return navigate(
@@ -455,10 +462,12 @@ export default function MyExhibitions() {
                               id={`gallery-title-${item.id}`}
                               autoFocus
                               aria-label={t('exhibitionName')}
+                              aria-invalid={editTitleMissing}
+                              aria-describedby={editTitleMissing ? `gallery-title-error-${item.id}` : undefined}
                               value={editTitle}
-                              onChange={(e) => setEditTitle(e.target.value)}
+                              onChange={(e) => { setEditTitle(e.target.value); setEditTitleMissing(false); }}
                               placeholder={t('enterExhibitionName')}
-                              className="h-9 max-w-md"
+                              className={`h-9 max-w-md ${editTitleMissing ? 'border-destructive' : ''}`}
                               maxLength={120}
                               disabled={savingEditId === item.id}
                             />
@@ -475,6 +484,11 @@ export default function MyExhibitions() {
                               : t('unpublished')}
                           </span>
                         </div>
+                        {editingGalleryId === item.id && editTitleMissing && (
+                          <p id={`gallery-title-error-${item.id}`} role="alert" className="mt-1 text-xs text-destructive">
+                            {t('pleaseEnterExhibitionName')}
+                          </p>
+                        )}
                         {editingGalleryId === item.id ? (
                           <div className="mt-3 max-w-2xl space-y-2">
                             <label className="block text-xs font-medium text-muted-foreground">

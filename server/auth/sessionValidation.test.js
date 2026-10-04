@@ -84,3 +84,24 @@ describe('persisted session versions', () => {
     expect((await fetch(`${base}/api/private`, { headers: { authorization: 'Bearer fresh' } })).status).toBe(200);
   });
 });
+
+describe('password change errors', () => {
+  it('reports a wrong current password with a stable code the client can map to a field', async () => {
+    const jwt = createJwtHelpers({ secret: 'test-password-error-secret' });
+    const user = { id: 'owner', email: 'owner@example.invalid', name: 'Owner', session_version: 0, password_hash: await bcrypt.hash('old-password', 4) };
+    const token = jwt.signToken(user, 0);
+    const app = express();
+    app.use(createSessionMiddleware({ verifySessionToken: createSessionValidator({ verifyToken: jwt.verifyToken, getUserById: async () => user }) }));
+    app.use(express.json());
+    registerAuthRoutes(app, { ...jwt, createCsrfToken: () => 'csrf', getUserById: async () => user, getUserByEmail: async () => user, updateUserPasswordHash: async () => {} });
+    const server = await new Promise(resolve => { const server = app.listen(0, '127.0.0.1', () => resolve(server)); });
+    servers.push(server);
+
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/change-password`, {
+      method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'not-the-password', newPassword: 'new-password' }),
+    });
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ code: 'CURRENT_PASSWORD_INCORRECT' });
+  });
+});
