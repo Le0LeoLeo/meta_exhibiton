@@ -8,9 +8,6 @@ import { ViewUI } from "./ViewUI";
 import type { ExhibitItem } from '../../types';
 
 const apiMocks = vi.hoisted(() => ({
-  getPassport: vi.fn(),
-  completePassport: vi.fn(),
-  sharePassport: vi.fn(),
   loadMemory: vi.fn(),
   saveMemory: vi.fn(),
   summarizeFeedback: vi.fn(),
@@ -19,11 +16,6 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock("../../../../api/auth", () => ({
   loadAuth: () => ({ token: "jwt-token", user: { id: "user-1", name: "Visitor" } }),
   subscribeAuth: () => () => undefined,
-}));
-vi.mock("../../../../api/exhibitionPassport", () => ({
-  getExhibitionPassport: apiMocks.getPassport,
-  completeExhibitionPassport: apiMocks.completePassport,
-  shareExhibitionPassport: apiMocks.sharePassport,
 }));
 vi.mock("../../../../api/visitorMemory", () => ({
   loadVisitorMemory: apiMocks.loadMemory,
@@ -60,7 +52,7 @@ function setCurrentArtwork(item: ExhibitItem | null) {
   useStore.setState({ items, viewingItem: item });
 }
 
-describe("ViewUI without exhibition passports", () => {
+describe("ViewUI", () => {
   beforeEach(() => {
     sessionStorage.clear();
     vi.clearAllMocks();
@@ -175,16 +167,12 @@ describe("ViewUI without exhibition passports", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("keeps visitor memory while never loading or rendering a passport", async () => {
+  it("loads visitor memory for the open exhibition", async () => {
     render(<MemoryRouter><ViewUI exhibitionId="gallery-1" /></MemoryRouter>);
 
     await waitFor(() => {
       expect(apiMocks.loadMemory).toHaveBeenCalledWith("jwt-token", "gallery-1");
     });
-    expect(screen.queryByTestId("passport-state")).not.toBeInTheDocument();
-    expect(apiMocks.getPassport).not.toHaveBeenCalled();
-    expect(apiMocks.completePassport).not.toHaveBeenCalled();
-    expect(apiMocks.sharePassport).not.toHaveBeenCalled();
   });
 
   it("restores preferred language and the last recommended exhibit", async () => {

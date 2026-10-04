@@ -3,21 +3,10 @@ import { dictionaries, type Locale } from './index';
 
 const locales = Object.keys(dictionaries) as Locale[];
 const catalogKeys = [...new Set(locales.flatMap((locale) => Object.keys(dictionaries[locale])))];
-const passportExperienceKeys = [
-  'passportTitle', 'passportToggleLabel', 'passportProgress', 'passportLoading', 'passportUnavailable', 'passportLoadError',
-  'passportRetry', 'passportSignedOut', 'passportSignInPrompt', 'passportSignIn', 'passportTaskVisit', 'passportTaskDwell',
-  'passportTaskEngage', 'passportTaskComplete', 'passportTaskIncomplete', 'passportReadyMessage',
-  'passportCompleteAction', 'passportViewSouvenir', 'passportCompleteTitle', 'passportCompleteDescription',
-  'passportCompletedTitle', 'passportCompletedDescription', 'passportCompletionTitle', 'passportReflectionLabel',
-  'passportReflectionPlaceholder', 'passportReflectionHint', 'passportReflectionCount', 'passportPrivateNotice',
-  'passportSyncConflict', 'passportCompleteFailed', 'passportPrivateSouvenir', 'passportPrivacyNotice',
-  'passportSouvenirTitle', 'passportShareText', 'passportCompleting', 'passportCompleted', 'passportShareAction',
-  'passportSharing', 'passportCopyLink', 'passportLinkCopied', 'passportShareCopyFailed', 'passportShareFailed',
-  'passportShareUrlLabel', 'passportOpenShareLink', 'passportClose',
+const souvenirPageKeys = [
   'souvenirLoading', 'souvenirNotFoundTitle', 'souvenirNotFoundDescription', 'souvenirPassportCompleted',
   'souvenirCuratedBy', 'souvenirCompletedOn', 'souvenirVisited', 'souvenirEngaged', 'souvenirDwellTime',
   'souvenirMinutes', 'souvenirFavorite', 'souvenirNoImage', 'souvenirVisitExhibition', 'souvenirExploreMore',
-  'souvenirViewCard', 'souvenirRecentLabel', 'souvenirRecentTitle', 'souvenirRecentDescription', 'souvenirRecentEmpty',
 ] as const;
 const artworkDetailKeys = [
   'viewUnsupportedVideo', 'viewUnsupportedFile', 'viewDownloadFile', 'viewUntitled', 'viewUnknownAuthor',
@@ -128,9 +117,9 @@ describe('translation catalogs', () => {
     }
   });
 
-  it('keeps the passport and souvenir experience in parity', () => {
+  it('keeps the shared souvenir page in parity', () => {
     for (const locale of locales) {
-      for (const key of passportExperienceKeys) {
+      for (const key of souvenirPageKeys) {
         expect(dictionaries[locale][key], `${locale}.${key}`).toEqual(expect.any(String));
         expect(dictionaries[locale][key].trim(), `${locale}.${key}`).not.toBe('');
       }
