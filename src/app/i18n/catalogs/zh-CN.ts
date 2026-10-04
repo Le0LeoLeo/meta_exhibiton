@@ -597,6 +597,8 @@ export const zhCN = {
     loginFailed: '登录失败',
     loginSuccess: '登录成功！',
     loginFailedDesc: '请检查账号密码后再试一次',
+    showPasswordLabel: '显示{label}',
+    hidePasswordLabel: '隐藏{label}',
     loginSuccessDesc: '欢迎回来，{name}，进入 Paidea',
     forgotPasswordSent: '重置密码链接已发送',
     forgotPasswordCheckEmail: '请检查您的电子邮件信箱',

@@ -21,6 +21,7 @@ type GoogleIdentityServices = {
           text: 'signin_with';
           size: 'large';
           width: number;
+          locale?: string;
         },
       ) => void;
     };
@@ -61,10 +62,12 @@ export function GoogleSignInButton({
   onCredential,
   disabled = false,
   unavailableTitle,
+  locale,
 }: {
   onCredential: (credential: string) => void;
   disabled?: boolean;
   unavailableTitle: string;
+  locale?: string;
 }) {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,6 +100,7 @@ export function GoogleSignInButton({
           text: 'signin_with',
           size: 'large',
           width,
+          ...(locale ? { locale } : {}),
         });
       })
       .catch(() => {
@@ -106,7 +110,7 @@ export function GoogleSignInButton({
     return () => {
       cancelled = true;
     };
-  }, [clientId]);
+  }, [clientId, locale]);
 
   if (!clientId || loadFailed) {
     return (

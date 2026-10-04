@@ -653,6 +653,8 @@ export const zhTW = {
     loginFailed: '登入失敗',
     loginSuccess: '登入成功！',
     loginFailedDesc: '請檢查帳號密碼後再試一次',
+    showPasswordLabel: '顯示{label}',
+    hidePasswordLabel: '隱藏{label}',
     loginSuccessDesc: '歡迎回來，{name}，進入 Paidea',
     forgotPasswordSent: '重設密碼連結已發送',
     forgotPasswordCheckEmail: '請檢查您的電子郵件信箱',

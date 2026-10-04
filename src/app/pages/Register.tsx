@@ -102,6 +102,7 @@ export default function Register() {
     const showPwd = field === 'password' ? showPassword : showConfirm;
     const togglePwd = field === 'password' ? () => setShowPassword(!showPassword) : () => setShowConfirm(!showConfirm);
     const fieldId = `register-${field}`;
+    const autoComplete = { name: 'name', email: 'email', password: 'new-password', confirmPassword: 'new-password' }[field];
 
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay }}>
@@ -110,6 +111,9 @@ export default function Register() {
           <Input
             id={fieldId}
             type={isPasswordField ? (showPwd ? 'text' : 'password') : type}
+            autoComplete={autoComplete}
+            aria-invalid={Boolean(errors[field])}
+            aria-describedby={errors[field] ? `${fieldId}-error` : undefined}
             placeholder={placeholder}
             className={`w-full ${isPasswordField ? 'pr-10' : ''} ${errors[field] ? 'border-destructive' : ''}`}
             value={form[field as keyof typeof form]}
@@ -120,7 +124,7 @@ export default function Register() {
               type="button"
               onClick={togglePwd}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-              aria-label={showPwd ? `Hide ${label}` : `Show ${label}`}
+              aria-label={t(showPwd ? 'hidePasswordLabel' : 'showPasswordLabel', { label })}
               aria-pressed={showPwd}
             >
               {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -137,7 +141,7 @@ export default function Register() {
             <p className="text-xs text-muted-foreground">{t('passwordStrength')} {strength.label}</p>
           </div>
         )}
-        {errors[field] && <motion.p className="mt-1 text-xs text-destructive" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{errors[field]}</motion.p>}
+        {errors[field] && <motion.p id={`${fieldId}-error`} className="mt-1 text-xs text-destructive" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{errors[field]}</motion.p>}
       </motion.div>
     );
   };
@@ -210,6 +214,7 @@ export default function Register() {
                 onCredential={handleGoogleCredential}
                 disabled={googleLoading}
                 unavailableTitle={t('googleLoginUnavailable')}
+                locale={locale}
               />
             </form>
 

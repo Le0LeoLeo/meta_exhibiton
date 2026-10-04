@@ -13,7 +13,7 @@ import { authPageLink, isExhibitionCreationReturn, safeAuthReturnTo } from '../u
 
 export default function Login() {
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [searchParams] = useSearchParams();
   const returnTo = safeAuthReturnTo(searchParams.get('returnTo'));
   const continuingCreation = isExhibitionCreationReturn(returnTo);
@@ -51,8 +51,7 @@ export default function Login() {
         navigate(`/verify-email?returnTo=${encodeURIComponent(returnTo)}`, { state: { email: email.trim() } });
         return;
       }
-      setErrors((prev) => ({ ...prev, form: error instanceof Error ? error.message : t('loginFailed') }));
-      toast.error(t('loginFailed'), { description: error instanceof Error ? error.message : t('loginFailedDesc') });
+      setErrors((prev) => ({ ...prev, form: error instanceof Error ? error.message : t('loginFailedDesc') }));
     } finally {
       setLoading(false);
     }
@@ -69,9 +68,7 @@ export default function Login() {
       });
       navigate(returnTo);
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('googleLoginFailed');
-      setErrors((prev) => ({ ...prev, form: message }));
-      toast.error(t('googleLoginFailed'), { description: message });
+      setErrors((prev) => ({ ...prev, form: error instanceof Error ? error.message : t('googleLoginFailed') }));
     } finally {
       setGoogleLoading(false);
     }
@@ -103,12 +100,15 @@ export default function Login() {
                 <Input
                   id="login-email"
                   type="email"
+                  autoComplete="email"
+                  aria-invalid={Boolean(errors.email)}
+                  aria-describedby={errors.email ? 'login-email-error' : undefined}
                   placeholder={t('emailPlaceholder')}
                   className={`w-full ${errors.email ? 'border-destructive' : ''}`}
                   value={email}
-                  onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: undefined })); }}
+                  onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: undefined, form: undefined })); }}
                 />
-                {errors.email && <motion.p className="mt-1 text-xs text-destructive" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{errors.email}</motion.p>}
+                {errors.email && <motion.p id="login-email-error" className="mt-1 text-xs text-destructive" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{errors.email}</motion.p>}
               </motion.div>
 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}>
@@ -117,22 +117,25 @@ export default function Login() {
                   <Input
                     id="login-password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    aria-invalid={Boolean(errors.password)}
+                    aria-describedby={errors.password ? 'login-password-error' : undefined}
                     placeholder={t('passwordPlaceholder')}
                     className={`w-full pr-10 ${errors.password ? 'border-destructive' : ''}`}
                     value={password}
-                    onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: undefined })); }}
+                    onChange={(e) => { setPassword(e.target.value); setErrors((p) => ({ ...p, password: undefined, form: undefined })); }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={t(showPassword ? 'hidePasswordLabel' : 'showPasswordLabel', { label: t('password') })}
                     aria-pressed={showPassword}
                   >
                     {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
                 </div>
-                {errors.password && <motion.p className="mt-1 text-xs text-destructive" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{errors.password}</motion.p>}
+                {errors.password && <motion.p id="login-password-error" className="mt-1 text-xs text-destructive" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{errors.password}</motion.p>}
               </motion.div>
 
               <motion.div className="flex items-center justify-between" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
@@ -144,6 +147,13 @@ export default function Login() {
                   {t('forgotPassword')}
                 </Link>
               </motion.div>
+
+              {errors.form && (
+                <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <p className="font-medium">{t('loginFailed')}</p>
+                  <p className="mt-0.5">{errors.form}</p>
+                </div>
+              )}
 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}>
                 <motion.div >
@@ -171,6 +181,7 @@ export default function Login() {
                   onCredential={handleGoogleCredential}
                   disabled={googleLoading}
                   unavailableTitle={t('googleLoginUnavailable')}
+                  locale={locale}
                 />
               </div>
             </form>
