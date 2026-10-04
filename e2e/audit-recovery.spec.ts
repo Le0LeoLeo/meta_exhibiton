@@ -90,7 +90,7 @@ test('demo and shared editor use the fullscreen shell while normal navigation is
   // Follow an actual app link so the same Layout instance changes route mode.
   await page.locator('.home-footer a[href="/demo"]').click();
   await expect(page.getByRole('link', { name: 'Back to home', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'A small gallery of masterpieces', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Waves Across the World: a class inquiry', exact: true })).toBeVisible();
   await expect(page.locator('.home-navigation')).toHaveCount(0);
   await expect(page.locator('.home-footer')).toHaveCount(0);
   await expect(page.locator('.museum-immersive')).toBeVisible();

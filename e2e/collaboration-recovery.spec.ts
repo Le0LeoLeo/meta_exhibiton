@@ -38,7 +38,14 @@ test('two real 3D editors preserve interrupted edits, merge remote work and reco
   const headers = { Authorization: `Bearer ${(await login.json()).token}` };
   const created = await request.post('/api/galleries', { headers, data: {
     title: 'Synthetic 3D recovery', description: 'Isolated browser acceptance', templateTitle: 'Acceptance', templateImage: '/demo/harbour.svg', category: 'art',
-    sceneJson: JSON.stringify({ roomSize: { width: 20, length: 20, height: 6, wallThickness: 0.1 }, items: [], floorPlanElements: [], wallMaterialOverrides: {} }),
+    // A complete saved room, as the editor writes it; the collaboration server rejects partial room settings.
+    sceneJson: JSON.stringify({ roomSize: {
+      width: 20, length: 20, height: 6, wallThickness: 0.1,
+      wallColor: '#f8fafc', wallMaterialPreset: 'paint', wallTextureUrl: '/textures/wall-paint.svg', wallTextureTiling: 3,
+      wallRoughness: 0.45, wallMetalness: 0.05, wallBumpScale: 0.03, wallEnvIntensity: 0.85, wallOpacity: 1, wallTransmission: 0, wallIor: 1.45,
+      floorColor: '#1f2937', floorTextureUrl: '/textures/wall-concrete.svg', floorTextureTiling: 2.5, floorRoughness: 0.55, floorMetalness: 0.12,
+      environmentBrightness: 0.62,
+    }, items: [], floorPlanElements: [], wallMaterialOverrides: {} }),
   } });
   expect(created.ok(), await created.text()).toBe(true);
   const id = (await created.json()).gallery.id;

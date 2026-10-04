@@ -319,7 +319,8 @@ for (const mobile of [false, true]) {
       await page.getByLabel('Exhibition brief', { exact: true }).fill('Make a wider exhibition');
       await page.getByRole('button', { name: 'Generate exhibition', exact: true }).click();
       await expect(page.getByRole('alert')).toContainText('Generation did not complete');
-      await expect(page.getByRole('button', { name: 'Apply generated exhibition', exact: true })).toBeDisabled();
+      // A failed run offers only Discard, never an Apply control.
+      await expect(page.getByRole('button', { name: 'Apply generated exhibition', exact: true })).toHaveCount(0);
       expect(await savedWidth()).toBe(20);
       await page.getByRole('button', { name: 'Generate exhibition', exact: true }).click();
       // Allow the asynchronous response/render under software WebGL; the
