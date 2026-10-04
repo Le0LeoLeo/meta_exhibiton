@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 import { getManualChunk } from './config/manualChunks'
 import { createDevProxyOptions } from './config/devProxy'
 import { homePrerender } from './config/homePrerender'
+import { normalizeWatchFiles } from './config/normalizeWatchFiles'
 
 const apiTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:5176'
 const wsTarget = process.env.VITE_WS_PROXY_TARGET || 'http://localhost:3001'
@@ -14,7 +15,8 @@ export default defineConfig({
     // The React and Tailwind plugins are both required for Make, even if
     // Tailwind is not being actively used – do not remove them
     react(),
-    tailwindcss(),
+    // Wrapped so its Windows watch paths do not create duplicate /@fs/ modules during HMR.
+    ...normalizeWatchFiles(tailwindcss()),
     homePrerender(),
   ],
   resolve: {
