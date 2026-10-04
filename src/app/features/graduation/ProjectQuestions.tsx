@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { formatDateTime } from '@/app/utils/formatDate';
 import { Link } from 'react-router';
 import { graduationRequest, type GraduationQuestion, type GraduationProject } from '@/app/api/graduation';
 import { loadAuth } from '@/app/api/auth';
@@ -14,7 +15,7 @@ function Question({ question, canReply = false, onSaved }: { question: Graduatio
     await graduationRequest(`/questions/${question.id}/reply`, 'POST', { reply }); setReply(''); onSaved();
   }); }
   return <article className="space-y-3 rounded-lg border border-border p-4 text-sm">
-    <p className="font-medium">{question.authorName} · {new Date(question.createdAt).toLocaleString()}</p>
+    <p className="font-medium">{question.authorName} · {formatDateTime(question.createdAt)}</p>
     <p className="whitespace-pre-wrap break-words">{question.content}</p>
     {question.reply ? <blockquote className="space-y-2 border-l-2 border-primary pl-4"><p className="font-medium">{question.replyName} · {question.replyRole ? c[question.replyRole] : ''}</p><p className="whitespace-pre-wrap break-words">{question.reply}</p></blockquote> : <p className="text-muted-foreground">{t.unanswered}</p>}
     {canReply && !question.reply && <form className="space-y-3" onSubmit={send}><Field label={t.reply}><textarea required maxLength={4000} rows={3} className={inputClass} value={reply} disabled={action.pending} onChange={(e) => setReply(e.target.value)} /></Field><Button type="submit" disabled={action.pending || !reply.trim()}>{t.sendReply}</Button></form>}

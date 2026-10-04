@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
+import { formatDateTime } from '@/app/utils/formatDate';
 import { graduationRequest, reviewGraduationProject, type GraduationProject, type GraduationReview } from '@/app/api/graduation';
 import type { SkillCard } from '@/app/api/skills';
 import { Button } from '@/app/components/ui/button';
@@ -9,9 +10,10 @@ export function TeacherDecision({ project, skillCards, onSaved }: { project: Gra
   const c = useGraduationCopy(); const action = useGraduationAction();
   const [feedback, setFeedback] = useState('');
   const [validation, setValidation] = useState('');
+  const feedbackField = useRef<HTMLTextAreaElement>(null);
   function decide(decision: 'approved' | 'returned') {
     setValidation('');
-    if (decision === 'returned' && !feedback.trim()) { setValidation(c.feedbackRequired); return; }
+    if (decision === 'returned' && !feedback.trim()) { setValidation(c.feedbackRequired); feedbackField.current?.focus(); return; }
     void action.run(async () => {
       await reviewGraduationProject(project.id, {
         expectedRevision: project.revision, decision, feedback,
@@ -20,7 +22,7 @@ export function TeacherDecision({ project, skillCards, onSaved }: { project: Gra
     });
   }
   return <div className="space-y-3 border-t border-border pt-4">
-    <Field label={c.feedback}><textarea className={inputClass} disabled={action.pending} rows={3} maxLength={4000} value={feedback} onChange={(e) => setFeedback(e.target.value)} /></Field>
+    <Field label={c.feedback}><textarea ref={feedbackField} aria-invalid={Boolean(validation)} className={inputClass} disabled={action.pending} rows={3} maxLength={4000} value={feedback} onChange={(e) => { setFeedback(e.target.value); setValidation(''); }} /></Field>
     <ErrorNotice error={validation || action.error} />
     <div className="flex flex-wrap gap-3"><Button disabled={action.pending || !skillCards} onClick={() => decide('approved')}>{c.approve}</Button><Button variant="outline" disabled={action.pending || !skillCards} onClick={() => decide('returned')}>{c.return}</Button></div>
   </div>;
@@ -39,7 +41,7 @@ export function ProjectReviews({ projectId, reviews, onSaved }: { projectId: str
     <h3 className="font-semibold">{c.reviewTitle}</h3>
     {reviews.map((review) => <div key={review.id} className="space-y-1 rounded-lg bg-secondary/60 p-3 text-sm">
       <p className="font-medium">{review.authorName} · {c[review.role]}</p><p className="whitespace-pre-wrap break-words">{review.content}</p>
-      <p className="text-xs text-muted-foreground">{c[review.visibility]} · {new Date(review.createdAt).toLocaleString()}</p>
+      <p className="text-xs text-muted-foreground">{c[review.visibility]} · {formatDateTime(review.createdAt)}</p>
     </div>)}
     <form onSubmit={send} className="space-y-3">
       <Field label={c.reviewContent}><textarea className={inputClass} disabled={action.pending} required maxLength={4000} rows={3} value={content} onChange={(e) => setContent(e.target.value)} /></Field>

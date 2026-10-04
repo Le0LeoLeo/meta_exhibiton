@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatDateTime } from '@/app/utils/formatDate';
 import { Link, useParams } from 'react-router';
 import { graduationRequest, type ClassDetail, type GraduationRelease } from '@/app/api/graduation';
 import { Button } from '@/app/components/ui/button';
@@ -30,7 +31,7 @@ export default function GraduationClassPage() {
   return <GraduationShell title={data?.class.title || c.title} description={data?.class.description}>
     <ResourceNotice {...resource} /><ErrorNotice error={action.error} />
     {data && <>
-      <div className="flex flex-wrap gap-3 text-sm text-muted-foreground"><span>{teacher ? c.teacher : c.student}</span><span>·</span><span>{data.class.deadline ? `${c.deadline}: ${new Date(data.class.deadline).toLocaleString()}` : c.noDeadline}</span></div>
+      <div className="flex flex-wrap gap-3 text-sm text-muted-foreground"><span>{teacher ? c.teacher : c.student}</span><span>·</span><span>{data.class.deadline ? `${c.deadline}: ${formatDateTime(data.class.deadline)}` : c.noDeadline}</span></div>
       {teacher && data.class.inviteToken && <section className={panelClass}>
         <Field label={c.invite}><input className={`${inputClass} font-mono`} readOnly value={data.class.inviteToken} onFocus={(e) => e.target.select()} /></Field>
         <InviteCodeCopy token={data.class.inviteToken} />
@@ -39,7 +40,7 @@ export default function GraduationClassPage() {
       </section>}
       <TeachingProgress data={data} filter={filter} onFilter={setFilter} />
       <section className="space-y-5" aria-label={c.workspace}>
-        <h2 className="text-xl font-semibold">{data.projects.length} {c.projectCount}</h2>
+        <h2 className="text-xl font-semibold">{data.projects.length} {data.projects.length === 1 ? c.projectCountOne : c.projectCount}</h2>
         {data.projects.map((project) => <article key={project.id} hidden={filter !== 'all' && project.status !== filter} className={panelClass}>
           <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="break-words text-xl font-semibold">{project.title || c.newProject}</h3><span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium">{c[project.status]}</span></div>
           {project.feedback && <div className="rounded-lg bg-secondary p-3 text-sm"><p className="mb-1 font-semibold">{c.feedback}</p><p className="whitespace-pre-wrap">{project.feedback}</p></div>}
@@ -73,7 +74,7 @@ export default function GraduationClassPage() {
         {releases.value?.releases.length === 0 && <p className="text-sm text-muted-foreground">{c.releaseEmpty}</p>}
         {teacher && !!releases.value?.releases.length && <p className="text-sm text-muted-foreground">{c.releaseVisibilityHelp}</p>}
         <ul className="space-y-3">{releases.value?.releases.map((release) => <li key={release.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-sm">
-          <span>{c.version} {release.version} · {new Date(release.createdAt).toLocaleString()}</span>
+          <span>{c.version} {release.version} · {formatDateTime(release.createdAt)}</span>
           {release.withdrawnAt ? <span>{c.releaseWithdrawn}</span> : !release.projects.some((project) => !project.withdrawnAt) ? <span>{c.noVisibleProjects}</span> : <Link className="text-primary underline underline-offset-4" to={`/graduation/public/${release.token}`}>{c.viewRelease}</Link>}
           {teacher && <Button variant="outline" disabled={action.pending || releases.loading} onClick={() => void action.run(async () => {
             await graduationRequest(`/releases/${release.id}/visibility`, 'POST', { visible: !!release.withdrawnAt }); releases.reload();

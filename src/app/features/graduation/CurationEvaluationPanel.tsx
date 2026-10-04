@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { formatDateTime } from '@/app/utils/formatDate';
 import { graduationRequest, type CurationEvaluation } from '@/app/api/graduation';
 import { Button } from '@/app/components/ui/button';
 import { ErrorNotice, Field, ResourceNotice, inputClass, useGraduationAction, useGraduationResource } from './shared';
@@ -22,6 +23,6 @@ export function CurationEvaluationPanel({ classId, planRevision }: { classId: st
       <Field label={t.quality}><select className={inputClass} required value={quality} onChange={(e) => setQuality(e.target.value)}><option value="">—</option>{[1, 2, 3, 4, 5].map((score) => <option key={score} value={score}>{score}</option>)}</select></Field>
       <Field label={t.notes}><textarea className={inputClass} maxLength={2000} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
     </fieldset><ErrorNotice error={action.error} />{saved && <p role="status">{t.recorded}</p>}<Button disabled={action.pending} type="submit">{t.saveEvaluation}</Button></form>
-    {resource.value?.evaluations.map((evaluation) => <div key={evaluation.planRevision} className="space-y-1 rounded-lg bg-secondary p-3 text-sm"><p>{c.version} {evaluation.planRevision} · {new Date(evaluation.createdAt).toLocaleString()}</p><p>{t.difference}: {Number((evaluation.baselineMinutes - evaluation.actualMinutes).toFixed(1))}</p><p>{t.quality}: {evaluation.quality}/5</p><p className="whitespace-pre-wrap break-words">{evaluation.notes}</p></div>)}
+    {resource.value?.evaluations.map((evaluation) => <div key={evaluation.planRevision} className="space-y-1 rounded-lg bg-secondary p-3 text-sm"><p>{c.version} {evaluation.planRevision} · {formatDateTime(evaluation.createdAt)}</p><p>{t.difference}: {Number((evaluation.baselineMinutes - evaluation.actualMinutes).toFixed(1))}</p><p>{t.quality}: {evaluation.quality}/5</p><p className="whitespace-pre-wrap break-words">{evaluation.notes}</p></div>)}
   </section>;
 }

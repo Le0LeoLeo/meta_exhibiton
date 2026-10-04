@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { formatDateTime } from '@/app/utils/formatDate';
 import { Link } from 'react-router';
 import { Button } from '@/app/components/ui/button';
 import { useI18n } from '@/app/components/I18nProvider';
@@ -131,7 +132,7 @@ export default function CvWorkspace() {
           }}>{t.remove}</Button>
           <Button variant="outline" disabled={pending} onClick={() => void run(async () => { const result = await suggestCvCard(item.id); setSuggestion(result); setSuggestionCardId(item.id); })}>{t.ai}</Button>
           <Button variant="ghost" disabled={pending} onClick={() => void run(async () => { const result = await cvRequest<{ runs: CvSuggestionRun[] }>(`/cards/${encodeURIComponent(item.id)}/suggestions`); setSuggestionHistory({ cardId: item.id, runs: result.runs }); })}>{aiLabels.history}</Button></div>
-          {suggestionHistory?.cardId === item.id && <div className="mt-3 space-y-2 text-sm">{suggestionHistory.runs.map((entry) => <div key={entry.id} className="rounded border border-border p-3"><p>{new Date(entry.createdAt).toLocaleString()}</p>{entry.result.suggestions.map((draft, index) => <p key={index}>{draft.title} · {entry.decisions[index] ? aiLabels[entry.decisions[index]] : '—'}</p>)}</div>)}</div>}
+          {suggestionHistory?.cardId === item.id && <div className="mt-3 space-y-2 text-sm">{suggestionHistory.runs.map((entry) => <div key={entry.id} className="rounded border border-border p-3"><p>{formatDateTime(entry.createdAt)}</p>{entry.result.suggestions.map((draft, index) => <p key={index}>{draft.title} · {entry.decisions[index] ? aiLabels[entry.decisions[index]] : '—'}</p>)}</div>)}</div>}
           {suggestionCardId === item.id && suggestion && <div className="mt-4 space-y-3 rounded-lg bg-secondary/40 p-3">
             {suggestion.status === 'fallback' && <p role="status">{t.aiUnavailable}</p>}
             {suggestion.suggestions.map((draft, index) => <div key={index} className="rounded border border-border p-3"><strong>{draft.title}</strong><p className="text-sm">{draft.summary}</p>

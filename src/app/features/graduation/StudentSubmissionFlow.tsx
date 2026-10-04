@@ -8,7 +8,7 @@ import { ErrorNotice, panelClass } from './shared';
 import { useGraduationCopy } from './copy';
 import { ProjectDetails } from './ProjectDetails';
 import { ProjectEditor } from './ProjectEditor';
-import { SkillPortfolio } from './SkillPortfolio';
+import { SkillPortfolio, skillStatusLabel } from './SkillPortfolio';
 
 export type GraduationStep = 1 | 2 | 3;
 type Step = GraduationStep;
@@ -85,7 +85,7 @@ export function StudentSubmissionFlow({ classId, project, onSaved, step, onStepC
       <section className="space-y-3" aria-label="Related skill cards">
         <h4 className="font-semibold">{locale === 'en' ? 'Personal reflection and evidence' : locale === 'zh-CN' ? '个人反思与佐证' : '個人反思與佐證'}</h4>
         {loadingSkills ? <p role="status" className="text-sm text-muted-foreground">{locale === 'en' ? 'Loading saved cards…' : locale === 'zh-CN' ? '正在载入已保存的能力卡…' : '正在載入已儲存的能力卡…'}</p> : error ? <Button type="button" variant="outline" onClick={() => setRefreshSkills((key) => key + 1)}>{locale === 'en' ? 'Retry loading cards' : locale === 'zh-CN' ? '重新载入能力卡' : '重新載入能力卡'}</Button> : skills.length ? skills.map((skill) => <article key={skill.id} className="space-y-2 rounded-lg border border-border p-3">
-          <div className="flex flex-wrap justify-between gap-2"><strong>{skill.title}</strong><span className="text-xs text-muted-foreground">{skill.status}</span></div>
+          <div className="flex flex-wrap justify-between gap-2"><strong>{skill.title}</strong><span className="text-xs text-muted-foreground">{skillStatusLabel(skill.status, locale)}</span></div>
           {skill.role && <p className="text-sm"><b>{locale === 'en' ? 'My role:' : locale === 'zh-CN' ? '我的角色：' : '我的角色：'}</b> {skill.role}</p>}
           {skill.actions && <p className="whitespace-pre-wrap text-sm">{skill.actions}</p>}
           {skill.outcome && <p className="whitespace-pre-wrap text-sm"><b>{locale === 'en' ? 'Result:' : locale === 'zh-CN' ? '结果：' : '成果：'}</b> {skill.outcome}</p>}
