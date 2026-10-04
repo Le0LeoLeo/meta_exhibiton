@@ -1,0 +1,18 @@
+export const agentUiZhCN = {
+  'agentUi.statusThinking': '思考中…',
+  'agentUi.statusFollowing': '跟随中',
+  'agentUi.statusExplaining': '讲解中',
+  'agentUi.statusWandering': '自由参观',
+  'agentUi.statusTouring': '带领导览',
+  'agentUi.statusWaiting': '待命中',
+  'agentUi.openChatHint': '打开对话，一起聊聊展览中的作品。',
+  'agentUi.lastQuestion': '你刚才问我：{question}',
+  'agentUi.guideStyleLearning': '背景与学习',
+  'agentUi.guideStyleStorytelling': '故事导览',
+  'agentUi.guideStyleWarm': '温暖对话',
+  'agentUi.tourStatusIdle': '尚未开始',
+  'agentUi.tourStatusRunning': '进行中',
+  'agentUi.tourStatusPaused': '已暂停',
+  'agentUi.tourStatusArrived': '已到达此站',
+  'agentUi.tourStatusComplete': '已完成',
+};
