@@ -36,6 +36,9 @@ export function homePrerender(): Plugin {
       if (!shell || shell.type !== 'asset') return;
       const server = await createServer({
         configFile: false, root, envDir: false, envPrefix: [],
+        // A separate cache keeps this throwaway server from overwriting a running dev server's
+        // pre-bundled deps, which otherwise breaks lazy routes with "Outdated Optimize Dep".
+        cacheDir: path.resolve(root, 'node_modules/.vite-prerender'),
         optimizeDeps: { noDiscovery: true, include: [] },
         plugins: [react()],
         resolve: { alias: { '@': path.resolve(root, 'src') } },
