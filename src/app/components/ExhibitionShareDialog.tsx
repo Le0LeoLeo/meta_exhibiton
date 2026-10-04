@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Copy, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { GallerySummary } from '../api/gallery';
@@ -16,6 +16,7 @@ export function ExhibitionShareDialog({ gallery, open, onOpenChange }: Props) {
     ? `${window.location.origin}/exhibitions/${encodeURIComponent(gallery.id)}` : '';
   const [qr, setQr] = useState<{ url: string; image: string; error: boolean } | null>(null);
   const [retry, setRetry] = useState(0);
+  const linkField = useRef<HTMLLabelElement>(null);
   useEffect(() => {
     let cancelled = false;
     setQr(null);
@@ -34,6 +35,10 @@ export function ExhibitionShareDialog({ gallery, open, onOpenChange }: Props) {
       await navigator.clipboard.writeText(url);
       toast.success(t('copiedViewShareLink'));
     } catch {
+      // Select the link so a manual copy is one keystroke or long-press away.
+      const input = linkField.current?.querySelector('input');
+      input?.focus();
+      input?.select();
       toast.error(t('copyFailed'), { description: t('pleaseCopyManually') });
     }
   };
@@ -55,7 +60,7 @@ export function ExhibitionShareDialog({ gallery, open, onOpenChange }: Props) {
             </div> : <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin" />{t('shareQrLoading')}</p>}
         </div>
         <p className="text-center text-sm text-muted-foreground">{t('shareQrVisitorHint')}</p>
-        <label className="block space-y-2 text-sm">
+        <label ref={linkField} className="block space-y-2 text-sm">
           <span>{t('shareQrVisitorLink')}</span>
           <Input readOnly value={visitorUrl} onFocus={event => event.target.select()} />
         </label>
