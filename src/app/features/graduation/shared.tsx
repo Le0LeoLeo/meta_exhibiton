@@ -15,18 +15,19 @@ export function useGraduationResource<T>(path: string) {
   const [value, setValue] = useState<T | null>(null);
   const [loadedPath, setLoadedPath] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [errorStatus, setErrorStatus] = useState<number | undefined>();
   const [loading, setLoading] = useState(true);
   const [generation, setGeneration] = useState(0);
   const reload = useCallback(() => setGeneration((n) => n + 1), []);
   useEffect(() => {
     let active = true;
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setErrorStatus(undefined);
     graduationRequest<T>(path).then((data) => { if (active) { setValue(data); setLoadedPath(path); } })
-      .catch((reason: unknown) => { if (active) setError(graduationErrorMessage(reason, locale)); })
+      .catch((reason: unknown) => { if (active) { setError(graduationErrorMessage(reason, locale)); setErrorStatus((reason as { status?: number } | null)?.status); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [path, generation, locale]);
-  return { value: loadedPath === path ? value : null, error, loading, reload };
+  return { value: loadedPath === path ? value : null, error, errorStatus, loading, reload };
 }
 
 export function useGraduationAction() {
@@ -53,16 +54,16 @@ export function ResourceNotice({ loading, error, reload }: { loading: boolean; e
   const c = useGraduationCopy();
   return <>{loading && <p role="status" className="py-4 text-muted-foreground">{c.loading}</p>}<ErrorNotice error={error} />{error && <Button variant="outline" onClick={reload}>{c.retry}</Button>}</>;
 }
-export function GraduationShell({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+export function GraduationShell({ title, description, children, showWorkspaceNav = true }: { title: string; description?: string; children: ReactNode; showWorkspaceNav?: boolean }) {
   const c = useGraduationCopy();
   return <div className="mx-auto max-w-6xl space-y-7 px-4 py-10 sm:px-6 sm:py-14">
     <header className="museum-workspace-heading space-y-4">
       <div className="flex items-center gap-2 text-sm font-medium text-primary"><GraduationCap className="size-5" aria-hidden="true" />Paidea · {c.workflow}</div>
       <h1 className="break-words text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
       {description && <p className="max-w-3xl whitespace-pre-wrap break-words text-muted-foreground">{description}</p>}
-      <nav aria-label={c.title} className="flex flex-wrap gap-4 text-sm underline underline-offset-4">
+      {showWorkspaceNav && <nav aria-label={c.title} className="flex flex-wrap gap-4 text-sm underline underline-offset-4">
         <Link to="/graduation">{c.workspace}</Link><Link to="/graduation/portfolio">{c.portfolio}</Link>
-      </nav>
+      </nav>}
     </header>{children}
   </div>;
 }
