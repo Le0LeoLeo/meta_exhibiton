@@ -28,6 +28,12 @@ describe('official-only homepage', () => {
     expect(screen.getByRole('link', { name: /印象・花園/ })).toHaveAttribute('href', '/demo?exhibition=garden');
     expect(screen.getByRole('link', { name: /浮世・山水/ })).toHaveAttribute('href', '/demo?exhibition=landscape');
   });
+  it('serves a sharper official artwork only to high-density screens', () => {
+    showHome();
+    const artwork = screen.getByRole('img', { name: dictionaries['zh-TW'].demoArtwork2Title });
+    expect(artwork).toHaveAttribute('src', '/demo/met-436535.jpg');
+    expect(artwork).toHaveAttribute('srcset', '/demo/met-436535.jpg 1x, /demo/met-436535-1080.jpg 2x');
+  });
   it('shows a labeled fallback if the official artwork cannot load', () => {
     showHome();
     fireEvent.error(screen.getByRole('img', { name: dictionaries['zh-TW'].demoArtwork2Title }));

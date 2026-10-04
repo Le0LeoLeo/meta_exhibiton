@@ -46,7 +46,7 @@ export default function Home() {
       </div>
       <div className="home-featured">
         <Link className="home-featured-image home-demo-art" to={featuredHref} aria-label={`${t('homeEnter')}${locale === 'en' ? ': ' : '：'}${featuredTitle}`}>
-          <div className="home-featured-art"><ExhibitionCover src="/demo/met-436535.jpg" title={t('demoArtwork2Title')} priority/></div>
+          <div className="home-featured-art"><ExhibitionCover src="/demo/met-436535.jpg" srcSet="/demo/met-436535.jpg 1x, /demo/met-436535-1080.jpg 2x" title={t('demoArtwork2Title')} priority/></div>
           <span className="home-art-entry" aria-hidden="true"><ArrowUpRight size={24}/></span>
         </Link>
         <div className="home-featured-caption">
