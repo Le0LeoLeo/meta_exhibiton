@@ -1447,6 +1447,7 @@ export const en = {
     visitorChatOnline: '{count} here',
     visitorChatUnread: '{count} new',
     visitorChatEmpty: 'No messages yet. Say hello or ask the creator about a work.',
+    visitorChatEmptyReadOnly: 'No messages yet.',
     visitorChatPlaceholder: 'Message everyone in this room',
     visitorChatSend: 'Send',
     visitorChatReadOnly: 'You can read this chat but not send messages.',

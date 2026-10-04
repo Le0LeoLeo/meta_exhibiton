@@ -90,7 +90,7 @@ export function VisitorChatPanel({ open, onOpenChange }: { open: boolean; onOpen
       </header>
       <div ref={logRef} role="log" aria-live="polite" aria-label={t("visitorChatTitle")} className="h-[min(12rem,28dvh)] min-h-16 space-y-1.5 overflow-y-auto rounded-xl bg-black/30 px-2.5 py-2 text-sm">
         {visible.length === 0
-          ? <p className="text-white/70">{t("visitorChatEmpty")}</p>
+          ? <p className="text-white/70">{t(canSend ? "visitorChatEmpty" : "visitorChatEmptyReadOnly")}</p>
           : visible.map((msg) => (
             <p key={msg.id} className="break-words leading-snug">
               <span className={`font-semibold ${msg.by === selfId ? "text-cyan-300" : "text-amber-200"}`}>{msg.by === selfId ? t("visitorChatYou") : msg.nickname}</span>
