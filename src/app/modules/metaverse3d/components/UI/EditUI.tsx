@@ -1,4 +1,5 @@
 import { useEditorAiBuilder } from "./useEditorAiBuilder";
+import { displayNickname } from "../../network/displayNickname";
 import { EditorAiBuilderPanel } from "./EditorAiBuilderPanel";
 import { useEditorGuideAudio } from './useEditorGuideAudio';
 import { useStore } from "../../store/useStore";
@@ -494,7 +495,7 @@ export function EditUI({ sessionStatus }: { sessionStatus?: ReactNode }) {
             ) : (
               multiplayerChatMessages.slice(-40).map((msg) => (
                   <div key={msg.id} className="break-words text-[11px] leading-relaxed text-white/85">
-                    <span className="font-semibold text-white">{msg.nickname}</span>
+                    <span className="font-semibold text-white">{displayNickname(msg.nickname, msg.by, t)}</span>
                     <span className="text-white/55"> · {new Date(msg.createdAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}</span>
                   <div>{msg.message}</div>
                 </div>

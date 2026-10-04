@@ -10,6 +10,8 @@ import {
   type ProceduralAvatarFallbackHandle,
 } from "../../avatar/ProceduralAvatarFallback";
 import type { RemotePlayerState } from "../../network/multiplayerStore";
+import { displayNickname } from "../../network/displayNickname";
+import { useI18n } from "../../../../components/I18nProvider";
 import {
   getRemoteAppearanceKey,
   getRemoteAvatarPalette,
@@ -30,6 +32,7 @@ const AVATAR_WALK_START_SPEED = 0.14;
 const AVATAR_WALK_STOP_SPEED = 0.07;
 
 export function RemotePlayer({ player }: RemotePlayerProps) {
+  const { t } = useI18n();
   const groupRef = useRef<THREE.Group>(null);
   const worldPositionRef = useRef(new THREE.Vector3());
   const transform = getRemotePlayerTransform(player);
@@ -178,7 +181,7 @@ export function RemotePlayer({ player }: RemotePlayerProps) {
           outlineColor="#020617"
           outlineWidth={0.025}
         >
-          {player.nickname}
+          {displayNickname(player.nickname, player.id, t)}
         </Text>
       </Billboard>
     </group>
