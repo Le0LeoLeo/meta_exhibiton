@@ -129,3 +129,16 @@ it('keeps the outgoing page in place until exit, then resets scroll for the new 
   expect(screen.getAllByRole('navigation')).toHaveLength(1);
   router.dispose();
 });
+
+it('offers a skip link to the main content on standard pages only', () => {
+  const standard = renderLayoutRoute('/exhibitions');
+  const skip = standard.container.querySelector('a[href="#main-content"]');
+  expect(skip).not.toBeNull();
+  expect(standard.container.querySelector('#main-content')).toHaveAttribute('tabindex', '-1');
+  standard.router.dispose();
+  cleanup();
+
+  const fullscreen = renderLayoutRoute('/demo');
+  expect(fullscreen.container.querySelector('a[href="#main-content"]')).toBeNull();
+  fullscreen.router.dispose();
+});

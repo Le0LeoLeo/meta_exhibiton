@@ -1298,6 +1298,7 @@ export const zhCN = {
     notFoundHeading: '找不到页面',
     notFoundDesc: '抱歉，您访问的页面不存在',
     notFoundHome: '返回首页',
+    skipToContent: '跳到主要内容',
 
     vgcLoadingEditor: '正在加载 3D 编辑器...',
     vgcLoadErrorTitle: '加载展览时发生问题',
