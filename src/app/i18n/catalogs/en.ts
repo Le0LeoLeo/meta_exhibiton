@@ -1297,6 +1297,7 @@ export const en = {
     notFoundHeading: 'Page Not Found',
     notFoundDesc: 'Sorry, the page you visited does not exist',
     notFoundHome: 'Back to Home',
+    skipToContent: 'Skip to main content',
 
     vgcLoadingEditor: 'Loading 3D editor...',
     vgcLoadErrorTitle: 'Error loading exhibition',

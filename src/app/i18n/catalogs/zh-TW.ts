@@ -1356,6 +1356,7 @@ export const zhTW = {
     notFoundHeading: '找不到頁面',
     notFoundDesc: '抱歉，您訪問的頁面不存在',
     notFoundHome: '返回首頁',
+    skipToContent: '跳到主要內容',
 
     vgcLoadingEditor: '正在載入 3D 編輯器...',
     vgcLoadErrorTitle: '載入展覽時發生問題',

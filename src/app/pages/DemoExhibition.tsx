@@ -83,7 +83,7 @@ function DemoExhibitionContent({ exhibition, initialIndex }: { exhibition: typeo
         <p className="mt-5 text-xs leading-6 text-muted-foreground">{t('demoReadOnly')}</p>
         <nav className="mt-8 border-t border-border pt-4 text-sm text-muted-foreground" aria-label={t('demoMoreGalleries')}>
           <span className="mr-2">{t('demoMoreGalleries')}:</span>
-          {demoExhibitions.slice(1).map((demo, i) => <span key={demo.id}>{i > 0 && ' · '}<Link to={`/demo?exhibition=${demo.id}`} aria-current={demo.id === exhibition.id ? 'page' : undefined} className="underline underline-offset-4 hover:text-foreground">{t(demo.title)}</Link></span>)}
+          {demoExhibitions.slice(1).map((demo, i) => <span key={demo.id}>{i > 0 && ' · '}<Link to={`/demo?exhibition=${demo.id}`} aria-current={demo.id === exhibition.id ? 'page' : undefined} className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-foreground">{t(demo.title)}</Link></span>)}
         </nav>
       </div>
     </div>

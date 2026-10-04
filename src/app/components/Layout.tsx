@@ -6,6 +6,7 @@ import { Footer } from './Footer';
 import { PointerBackdrop } from './PointerBackdrop';
 import { PageMetadata } from './PageMetadata';
 import { UnsavedChangesProvider } from './UnsavedChangesProvider';
+import { useI18n } from './I18nProvider';
 
 function FrozenOutlet() {
   const currentOutlet = useOutlet();
@@ -72,14 +73,16 @@ export function Layout() {
     (handle as { layout?: string } | undefined)?.layout === 'fullscreen',
   );
   const shouldUseSimpleTransition = Boolean(shouldReduceMotion || isFullscreen);
+  const { t } = useI18n();
 
   return (
     <UnsavedChangesProvider>
     <div className={`flex min-h-screen flex-col overflow-x-hidden bg-background text-foreground transition-colors duration-300 museum-shell ${isFullscreen ? 'museum-immersive' : 'museum-pages'}`}>
       <PageMetadata />
       {!isFullscreen && <PointerBackdrop />}
+      {!isFullscreen && <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[10001] focus:rounded-md focus:bg-primary focus:px-4 focus:py-3 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-lg">{t('skipToContent')}</a>}
       {!isFullscreen && <Navigation />}
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
         <AnimatePresence mode="wait" initial={false} onExitComplete={() => {
           // Reset between pages so the outgoing content never jumps to its top.
           window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
