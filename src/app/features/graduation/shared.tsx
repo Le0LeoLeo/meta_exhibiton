@@ -41,7 +41,8 @@ export function useGraduationAction() {
       setError(errorMessage(reason));
     } finally { setPending(false); }
   }
-  return { pending, error, run };
+  const clearError = useCallback(() => setError(''), []);
+  return { pending, error, run, clearError };
 }
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {

@@ -43,8 +43,9 @@ export default function ResetPassword() {
         setAccepted(true); setCooldown(60);
       }
     } catch (failure) {
-      const invalid = failure instanceof Error && 'code' in failure && ['INVALID_RESET_TOKEN', 'INVALID_RESET_INPUT'].includes(String(failure.code));
-      setError(t(invalid ? 'resetInvalid' : 'resetRetry'));
+      const code = failure instanceof Error && 'code' in failure ? String(failure.code) : '';
+      // RESET_UNAVAILABLE means email delivery is not configured; retrying or checking the network will not help.
+      setError(t(['INVALID_RESET_TOKEN', 'INVALID_RESET_INPUT'].includes(code) ? 'resetInvalid' : code === 'RESET_UNAVAILABLE' ? 'resetUnavailable' : 'resetRetry'));
     } finally { setBusy(false); }
   }
   return <main className="min-h-[calc(100vh-8rem)] bg-background px-4 py-12 text-foreground">
