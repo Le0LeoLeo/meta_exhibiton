@@ -22,11 +22,12 @@ const buttonVariants = cva(
           "text-foreground hover:bg-secondary hover:text-foreground",
         link: "text-tool-blue underline-offset-4 hover:underline",
       },
+      // Touch screens get the 44px minimum target; mouse layouts keep their compact sizes.
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9 rounded-md",
+        default: "h-9 px-4 py-2 has-[>svg]:px-3 pointer-coarse:min-h-11",
+        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5 pointer-coarse:min-h-11",
+        lg: "h-10 rounded-md px-6 has-[>svg]:px-4 pointer-coarse:min-h-11",
+        icon: "size-9 rounded-md pointer-coarse:min-h-11 pointer-coarse:min-w-11",
       },
     },
     defaultVariants: {
