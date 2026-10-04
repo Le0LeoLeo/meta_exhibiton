@@ -363,7 +363,7 @@ export function registerAuthRoutes(app, deps) {
       if (!row) return res.status(404).json({ message: 'user not found' });
 
       const ok = await bcrypt.compare(String(currentPassword), row.password_hash);
-      if (!ok) return res.status(401).json({ message: 'current password is incorrect' });
+      if (!ok) return res.status(401).json({ code: 'CURRENT_PASSWORD_INCORRECT', message: 'current password is incorrect' });
 
       const newHash = await bcrypt.hash(String(newPassword), 10);
       await updateUserPasswordHash(payload.sub, newHash);
