@@ -923,6 +923,7 @@ export const zhTW = {
     foldersHint: "用資料夾整理展覽；可按「移動到…」，或在桌面拖曳移動按鈕到資料夾。",
     foldersBreadcrumb: "資料夾路徑",
     foldersItemCount: "{count} 個項目",
+    foldersItemCountOne: "1 個項目",
     foldersActions: "{name} 的資料夾操作",
     foldersSelectItem: "選取 {title}",
     foldersMoveItem: "移動展覽 {title}",

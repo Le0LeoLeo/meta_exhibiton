@@ -865,6 +865,7 @@ export const zhCN = {
     foldersHint: "用文件夹整理展览；可按“移动到…”，或在桌面拖动移动按钮到文件夹。",
     foldersBreadcrumb: "文件夹路径",
     foldersItemCount: "{count} 个项目",
+    foldersItemCountOne: "1 个项目",
     foldersActions: "{name} 的文件夹操作",
     foldersSelectItem: "选择 {title}",
     foldersMoveItem: "移动展览 {title}",

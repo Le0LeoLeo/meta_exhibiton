@@ -6,6 +6,7 @@ import { bindMediaAssets, uploadMediaAsset } from '@/app/api/media';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Textarea } from '@/app/components/ui/textarea';
+import { ImagePlus } from 'lucide-react';
 import { useI18n } from '@/app/components/I18nProvider';
 import { useMobileDevice } from '@/app/hooks/useMobileDevice';
 import { useUnsavedChanges } from '@/app/components/UnsavedChangesProvider';
@@ -91,7 +92,7 @@ export default function ExhibitionArtworkEdit() {
       </div>
       {gallery.isPublished && <p className="text-sm text-muted-foreground">{t('artworkEditPublished')}</p>}
       {preview && <div className="h-80 overflow-hidden rounded-lg border"><Suspense fallback={<p role="status">{t('quickExhibitionLoading')}</p>}><Preview scene={scene} focusedIndex={focus} fallback={<p className="p-4">{t('demo3DUnavailable')}</p>} /></Suspense></div>}
-      <label className="block rounded-lg border border-dashed p-4">{t('artworkEditAdd')}<input aria-label={t('artworkEditAdd')} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} className="mt-3 block w-full text-sm" onChange={event => { void upload(event.target.files?.[0]); event.target.value = ''; }} /></label>
+      <label className="flex min-h-16 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-sm font-medium hover:bg-secondary focus-within:ring-2 focus-within:ring-ring has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"><ImagePlus aria-hidden="true" className="size-5" />{t('artworkEditAdd')}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} className="sr-only" onChange={event => { void upload(event.target.files?.[0]); event.target.value = ''; }} /></label>
       {!paintings.length && <p>{t('artworkEditEmpty')}</p>}
       <div className="space-y-5">{paintings.map((item,index) => <fieldset key={item.id} disabled={busy} className="rounded-lg border bg-card p-4">
         <legend className="px-2 text-sm">{index + 1}. {item.title || t('artworkEditUntitled')}</legend>
@@ -101,13 +102,13 @@ export default function ExhibitionArtworkEdit() {
             <label className="block text-sm">{t('artworkEditName')}<Input value={item.title || ''} maxLength={200} onChange={e => update(item.id,{title:e.target.value})} /></label>
             <label className="block text-sm">{t('artworkEditArtist')}<Input value={item.artist || ''} maxLength={200} onChange={e => update(item.id,{artist:e.target.value})} /></label>
             <label className="block text-sm">{t('artworkEditText')}<Textarea value={item.description || ''} maxLength={2000} onChange={e => update(item.id,{description:e.target.value})} /></label>
-            <label className="block text-sm">{t('artworkEditReplace')}<input type="file" accept="image/jpeg,image/png,image/webp" className="mt-2 block w-full" onChange={e => { void upload(e.target.files?.[0],item.id); e.target.value=''; }} /></label>
+            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-secondary focus-within:ring-2 focus-within:ring-ring"><ImagePlus aria-hidden="true" className="size-4" />{t('artworkEditReplace')}<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={e => { void upload(e.target.files?.[0],item.id); e.target.value=''; }} /></label>
             <details><summary className="cursor-pointer py-2 text-sm">{t('artworkEditPosition')}</summary><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {(['x','y','z'] as const).map((axis,i) => <label key={axis} className="text-sm">{t(`artworkEditAxis${axis.toUpperCase()}`)}<Input type="number" step="0.1" value={item.position[i]} onChange={e => { const value=e.target.valueAsNumber; if(Number.isFinite(value)){ const position=[...item.position] as [number,number,number]; position[i]=value; update(item.id,{position}); } }} /></label>)}
               <label className="text-sm">{t('artworkEditAngle')}<Input type="number" step="5" value={Math.round(item.rotation[1]*180/Math.PI)} onChange={e => { if(Number.isFinite(e.target.valueAsNumber))update(item.id,{rotation:[item.rotation[0],e.target.valueAsNumber*Math.PI/180,item.rotation[2]]}); }} /></label>
               {(['frameWidth','frameHeight'] as const).map(key => <label key={key} className="text-sm">{t(key==='frameWidth'?'artworkEditWidth':'artworkEditHeight')}<Input type="number" step="0.1" min="0.1" value={item[key] ?? 2} onChange={e => { if(e.target.valueAsNumber>0)update(item.id,{[key]:e.target.valueAsNumber}); }} /></label>)}
             </div></details>
-            <div className="flex flex-wrap gap-3"><Button type="button" variant="outline" onClick={() => { setFocus(index); setPreview(true); }}>{t('quickExhibitionPreviewTitle')}</Button><Button type="button" variant="outline" onClick={() => { setScene({...scene,items:scene.items.filter(entry=>entry.id!==item.id)}); setDirty(true); setMessage(''); }}>{t('artworkEditRemove')}</Button></div>
+            <div className="flex flex-wrap gap-3"><Button type="button" variant="outline" aria-label={`${t('quickExhibitionPreviewTitle')}: ${item.title || t('artworkEditUntitled')}`} onClick={() => { setFocus(index); setPreview(true); }}>{t('quickExhibitionPreviewTitle')}</Button><Button type="button" variant="outline" onClick={() => { setScene({...scene,items:scene.items.filter(entry=>entry.id!==item.id)}); setDirty(true); setMessage(''); }}>{t('artworkEditRemove')}</Button></div>
           </div>
         </div>
       </fieldset>)}</div>

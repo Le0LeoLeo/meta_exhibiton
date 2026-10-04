@@ -22,7 +22,7 @@ const mount = () => render(<I18nProvider><MemoryRouter initialEntries={['/folder
 it('browses descendants and exhibitions with scoped media and no edit controls', async () => {
   mount();
   fireEvent.click(await screen.findByRole('button',{name:'Photos'}));
-  fireEvent.click(await screen.findByRole('button',{name:'觀看展覽'}));
+  fireEvent.click(await screen.findByRole('button',{name:'觀看展覽: Ocean'}));
   expect(await screen.findByRole('heading',{name:'Ocean',level:1})).toBeInTheDocument();
   expect(screen.getByRole('img',{name:'Sea'})).toHaveAttribute('src','/api/shared-folders/galleries/gallery/media/image?token=token');
   expect(screen.queryByRole('button',{name:'儲存變更'})).not.toBeInTheDocument();
