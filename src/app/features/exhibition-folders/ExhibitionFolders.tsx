@@ -30,6 +30,7 @@ export function folderPath(folders: GalleryFolder[], id: string | null): Gallery
 
 export function ExhibitionFolders({ items, children }: Props) {
   const { t } = useI18n();
+  const folderItemLabel = (count: number) => (count === 1 ? t('foldersItemCountOne') : t('foldersItemCount', { count }));
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<GalleryFolderState | null>(null);
   const [error, setError] = useState(false);
@@ -135,7 +136,7 @@ export function ExhibitionFolders({ items, children }: Props) {
       {childFolders.length > 0 && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {childFolders.map(folder => <div key={folder.id} {...dropProps(folder.id)} className={`flex min-w-0 items-center gap-1 rounded-lg border p-2 transition-colors ${dragOver === folder.id ? 'border-primary bg-accent' : 'border-border bg-background hover:bg-accent/40'}`}>
           <button className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-md px-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => open(folder.id)}>
-            <Folder className="size-6 shrink-0 text-curator-brass" aria-hidden="true" /><span className="min-w-0"><span className="block truncate font-medium">{folder.name}</span><span className="text-xs text-muted-foreground">{t('foldersItemCount', { count: items.filter(item => membership.get(item.id) === folder.id).length + folders.filter(f => f.parentId === folder.id).length })}</span></span>
+            <Folder className="size-6 shrink-0 text-curator-brass" aria-hidden="true" /><span className="min-w-0"><span className="block truncate font-medium">{folder.name}</span><span className="text-xs text-muted-foreground">{folderItemLabel(items.filter(item => membership.get(item.id) === folder.id).length + folders.filter(f => f.parentId === folder.id).length)}</span></span>
           </button>
           <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className={buttonVariants({ size: 'icon', variant: 'ghost' })} disabled={busy} aria-label={t('foldersActions', { name: folder.name })}><MoreHorizontal className="size-4" /></button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" onCloseAutoFocus={event => { if (edit || move || sharing) event.preventDefault(); }}>

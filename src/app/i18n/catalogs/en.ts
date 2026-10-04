@@ -864,6 +864,7 @@ export const en = {
     foldersHint: "Organize exhibitions in folders. Use “Move to…” or drag a move button onto a folder on desktop.",
     foldersBreadcrumb: "Folder path",
     foldersItemCount: "{count} items",
+    foldersItemCountOne: "1 item",
     foldersActions: "Folder actions for {name}",
     foldersSelectItem: "Select {title}",
     foldersMoveItem: "Move exhibition {title}",
